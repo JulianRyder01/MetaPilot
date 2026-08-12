@@ -1,7 +1,10 @@
 import { Link, NavLink, Outlet } from "react-router-dom"
+import { useEffect } from "react"
 import { BarChart3, BookOpen, Library, Puzzle, Rocket, Settings2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useThemeStore } from "@/stores/theme"
+import ThemeToggle from "@/components/layout/ThemeToggle"
 
 const navItems = [
   { to: "/", label: "我的库", icon: Library },
@@ -12,6 +15,11 @@ const navItems = [
 ]
 
 export default function AppLayout() {
+  // 应用启动即预拉取主题清单（「主题」插件启用时），让已选主题尽快生效
+  useEffect(() => {
+    useThemeStore.getState().fetchThemes()
+  }, [])
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
@@ -42,6 +50,9 @@ export default function AppLayout() {
               </NavLink>
             ))}
           </nav>
+          <div className="ml-auto">
+            <ThemeToggle />
+          </div>
         </div>
       </header>
       <main className="flex-1">

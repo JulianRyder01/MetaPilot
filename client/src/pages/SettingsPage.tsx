@@ -1,8 +1,9 @@
-import { Settings2 } from "lucide-react"
+import { Settings2, Palette } from "lucide-react"
 
 import { useSettingsStore } from "@/stores/settings"
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
+import { ThemeSelector } from "@/components/theme/ThemeSelector"
 
 export default function SettingsPage() {
   const {
@@ -24,6 +25,21 @@ export default function SettingsPage() {
           提示仅作提醒，不会打断操作。
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Palette className="size-4 text-primary" />
+            外观
+          </CardTitle>
+          <CardDescription>
+            黑夜 / 白天模式随时可切换；特色主题由「主题」插件提供（在插件管理页启用后选装）。
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ThemeSelector />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-4">

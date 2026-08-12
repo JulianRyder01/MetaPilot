@@ -4,7 +4,6 @@ import { Check, Moon, Palette, Sun } from "lucide-react"
 
 import { useThemeStore } from "@/stores/theme"
 import { ensurePluginsLoaded, usePluginEnabled } from "@/stores/plugins"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 /**

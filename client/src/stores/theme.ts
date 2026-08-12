@@ -22,7 +22,8 @@ interface ThemeState {
   setMode: (mode: Mode) => void
   toggleMode: () => void
   setTheme: (themeId: string | null) => void
-  fetchThemes: () => Promise<void>
+  /** 拉取「主题」插件提供的主题清单；force=true 时忽略已加载标记（启用/重新打开面板时用） */
+  fetchThemes: (force?: boolean) => Promise<void>
 }
 
 /** 当前已注入的 CSS 变量名（切换主题/主题关闭时先移除） */
@@ -57,8 +58,8 @@ export const useThemeStore = create<ThemeState>()(
       toggleMode: () => set({ mode: get().mode === "light" ? "dark" : "light" }),
       setTheme: (themeId) => set({ themeId }),
 
-      fetchThemes: async () => {
-        if (get().themesLoaded) return
+      fetchThemes: async (force = false) => {
+        if (!force && get().themesLoaded) return
         try {
           const themes = await api.listThemes()
           set({ themes, themesLoaded: true })
