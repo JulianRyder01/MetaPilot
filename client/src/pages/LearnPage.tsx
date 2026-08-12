@@ -8,7 +8,7 @@ import {
   Circle,
   ListTree,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 import { api, type Collection, type Progress } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -110,18 +110,9 @@ export default function LearnPage() {
     if (cid) navigate(`/learn/${cid}/${sectionId}`)
   }
 
-  if (!col || currentIndex === -1) {
-    return (
-      <div className="mx-auto max-w-3xl space-y-4 px-6 py-8">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    )
-  }
-
   // 课程类型依赖课程插件：禁用时仍可阅读（markdown 正常、题目/交互块显示原始数据），
   // 仅提示依赖，不拦截浏览。
-  const isCourse = col.kind === "course"
+  const isCourse = col?.kind === "course"
   const canTrack = isCourse && courseEnabled
   const warnedRef = useRef(false)
   useEffect(() => {
@@ -135,6 +126,15 @@ export default function LearnPage() {
       }
     }
   }, [isCourse, courseEnabled])
+
+  if (!col || currentIndex === -1) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4 px-6 py-8">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-[calc(100vh-56px)]">

@@ -12,7 +12,7 @@ import {
   Rocket,
   Sparkles,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 import { api, type Collection, type Progress } from "@/lib/api"
 import { usePluginEnabled } from "@/stores/plugins"
@@ -81,20 +81,10 @@ export default function CoursePage() {
     }
   }
 
-  if (!col) {
-    return (
-      <div className="mx-auto max-w-4xl space-y-4 px-6 py-8">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-4 w-96" />
-        <Skeleton className="h-24 w-full" />
-      </div>
-    )
-  }
-
   // 课程视图依赖课程插件：禁用时仍可浏览文档结构（章节/小节），
   // 仅进度、导出、继续学习等课程能力不可用。
-  const isCourse = col.kind === "course"
-  const canTrack = isCourse && courseEnabled
+  const isCourse = col?.kind === "course"
+  const canTrack = isCourse && courseEnabled && col !== null
   const warnedRef = useRef(false)
   useEffect(() => {
     if (isCourse && !courseEnabled && !warnedRef.current) {
@@ -107,6 +97,16 @@ export default function CoursePage() {
       }
     }
   }, [isCourse, courseEnabled])
+
+  if (!col) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-4 px-6 py-8">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-4 w-96" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
