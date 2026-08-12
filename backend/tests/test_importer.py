@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.plugins.base import manager
 from app.services.importer import CourseImporter
 from app.storage.progress import ProgressStore
 from app.storage.stats import StatsStore
@@ -18,6 +19,7 @@ client = TestClient(app)
 
 def _reset():
     tmp = Path(tempfile.mkdtemp(prefix="metapilot_imp_"))
+    manager.configure(tmp)
     assets = tmp / "assets" / "courses"
     app.state.store = LibraryStore(tmp)
     app.state.progress = ProgressStore(tmp)

@@ -1,0 +1,8 @@
+{
+  "id": "course",
+  "name": "课程",
+  "version": "1.0.0",
+  "description": "课程包制作与导入/导出、Markdown 笔记导入、动态交互块资产托管",
+  "author": "MetaPilot",
+  "depends_on": []
+}

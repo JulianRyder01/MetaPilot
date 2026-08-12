@@ -1,11 +1,19 @@
-"""个人知识库插件路由。"""
-from fastapi import APIRouter, HTTPException, Request
+"""个人知识库插件路由（AI 问答 + 溯源）。
+
+被禁用时所有端点返回 503 + 启用提示（requires_plugin("knowledge_base")）。
+"""
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from ..services.embedding import EmbeddingError
-from ..services.embedding_server import embedding_server_manager
+from app.plugins.base import requires_plugin
+from app.services.embedding import EmbeddingError
+from app.services.embedding_server import embedding_server_manager
 
-router = APIRouter(prefix="/api/plugins/kb", tags=["kb"])
+router = APIRouter(
+    prefix="/api/plugins/kb",
+    tags=["kb"],
+    dependencies=[Depends(requires_plugin("knowledge_base"))],
+)
 
 
 class AskIn(BaseModel):

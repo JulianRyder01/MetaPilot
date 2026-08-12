@@ -6,10 +6,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.plugins.knowledge_base.service import KBService
+from app.plugins.base import manager
 from app.storage.progress import ProgressStore
 from app.storage.stats import StatsStore
 from app.storage.store import LibraryStore
+from plugins.knowledge_base.service import KBService
 
 client = TestClient(app)
 
@@ -43,6 +44,7 @@ class FakeEmbedding:
 
 def _reset():
     tmp = Path(tempfile.mkdtemp(prefix="metapilot_kb_"))
+    manager.configure(tmp)
     app.state.store = LibraryStore(tmp)
     app.state.progress = ProgressStore(tmp)
     app.state.stats = StatsStore(tmp)
@@ -105,7 +107,7 @@ def test_ask_with_sources(monkeypatch):
         captured["prompt"] = messages[0]["content"]
         return "根据[来源1]，傅里叶变换将信号从时域转换到频域。\n引用来源：[来源1]"
 
-    monkeypatch.setattr("app.plugins.knowledge_base.service.chat_completion", fake_chat)
+    monkeypatch.setattr("plugins.knowledge_base.service.chat_completion", fake_chat)
 
     r = client.post(f"/api/plugins/kb/{cid}/ask", json={"question": "问题：什么是傅里叶变换？"})
     assert r.status_code == 200, r.text

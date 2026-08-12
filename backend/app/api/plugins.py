@@ -1,62 +1,29 @@
-"""课程插件路由：课程包导入 / 导出。"""
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import Response
+"""插件管理路由（核心）：清单 / 启用 / 禁用。"""
+from fastapi import APIRouter, HTTPException, Request
 
-from ..plugins.base import list_plugins
+from ..plugins.base import manager
 
 router = APIRouter(prefix="/api/plugins", tags=["plugins"])
 
 
 @router.get("")
 def plugin_list():
-    return list_plugins()
+    return manager.list()
 
 
-@router.post("/course/import")
-async def import_course(
-    request: Request,
-    file: UploadFile = File(...),
-    libraryId: str = Form(""),
-):
-    importer = request.app.state.importer
-    data = await file.read()
+@router.post("/{pid}/enable")
+def plugin_enable(pid: str):
     try:
-        return importer.import_zip_bytes(data, library_id=libraryId or "")
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"导入失败: {e}")
-
-
-@router.get("/course/{cid}/export")
-def export_course(cid: str, request: Request):
-    importer = request.app.state.importer
-    try:
-        content = importer.export_collection(cid)
+        return manager.enable(pid)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    return Response(
-        content=content,
-        media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="course-{cid}.zip"'},
-    )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/notes/import")
-async def import_note(
-    request: Request,
-    file: UploadFile = File(...),
-    libraryId: str = Form(""),
-    collectionId: str = Form(""),
-):
-    importer = request.app.state.importer
-    text = (await file.read()).decode("utf-8", errors="replace")
+@router.post("/{pid}/disable")
+def plugin_disable(pid: str):
     try:
-        return importer.import_markdown(
-            text,
-            filename=file.filename or "未命名.md",
-            library_id=libraryId or "",
-            collection_id=collectionId or "",
-        )
+        return manager.disable(pid)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))

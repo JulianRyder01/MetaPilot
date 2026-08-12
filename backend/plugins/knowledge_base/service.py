@@ -7,10 +7,10 @@ from typing import Optional
 
 import numpy as np
 
-from ...config import settings
-from ...services.embedding import EmbeddingError, EmbeddingProvider
-from ...services.minimax import chat_completion
-from ...storage.store import LibraryStore
+from app.config import settings
+from app.services.embedding import EmbeddingError, EmbeddingProvider
+from app.services.minimax import chat_completion
+from app.storage.store import LibraryStore
 
 EMBED_BATCH = 16
 TOP_K = 5

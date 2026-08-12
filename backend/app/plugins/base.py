@@ -1,11 +1,18 @@
-"""插件机制：基类与注册表。
+"""插件机制：基类、注册表与启用状态管理。
 
-插件 = 一个 Python 模块，继承 Plugin 并在 register() 中挂载路由 / 初始化服务。
-插件清单经 GET /api/plugins 暴露给前端。
+- 插件是 backend/plugins/<plugin_id>/ 下的独立 Python 包（物理目录，含 plugin.json 元数据）。
+- 加载器扫描该目录，将每个插件的 `plugin` 实例注册到 PluginManager。
+- 启用/禁用状态持久化在 backend/data/plugins.json，运行时切换无需重启。
+- 插件路由始终挂载，但通过 `requires_plugin` 依赖在禁用时返回 503 + 提示。
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import json
+import threading
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional
+
+from fastapi import HTTPException, Request
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -16,24 +23,116 @@ class Plugin:
     name: str = ""
     version: str = "1.0.0"
     description: str = ""
+    author: str = ""
+    # 依赖的其它插件 id
+    depends_on: list[str] = []
 
     def register(self, app: "FastAPI") -> None:
         raise NotImplementedError
 
-    def unregister(self, app: "FastAPI") -> None:
-        pass
+
+class PluginManager:
+    def __init__(self, data_dir: str | Path):
+        self.data_dir = Path(data_dir)
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.state_path = self.data_dir / "plugins.json"
+        self._lock = threading.Lock()
+        self._registry: dict[str, Plugin] = {}
+        self._state: dict[str, bool] = self._load_state()
+
+    def _load_state(self) -> dict[str, bool]:
+        if not self.state_path.exists():
+            return {}
+        try:
+            return json.loads(self.state_path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+
+    def configure(self, data_dir: str | Path) -> None:
+        """应用启动时设置数据目录并重载启用状态。"""
+        self.data_dir = Path(data_dir)
+        self.state_path = self.data_dir / "plugins.json"
+        self._state = self._load_state()
+
+    def _save_state(self) -> None:
+        self.state_path.write_text(
+            json.dumps(self._state, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+    # ---- 注册 ----
+
+    def register(self, plugin: Plugin) -> None:
+        with self._lock:
+            self._registry[plugin.id] = plugin
+
+    def get(self, plugin_id: str) -> Optional[Plugin]:
+        return self._registry.get(plugin_id)
+
+    def list(self) -> list[dict]:
+        """插件清单（含启用状态与依赖信息）。"""
+        out = []
+        for p in self._registry.values():
+            out.append(self._info(p))
+        return out
+
+    def _info(self, p: Plugin) -> dict:
+        deps = [d for d in p.depends_on if d in self._registry]
+        enabled = self.is_enabled(p.id)
+        missing_deps = [d for d in p.depends_on if d not in self._registry or not self.is_enabled(d)]
+        return {
+            "id": p.id,
+            "name": p.name,
+            "version": p.version,
+            "description": p.description,
+            "author": p.author,
+            "enabled": enabled,
+            "dependsOn": deps,
+            "missingDependencies": missing_deps,
+        }
+
+    # ---- 启用状态 ----
+
+    def is_enabled(self, plugin_id: str) -> bool:
+        return self._state.get(plugin_id, True)  # 默认启用
+
+    def set_enabled(self, plugin_id: str, enabled: bool) -> dict:
+        with self._lock:
+            p = self._registry.get(plugin_id)
+            if p is None:
+                raise KeyError(f"插件不存在: {plugin_id}")
+            if enabled:
+                # 启用前检查依赖是否已启用
+                missing = [d for d in p.depends_on if d in self._registry and not self.is_enabled(d)]
+                if missing:
+                    names = [self._registry[m].name for m in missing]
+                    raise ValueError(f"请先启用依赖插件: {'、'.join(names)}")
+            self._state[plugin_id] = enabled
+            self._save_state()
+            return self._info(p)
+
+    def enable(self, plugin_id: str) -> dict:
+        return self.set_enabled(plugin_id, True)
+
+    def disable(self, plugin_id: str) -> dict:
+        return self.set_enabled(plugin_id, False)
 
 
-_registry: dict[str, Plugin] = {}
+# 全局插件管理器（由加载器在应用启动时填充）
+manager = PluginManager(Path.cwd())
 
 
-def register_plugin(plugin: Plugin) -> None:
-    _registry[plugin.id] = plugin
+def requires_plugin(plugin_id: str):
+    """FastAPI 依赖：插件被禁用时返回 503 与启用提示。"""
 
+    def _check(request: Request):
+        p = manager.get(plugin_id)
+        if p is None:
+            raise HTTPException(status_code=404, detail=f"插件不存在: {plugin_id}")
+        if not manager.is_enabled(plugin_id):
+            raise HTTPException(
+                status_code=503,
+                detail=f"需要启用「{p.name}」插件才可使用此功能，请在插件管理页启用（/plugins）",
+            )
+        return p
 
-def list_plugins() -> list[dict]:
-    return [
-        {"id": p.id, "name": p.name, "version": p.version,
-         "description": p.description, "enabled": True}
-        for p in _registry.values()
-    ]
+    return _check

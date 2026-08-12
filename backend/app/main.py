@@ -9,10 +9,9 @@ from .config import DATA_DIR
 from .storage.progress import ProgressStore
 from .storage.stats import StatsStore
 from .storage.store import LibraryStore
-from .api import ai, documents, libraries, progress, stats
-from .plugins.base import register_plugin
-from .plugins.course import plugin as course_plugin
-from .plugins.knowledge_base import plugin as kb_plugin
+from .api import ai, documents, libraries, plugins, progress, stats
+from .plugins.base import manager
+from .plugins.loader import load_plugins
 from .services.importer import CourseImporter
 
 APP_VERSION = "1.0.0"
@@ -39,12 +38,15 @@ app.include_router(documents.router)
 app.include_router(progress.router)
 app.include_router(stats.router)
 app.include_router(ai.router)
+app.include_router(plugins.router)
 
-# 插件注册（course 挂载 /api/plugins/*，knowledge_base 挂载 /api/plugins/kb/*，并登记插件清单）
-course_plugin.register(app)
-kb_plugin.register(app)
-register_plugin(course_plugin)
-register_plugin(kb_plugin)
+# 插件系统：扫描 backend/plugins/ 物理目录加载全部插件并挂载路由。
+# 路由始终挂载；被禁用的插件由 requires_plugin 依赖在请求时返回 503 + 启用提示。
+app.state.plugins = load_plugins(DATA_DIR)
+for info in manager.list():
+    plugin = manager.get(info["id"])
+    if plugin is not None:
+        plugin.register(app)
 
 # 课程包动态交互块资产托管：/api/assets/courses/{cid}/interactives/xxx.html
 app.mount("/api/assets/courses", StaticFiles(directory=str(ASSETS_DIR)), name="courses-assets")
