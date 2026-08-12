@@ -32,13 +32,17 @@ const injectedKeys = new Set<string>()
 function applyToDom(s: Pick<ThemeState, "mode" | "themeId" | "themes">) {
   const root = document.documentElement
   root.classList.toggle("dark", s.mode === "dark")
-  root.dataset.theme = s.themeId ?? ""
 
   for (const key of injectedKeys) root.style.removeProperty(key)
   injectedKeys.clear()
 
   const theme = s.themes.find((t) => t.id === s.themeId)
-  if (!theme) return
+  if (!theme) {
+    // 主题不存在（缓存过期/被移除）：清除标记，退化为默认主题
+    delete root.dataset.theme
+    return
+  }
+  root.dataset.theme = theme.id
   const vars = theme.variables[s.mode]
   for (const [key, value] of Object.entries(vars)) {
     root.style.setProperty(key, value)
@@ -64,7 +68,8 @@ export const useThemeStore = create<ThemeState>()(
           const themes = await api.listThemes()
           set({ themes, themesLoaded: true })
         } catch {
-          // 插件未启用（503）或后端不可用：保留本地缓存，UI 走「去启用插件」提示
+          // 插件未启用（503）：request 层会按 showPluginErrors 设置弹提示；
+          // 这里保留本地缓存，面板上显示「去启用插件」引导，缓存主题仍可切换
           set({ themesLoaded: true })
         }
       },
