@@ -1,0 +1,24 @@
+# ---- 敏感配置 ----
+.env
+
+# ---- Node / 前端 ----
+node_modules/
+client/dist/
+client/.vite/
+*.local
+
+# ---- Python / 后端 ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+backend/data/
+.pytest_cache/
+.mypy_cache/
+
+# ---- 运行时 / 临时 ----
+.probe/
+*.log
+.DS_Store
+Thumbs.db
