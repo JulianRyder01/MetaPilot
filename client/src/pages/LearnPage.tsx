@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { api, type Collection, type Progress } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { usePluginEnabled } from "@/stores/plugins"
+import { useSettingsStore } from "@/stores/settings"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -20,7 +21,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { OutlineNav } from "@/components/learn/OutlineNav"
 import { BlockRenderer } from "@/components/learn/BlockRenderer"
-import { PluginGate } from "@/components/plugins/PluginGate"
 
 export default function LearnPage() {
   const { cid, sid } = useParams()
@@ -119,15 +119,22 @@ export default function LearnPage() {
     )
   }
 
-  // 课程类型（含题目/交互块/进度）依赖课程插件；笔记类型是纯文档阅读
+  // 课程类型依赖课程插件：禁用时仍可阅读（markdown 正常、题目/交互块显示原始数据），
+  // 仅提示依赖，不拦截浏览。
   const isCourse = col.kind === "course"
-  if (isCourse && !courseEnabled) {
-    return (
-      <div className="mx-auto max-w-2xl px-6 py-16">
-        <PluginGate pluginId="course" hint="学习课程（知识点组件流 / 进度 / 题目判题 / 交互块）" />
-      </div>
-    )
-  }
+  const canTrack = isCourse && courseEnabled
+  const warnedRef = useRef(false)
+  useEffect(() => {
+    if (isCourse && !courseEnabled && !warnedRef.current) {
+      warnedRef.current = true
+      if (useSettingsStore.getState().showPluginWarnings) {
+        toast.warning(
+          "此文档依赖「课程」插件，题目与交互块将以原始数据展示，可前往「插件」页启用。",
+          { duration: 6000 },
+        )
+      }
+    }
+  }, [isCourse, courseEnabled])
 
   return (
     <div className="flex h-[calc(100vh-56px)]">
@@ -183,7 +190,7 @@ export default function LearnPage() {
               {current.doc.name}
             </Link>
           </div>
-          {isCourse ? (
+          {canTrack ? (
             <Button
               variant={isCompleted ? "outline" : "default"}
               size="sm"
@@ -194,7 +201,7 @@ export default function LearnPage() {
               {isCompleted ? "已学完" : "标记学完"}
             </Button>
           ) : (
-            <Badge variant="secondary">笔记阅读</Badge>
+            <Badge variant="secondary">文档阅读</Badge>
           )}
         </div>
 
@@ -235,7 +242,7 @@ export default function LearnPage() {
             <ArrowLeft className="size-4" />
             上一个知识点
           </Button>
-          {isCourse ? (
+          {canTrack ? (
             <Button variant="ghost" size="sm" onClick={toggleDone}>
               {isCompleted ? "取消学完标记" : "标记本知识点学完"}
             </Button>

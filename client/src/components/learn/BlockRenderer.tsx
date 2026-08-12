@@ -1,11 +1,27 @@
 import type { Block } from "@/lib/api"
+import { usePluginEnabled } from "@/stores/plugins"
 import { MarkdownBlock } from "@/components/learn/blocks/MarkdownBlock"
 import { ChoiceBlock } from "@/components/learn/blocks/ChoiceBlock"
 import { FillBlankBlock } from "@/components/learn/blocks/FillBlankBlock"
 import { ShortAnswerBlock } from "@/components/learn/blocks/ShortAnswerBlock"
 import { InteractiveBlock } from "@/components/learn/blocks/InteractiveBlock"
+import { PluginBlockPlaceholder } from "@/components/learn/blocks/PluginBlockPlaceholder"
 
+/**
+ * 组件流渲染器。
+ *
+ * 课程组件（题目/交互块）依赖「课程」插件：插件未启用时，
+ * Markdown 仍正常渲染（文档库阅读），其余组件以原始数据占位展示。
+ */
 export function BlockRenderer({ block, collectionId }: { block: Block; collectionId: string }) {
+  const courseEnabled = usePluginEnabled("course")
+  const isMarkdown = block.type === "markdown"
+  const renderable = isMarkdown || courseEnabled
+
+  if (!renderable) {
+    return <PluginBlockPlaceholder block={block} pluginId="course" pluginName="课程" />
+  }
+
   switch (block.type) {
     case "markdown":
       return <MarkdownBlock content={block.content as string | undefined} />

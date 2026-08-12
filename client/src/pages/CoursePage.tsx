@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import {
   ArrowLeft,
@@ -16,6 +16,7 @@ import { toast } from "sonner"
 
 import { api, type Collection, type Progress } from "@/lib/api"
 import { usePluginEnabled } from "@/stores/plugins"
+import { useSettingsStore } from "@/stores/settings"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress as ProgressBar } from "@/components/ui/progress"
@@ -90,15 +91,22 @@ export default function CoursePage() {
     )
   }
 
-  // 课程视图依赖课程插件；笔记集合仅作文档浏览
+  // 课程视图依赖课程插件：禁用时仍可浏览文档结构（章节/小节），
+  // 仅进度、导出、继续学习等课程能力不可用。
   const isCourse = col.kind === "course"
-  if (isCourse && !courseEnabled) {
-    return (
-      <div className="mx-auto max-w-2xl px-6 py-16">
-        <PluginGate pluginId="course" hint="浏览与学习课程（进度 / 题目 / 交互块 / 导出）" />
-      </div>
-    )
-  }
+  const canTrack = isCourse && courseEnabled
+  const warnedRef = useRef(false)
+  useEffect(() => {
+    if (isCourse && !courseEnabled && !warnedRef.current) {
+      warnedRef.current = true
+      if (useSettingsStore.getState().showPluginWarnings) {
+        toast.warning(
+          "此文档依赖「课程」插件，学习进度与题目交互不可用，可前往「插件」页启用。",
+          { duration: 6000 },
+        )
+      }
+    }
+  }, [isCourse, courseEnabled])
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
@@ -120,7 +128,7 @@ export default function CoursePage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {isCourse && (
+          {canTrack && (
             <>
               <Button variant="outline" size="sm" onClick={exportCourse}>
                 <Download className="size-4" />
@@ -140,7 +148,7 @@ export default function CoursePage() {
       </div>
 
       {/* 进度（课程能力） */}
-      {isCourse && (
+      {canTrack ? (
         <div className="mb-6 rounded-lg border p-4">
           <div className="mb-2 flex items-center justify-between text-sm">
             <span className="font-medium">学习进度</span>
@@ -154,6 +162,10 @@ export default function CoursePage() {
               上次学到：{allSections.find(({ section }) => section.id === progress.lastPosition!.sectionId)?.section.name ?? ""}
             </p>
           )}
+        </div>
+      ) : (
+        <div className="mb-6 rounded-lg border border-dashed border-amber-300 bg-amber-50/40 px-4 py-3 text-sm dark:border-amber-700/50 dark:bg-amber-950/20">
+          学习进度依赖「课程」插件，启用后可标记学完并跟踪上次学习位置。
         </div>
       )}
 

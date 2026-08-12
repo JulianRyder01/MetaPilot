@@ -14,7 +14,6 @@ import { toast } from "sonner"
 
 import { api, type Collection } from "@/lib/api"
 import { cn } from "@/lib/utils"
-import { usePluginEnabled } from "@/stores/plugins"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -29,7 +28,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { BLOCK_TYPES, BlockForm } from "@/components/edit/BlockForm"
-import { PluginGate } from "@/components/plugins/PluginGate"
 
 type Selection =
   | { kind: "collection" }
@@ -48,7 +46,6 @@ export default function EditPage() {
   const [sel, setSel] = useState<Selection>({ kind: "collection" })
   const [newBlockType, setNewBlockType] = useState("markdown")
   const [dirty, setDirty] = useState(false)
-  const courseEnabled = usePluginEnabled("course")
 
   const load = useCallback(async () => {
     if (cid) setCol(await api.getCollection(cid))
@@ -60,15 +57,6 @@ export default function EditPage() {
 
   if (!col) {
     return <p className="px-6 py-10 text-sm text-muted-foreground">加载中...</p>
-  }
-
-  // 编辑课程（章节/知识点/题目/交互块）依赖课程插件；笔记集合仅可编辑名称等基础内容
-  if (col.kind === "course" && !courseEnabled) {
-    return (
-      <div className="mx-auto max-w-2xl px-6 py-16">
-        <PluginGate pluginId="course" hint="编辑课程内容（章节 / 知识点 / 题目与答案 / 交互块）" />
-      </div>
-    )
   }
 
   async function saveCollection(patch: Partial<Collection>) {

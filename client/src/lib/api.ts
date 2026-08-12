@@ -1,4 +1,7 @@
 /** 后端 API 客户端。 */
+import { toast } from "sonner"
+
+import { useSettingsStore } from "@/stores/settings"
 
 const BASE = "/api"
 
@@ -22,6 +25,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       detail = data.detail || detail
     } catch {
       /* ignore */
+    }
+    // 插件未启用导致的 503：按用户设置决定是否弹气泡（sonner 顶部提示，不打断操作）
+    if (res.status === 503 && typeof detail === "string" && detail.includes("插件")) {
+      if (useSettingsStore.getState().showPluginErrors) {
+        toast.error(detail, { duration: 5000 })
+      }
     }
     throw new ApiError(res.status, detail)
   }
@@ -126,6 +135,9 @@ export const api = {
     request<{ started: boolean; pid?: number; message?: string; error?: string }>("/plugins/kb/embedding/start", {
       method: "POST",
     }),
+
+  // 主题插件
+  listThemes: () => request<ThemeDef[]>("/plugins/themes"),
 }
 
 // ---------- 类型 ----------
@@ -212,6 +224,15 @@ export interface KbStatus {
   sectionCount: number
   vectorDim?: number
   updatedAt?: string
+}
+
+/** 主题插件返回的视觉主题（CSS 变量按 light/dark 两套注入） */
+export interface ThemeDef {
+  id: string
+  name: string
+  description: string
+  preview: { bg: string; primary: string }
+  variables: { light: Record<string, string>; dark: Record<string, string> }
 }
 
 export interface KbSource {
