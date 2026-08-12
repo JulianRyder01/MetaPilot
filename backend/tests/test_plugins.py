@@ -72,18 +72,25 @@ def test_disable_course_blocks_import_and_notes():
     # 禁用课程插件
     r = client.post("/api/plugins/course/disable").json()
     assert r["enabled"] is False
-    assert client.get("/api/plugins").json() and True
 
-    # 课程导入 / 导出 / 笔记导入 返回 503 + 提示
+    # 课程导入 / 导出 / 学习进度 / 统计 / AI 判题 / 交互资产 返回 503 + 提示
     resp = client.post("/api/plugins/course/import",
                        files={"file": ("c.zip", make_zip(), "application/zip")})
     assert resp.status_code == 503
     assert "课程" in resp.json()["detail"]
     assert "启用" in resp.json()["detail"]
 
+    assert client.get("/api/progress/demo").status_code == 503
+    assert client.get("/api/stats/summary").status_code == 503
+    assert client.post("/api/ai/grade", json={
+        "blockType": "short_answer", "question": "q", "userAnswer": "a",
+    }).status_code == 503
+    assert client.get("/api/assets/courses/demo/interactives/x.html").status_code == 503
+
+    # Markdown 笔记导入是文档库阅读器的核心能力，不随课程插件禁用
     resp = client.post("/api/plugins/notes/import",
                        files={"file": ("n.md", b"# title", "text/markdown")})
-    assert resp.status_code == 503
+    assert resp.status_code == 200
 
     # 重新启用后恢复
     client.post("/api/plugins/course/enable")
