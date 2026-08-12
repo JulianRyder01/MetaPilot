@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>DCT 与 JPEG 压缩</title>
+<style>
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#fff;color:#1f2937}
+  .wrap{padding:12px 16px}
+  h2{font-size:15px;margin:0 0 4px}
+  p.desc{font-size:12px;color:#6b7280;margin:0 0 10px;line-height:1.6}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}
+  canvas{border:1px solid #e5e7eb;border-radius:8px;background:#fafafa}
+  .controls{display:flex;gap:14px;margin-top:10px;font-size:12px;align-items:center}
+  .ctrl{display:flex;align-items:center;gap:6px}
+  input[type=range]{width:140px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>JPEG 核心：DCT 变换与系数保留</h2>
+  <p class="desc">
+    JPEG 把图像分成 8x8 块，做 <b>DCT 变换</b>后能量集中在低频系数（左上角）。
+    保留少量系数（量化）即可近似重建，这就是有损压缩的本质。拖动"保留系数比例"观察压缩率与画质（PSNR）的权衡。
+  </p>
+  <div class="row">
+    <div><p style="font-size:11px;color:#6b7280;margin:0 0 4px">原图</p><canvas id="a" width="256" height="256"></canvas></div>
+    <div><p style="font-size:11px;color:#6b7280;margin:0 0 4px">DCT 压缩重建</p><canvas id="b" width="256" height="256"></canvas></div>
+  </div>
+  <div class="controls">
+    <div class="ctrl"><label>保留系数比例</label><input type="range" id="keep" min="1" max="100" value="25"><span id="keepV"></span></div>
+    <span class="tag" id="psnr" style="font-size:11px;color:#6b7280"></span>
+  </div>
+</div>
+<script>
+const S=256;
+const ca=document.getElementById('a').getContext('2d');
+const cb=document.getElementById('b').getContext('2d');
+const src=new Float32Array(S*S);
+for(let y=0;y<S;y++)for(let x=0;x<S;x++){
+  let v=(x+y)/2+50*Math.sin(x*0.15)*Math.cos(y*0.12);
+  if(x>50&&x<150&&y>40&&y<120)v=180;
+  src[y*S+x]=Math.max(0,Math.min(255,v));
+}
+// DCT-II 8x8 与 IDCT
+function dct2d(block){
+  const N=8,out=[];
+  for(let v=0;v<N;v++)for(let u=0;u<N;u++){
+    let s=0;
+    const cu=u===0?Math.SQRT1_2:1,cv=v===0?Math.SQRT1_2:1;
+    for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+      s+=block[y*N+x]*Math.cos((2*x+1)*u*Math.PI/16)*Math.cos((2*y+1)*v*Math.PI/16);
+    }
+    out[v*N+u]=0.25*cu*cv*s;
+  }
+  return out;
+}
+function idct2d(coef){
+  const N=8,out=new Array(64).fill(0);
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    let s=0;
+    for(let v=0;v<N;v++)for(let u=0;u<N;u++){
+      const cu=u===0?Math.SQRT1_2:1,cv=v===0?Math.SQRT1_2:1;
+      s+=cu*cv*coef[v*N+u]*Math.cos((2*x+1)*u*Math.PI/16)*Math.cos((2*y+1)*v*Math.PI/16);
+    }
+    out[y*N+x]=0.25*s;
+  }
+  return out;
+}
+function compress(keepPct){
+  const out=new Float32Array(S*S);
+  for(let by=0;by<S;by+=8)for(let bx=0;bx<S;bx+=8){
+    const block=[];
+    for(let y=0;y<8;y++)for(let x=0;x<8;x++)block.push(src[(by+y)*S+bx+x]);
+    const coef=dct2d(block);
+    // 保留 zigzag 顺序前 k 个系数（能量集中在低频）
+    const zig=[[0,0],[0,1],[1,0],[2,0],[1,1],[0,2],[0,3],[1,2],[2,1],[3,0],[4,0],[3,1],[2,2],[1,3],[0,4],[0,5],[1,4],[2,3],[3,2],[4,1],[5,0]];
+    const k=Math.max(1,Math.round(zig.length*keepPct/100));
+    for(let i=k;i<zig.length;i++){const [u,v]=zig[i];coef[v*8+u]=0;}
+    const rec=idct2d(coef);
+    for(let y=0;y<8;y++)for(let x=0;x<8;x++)out[(by+y)*S+bx+x]=rec[y*8+x];
+  }
+  return out;
+}
+function draw(ctx,data){const img=ctx.createImageData(S,S);
+  for(let i=0;i<S*S;i++){const v=Math.max(0,Math.min(255,Math.round(data[i])));
+    img.data[i*4]=v;img.data[i*4+1]=v;img.data[i*4+2]=v;img.data[i*4+3]=255;}
+  ctx.putImageData(img,0,0);}
+function psnr(a,b){let mse=0;for(let i=0;i<S*S;i++)mse+=(a[i]-b[i])**2;mse/=S*S;return 10*Math.log10(255*255/(mse||1e-9));}
+function update(){
+  const kp=parseInt(document.getElementById('keep').value);
+  document.getElementById('keepV').textContent=kp+'%';
+  draw(ca,src);
+  const rec=compress(kp);
+  draw(cb,rec);
+  document.getElementById('psnr').textContent='重建 PSNR = '+psnr(src,rec).toFixed(1)+' dB（保留 '+kp+'% 系数 ≈ 压缩率约 '+(100/(Math.max(1,kp*0.8))).toFixed(1)+'x）';
+}
+document.getElementById('keep').oninput=update;
+update();
+</script>
+</body>
+</html>

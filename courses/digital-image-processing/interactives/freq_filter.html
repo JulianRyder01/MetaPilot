@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>频域滤波</title>
+<style>
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#fff;color:#1f2937}
+  .wrap{padding:12px 16px}
+  h2{font-size:15px;margin:0 0 4px}
+  p.desc{font-size:12px;color:#6b7280;margin:0 0 10px;line-height:1.6}
+  canvas{border:1px solid #e5e7eb;border-radius:8px;background:#fafafa;display:block;margin-bottom:8px}
+  .controls{display:flex;flex-wrap:wrap;gap:16px;font-size:12px;align-items:center}
+  .ctrl{display:flex;align-items:center;gap:6px}
+  input[type=range]{width:140px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>频域滤波：低通 vs 高通</h2>
+  <p class="desc">
+    先做 FFT 得到频谱，把高频分量置零再反变换 = <b>低通滤波</b>（去噪、平滑，代价是细节丢失）；
+    把低频分量置零 = <b>高通滤波</b>（保留边缘与细节、去除缓慢变化）。这就是频域处理的基本流程：FFT → 滤波 → IFFT。
+  </p>
+  <canvas id="cvT" width="560" height="110"></canvas>
+  <canvas id="cvO" width="560" height="110"></canvas>
+  <div class="controls">
+    <div class="ctrl"><label>截止频率（保留比例）</label><input type="range" id="cut" min="1" max="50" value="18"><span id="cutV"></span></div>
+    <div class="ctrl">
+      <label>模式</label>
+      <select id="mode">
+        <option value="low">低通（去噪平滑）</option>
+        <option value="high">高通（边缘细节）</option>
+      </select>
+    </div>
+  </div>
+</div>
+<script>
+const c1=document.getElementById('cvT').getContext('2d');
+const c2=document.getElementById('cvO').getContext('2d');
+const W=560,HT=110;
+const N=256;
+function clean(n){return Math.sin(2*Math.PI*2*n/N)+0.4*Math.sin(2*Math.PI*5*n/N);}
+function noisy(n){return clean(n)+(Math.random()*2-1)*0.6;}
+function fftMag(k,x){
+  let re=0,im=0;
+  for(let n=0;n<N;n++){const a=x[n],ang=2*Math.PI*k*n/N;re+=a*Math.cos(ang);im-=a*Math.sin(ang);}
+  return {re,im};
+}
+function synth(filterCut,isHigh){
+  const x=[];for(let n=0;n<N;n++)x.push(noisy(n));
+  // 频谱
+  const re=new Array(N).fill(0),im=new Array(N).fill(0);
+  for(let k=0;k<N;k++){const v=fftMag(k,x);re[k]=v.re;im[k]=v.im;}
+  // 滤波：保留 |k|<=cut（低通）或 |k|>cut（高通）
+  for(let k=0;k<N;k++){
+    const kk=Math.min(k,N-k);
+    const keep=isHigh?(kk>filterCut):(kk<=filterCut);
+    if(!keep){re[k]=0;im[k]=0;}
+  }
+  // IFFT（合成）
+  const y=new Array(N).fill(0);
+  for(let n=0;n<N;n++){
+    for(let k=0;k<N;k++){y[n]+=re[k]*Math.cos(2*Math.PI*k*n/N)-im[k]*Math.sin(2*Math.PI*k*n/N);}
+    y[n]/=N;
+  }
+  return {x,y};
+}
+function plot(ctx,data,color){
+  ctx.clearRect(0,0,W,HT);
+  ctx.strokeStyle='#e2e8f0';ctx.beginPath();ctx.moveTo(0,HT/2);ctx.lineTo(W,HT/2);ctx.stroke();
+  ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.beginPath();
+  for(let n=0;n<N;n++){
+    const y=HT/2-data[n]*HT/4;
+    n===0?ctx.moveTo(n*W/N,y):ctx.lineTo(n*W/N,y);
+  }
+  ctx.stroke();
+}
+function draw(){
+  const cut=parseInt(document.getElementById('cut').value);
+  const isHigh=document.getElementById('mode').value==='high';
+  document.getElementById('cutV').textContent=cut;
+  const {x,y}=synth(cut,isHigh);
+  plot(c1,x,'#94a3b8');
+  plot(c2,y,isHigh?'#ef4444':'#6366f1');
+  c1.fillStyle='#64748b';c1.font='11px sans-serif';
+  c1.fillText('输入：带高频噪声的信号',8,16);
+  c2.fillStyle='#64748b';c2.font='11px sans-serif';
+  c2.fillText(isHigh?'高通输出：噪声+边缘细节（低频被滤掉）':'低通输出：噪声被消除，波形变平滑',8,16);
+}
+document.getElementById('cut').oninput=draw;
+document.getElementById('mode').onchange=draw;
+draw();
+</script>
+</body>
+</html>

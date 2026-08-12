@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>卷积可视化</title>
+<style>
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#fff;color:#1f2937}
+  .wrap{padding:12px 16px}
+  h2{font-size:15px;margin:0 0 4px}
+  p.desc{font-size:12px;color:#6b7280;margin:0 0 10px;line-height:1.6}
+  canvas{border:1px solid #e5e7eb;border-radius:8px;background:#fafafa;display:block}
+  .controls{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:12px;align-items:center}
+  .ctrl{display:flex;align-items:center;gap:6px}
+  input[type=range]{width:140px}
+  button{font-size:12px;padding:4px 12px;border-radius:6px;border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;cursor:pointer}
+  button.active{background:#4338ca;color:#fff}
+  .formula{font-size:12px;color:#4b5563;margin-top:8px;font-family:ui-monospace,Consolas,monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>一维卷积：核在信号上滑动</h2>
+  <p class="desc">
+    卷积 y[n] = Σ h[k]·x[n−k]（核翻转后逐点乘积求和）。动画显示核 h 滑动到每个位置时，
+    与信号重叠区域的<b>加权叠加</b>，输出即该点的响应。选择不同核体会滤波效果：平滑核让波形变缓，差分核提取变化。
+  </p>
+  <canvas id="cv" width="560" height="330"></canvas>
+  <div class="controls">
+    <div class="ctrl"><label>核位置（自动动画）</label><input type="range" id="pos" min="0" max="47" value="20"></div>
+    <div class="ctrl">
+      <button data-k="0" class="active">平滑核</button>
+      <button data-k="1">差分核</button>
+      <button data-k="2">脉冲</button>
+    </div>
+    <span class="tag" id="info"></span>
+  </div>
+  <p class="formula" id="formula"></p>
+</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+const posEl=document.getElementById('pos'),infoEl=document.getElementById('info');
+const formulaEl=document.getElementById('formula');
+const N=48;
+const KERNELS=[[0.25,0.5,0.25],[-0.5,0,0.5],[0,1,0]];
+const KNAMES=['平滑核 [1,2,1]/4','差分核 [-1,0,1]','脉冲核 [0,1,0]'];
+let kIdx=0,anim=true,t=0;
+
+function signal(n){return Math.sin(2*Math.PI*3*n/N)+0.5*Math.sin(2*Math.PI*0.8*n/N)+ (n>30&&n<38?1.2:0);}
+
+function convOut(n,h){
+  let s=0;
+  for(let k=0;k<h.length;k++){
+    const idx=n-k+(h.length>>1);
+    if(idx>=0&&idx<N)s+=h[k]*signal(idx);
+  }
+  return s;
+}
+
+function draw(){
+  const h=KERNELS[kIdx];
+  const p=parseInt(posEl.value);
+  ctx.clearRect(0,0,W,H);
+  // 坐标
+  const oy=60,rowH=78;
+  ctx.strokeStyle='#e2e8f0';ctx.beginPath();ctx.moveTo(0,oy);ctx.lineTo(W,oy);ctx.stroke();
+  // 信号曲线（上排）
+  ctx.strokeStyle='#64748b';ctx.lineWidth=1.5;
+  ctx.beginPath();
+  for(let n=0;n<N;n++){const x=n*(W/N)+W/N/2,y=oy-signal(n)*rowH/2;n===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+  ctx.stroke();
+  // 核覆盖区间（高亮）
+  const x0=(p-1)*(W/N),x1=(p+2)*(W/N);
+  ctx.fillStyle='rgba(99,102,241,0.12)';ctx.fillRect(x0,oy-rowH/2-4,x1-x0,rowH+8);
+  // 核内采样点乘积
+  for(let k=0;k<h.length;k++){
+    const idx=p-k+1;
+    if(idx<0||idx>=N)continue;
+    const x=idx*(W/N)+W/N/2,y=oy-signal(idx)*rowH/2;
+    const val=signal(idx);
+    ctx.strokeStyle='#6366f1';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(x,oy-rowH/2-4);ctx.lineTo(x,oy+rowH/2+4);ctx.stroke();
+    ctx.fillStyle='#6366f1';
+    ctx.beginPath();ctx.arc(x,y,3,0,7);ctx.fill();
+    ctx.fillStyle='#4338ca';ctx.font='10px sans-serif';
+    ctx.fillText((val*h[k]).toFixed(2),x-12,y-10);
+  }
+  // 输出（下排）
+  ctx.strokeStyle='#e2e8f0';ctx.beginPath();ctx.moveTo(0,oy+rowH+40);ctx.lineTo(W,oy+rowH+40);ctx.stroke();
+  ctx.strokeStyle='#ef4444';ctx.lineWidth=2;
+  ctx.beginPath();
+  for(let n=0;n<N;n++){const x=n*(W/N)+W/N/2,y=oy+rowH+40-convOut(n,h)*rowH/2;n===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+  ctx.stroke();
+  // 当前输出点
+  const cy=oy+rowH+40-convOut(p,h)*rowH/2;
+  ctx.fillStyle='#ef4444';ctx.beginPath();ctx.arc(p*(W/N)+W/N/2,cy,4,0,7);ctx.fill();
+  // 标签
+  ctx.fillStyle='#64748b';ctx.font='11px sans-serif';
+  ctx.fillText('信号 x[n]',8,16);
+  ctx.fillStyle='#ef4444';ctx.fillText('卷积输出 y[n]（红色），蓝点为核重叠区加权和',8,oy+rowH+40-20);
+  infoEl.textContent=KNAMES[kIdx]+'  当前位置 n='+p+'  输出 y['+p+']='+convOut(p,h).toFixed(2);
+  formulaEl.textContent='y[n] = Σ h[k]·x[n-k]';
+  if(anim){
+    t+=0.004;
+    const v=Math.floor((Math.sin(t*2)+1)/2*47);
+    posEl.value=v;
+  }
+  requestAnimationFrame(draw);
+}
+document.querySelectorAll('button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    kIdx=parseInt(b.dataset.k);
+  };
+});
+posEl.oninput=()=>{anim=false;};
+draw();
+</script>
+</body>
+</html>

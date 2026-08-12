@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>噪声与去噪</title>
+<style>
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#fff;color:#1f2937}
+  .wrap{padding:12px 16px}
+  h2{font-size:15px;margin:0 0 4px}
+  p.desc{font-size:12px;color:#6b7280;margin:0 0 10px;line-height:1.6}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  canvas{border:1px solid #e5e7eb;border-radius:8px;background:#fafafa}
+  .controls{display:flex;flex-wrap:wrap;gap:16px;margin-top:10px;font-size:12px;align-items:center}
+  .ctrl{display:flex;align-items:center;gap:6px}
+  input[type=range]{width:130px}
+  .tag{font-size:11px;padding:2px 8px;border-radius:99px;background:#f3f4f6;color:#374151}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>噪声模型与去噪滤波</h2>
+  <p class="desc">
+    椒盐噪声（黑白随机点）对<b>中值滤波</b>最有效，因为它不引入平均模糊；
+    高斯噪声用<b>均值滤波</b>（或高斯滤波）更合适。观察两种滤波对不同噪声的 PSNR 变化。
+  </p>
+  <div class="row">
+    <div><p style="font-size:11px;color:#6b7280;margin:0 0 4px">加噪图像</p><canvas id="a1" width="200" height="200"></canvas></div>
+    <div><p style="font-size:11px;color:#6b7280;margin:0 0 4px">均值滤波</p><canvas id="a2" width="200" height="200"></canvas></div>
+    <div><p style="font-size:11px;color:#6b7280;margin:0 0 4px">中值滤波</p><canvas id="a3" width="200" height="200"></canvas></div>
+  </div>
+  <div class="controls">
+    <div class="ctrl"><label>噪声类型</label>
+      <select id="ntype">
+        <option value="salt">椒盐噪声</option>
+        <option value="gauss">高斯噪声</option>
+      </select>
+    </div>
+    <div class="ctrl"><label>噪声强度</label><input type="range" id="amount" min="0.01" max="0.3" step="0.01" value="0.1"></div>
+    <span class="tag" id="psnr"></span>
+  </div>
+</div>
+<script>
+const S=200;
+const ctxs=[document.getElementById('a1').getContext('2d'),document.getElementById('a2').getContext('2d'),document.getElementById('a3').getContext('2d')];
+const clean=new Float32Array(S*S);
+for(let y=0;y<S;y++)for(let x=0;x<S;x++){
+  const dx=x-70,dy=y-60;
+  let v=(x+y)/2;
+  if(dx*dx+dy*dy<2400)v=50;
+  if(x>110&&y>120&&x<180&&y<190)v=210;
+  clean[y*S+x]=v;
+}
+function addNoise(clean,type,amount){
+  const out=new Float32Array(S*S);
+  for(let i=0;i<S*S;i++){
+    let v=clean[i];
+    if(type==='salt'){
+      const r=Math.random();
+      if(r<amount)v=0;else if(r<amount*2)v=255;
+    }else{v+= (Math.random()*2-1)*amount*400;}
+    out[i]=Math.max(0,Math.min(255,v));
+  }
+  return out;
+}
+function filter(src,fn){
+  const out=new Float32Array(S*S);
+  for(let y=0;y<S;y++)for(let x=0;x<S;x++){
+    const win=[];
+    for(let ky=-1;ky<=1;ky++)for(let kx=-1;kx<=1;kx++){
+      const px=Math.min(S-1,Math.max(0,x+kx)),py=Math.min(S-1,Math.max(0,y+ky));
+      win.push(src[py*S+px]);
+    }
+    out[y*S+x]=fn(win);
+  }
+  return out;
+}
+const mean=w=>w.reduce((a,b)=>a+b,0)/w.length;
+const median=w=>{const s=[...w].sort((a,b)=>a-b);return s[4];};
+function psnr(a,b){
+  let mse=0;
+  for(let i=0;i<S*S;i++)mse+=(a[i]-b[i])*(a[i]-b[i]);
+  mse/=S*S;
+  return 10*Math.log10(255*255/(mse||1e-9));
+}
+function draw(canvas,data){const img=canvas.createImageData(S,S);
+  for(let i=0;i<S*S;i++){const v=Math.round(data[i]);img.data[i*4]=v;img.data[i*4+1]=v;img.data[i*4+2]=v;img.data[i*4+3]=255;}
+  canvas.putImageData(img,0,0);}
+function update(){
+  const type=document.getElementById('ntype').value;
+  const amt=parseFloat(document.getElementById('amount').value);
+  const noisy=addNoise(clean,type,amt);
+  const meanOut=filter(noisy,mean);
+  const medOut=filter(noisy,median);
+  draw(ctxs[0],noisy);draw(ctxs[1],meanOut);draw(ctxs[2],medOut);
+  const p=document.getElementById('psnr');
+  const pMean=psnr(meanOut,clean).toFixed(1),pMed=psnr(medOut,clean).toFixed(1);
+  p.textContent='PSNR(dB)：均值 '+pMean+' ｜ 中值 '+pMed+'（越高越好，比较哪个对当前噪声更有效）';
+}
+document.getElementById('ntype').onchange=update;
+document.getElementById('amount').oninput=update;
+update();
+</script>
+</body>
+</html>

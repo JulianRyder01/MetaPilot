@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>形态学操作</title>
+<style>
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#fff;color:#1f2937}
+  .wrap{padding:12px 16px}
+  h2{font-size:15px;margin:0 0 4px}
+  p.desc{font-size:12px;color:#6b7280;margin:0 0 10px;line-height:1.6}
+  .row{display:flex;gap:10px}
+  canvas{border:1px solid #e5e7eb;border-radius:8px;background:#fff}
+  .controls{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+  button{font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;cursor:pointer}
+  button.active{background:#4338ca;color:#fff}
+  .note{font-size:11px;color:#6b7280;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>形态学：膨胀、腐蚀、开运算、闭运算</h2>
+  <p class="desc">
+    形态学用<b>结构元素</b>（这里是 3x3 十字）与二值图像做集合运算：
+    腐蚀缩小白区域并消除小噪点，膨胀扩大区域并填补小孔；
+    <b>开运算 = 先腐蚀后膨胀</b>（去毛刺），<b>闭运算 = 先膨胀后腐蚀</b>（填孔洞）。
+  </p>
+  <div class="row">
+    <div><p style="font-size:11px;color:#6b7280;margin:0 0 4px">输入（含噪点/孔洞）</p><canvas id="in" width="200" height="200"></canvas></div>
+    <div><p style="font-size:11px;color:#6b7280;margin:0 0 4px">结果</p><canvas id="out" width="200" height="200"></canvas></div>
+  </div>
+  <div class="controls">
+    <button data-o="e" class="active">腐蚀</button>
+    <button data-o="d">膨胀</button>
+    <button data-o="open">开运算</button>
+    <button data-o="close">闭运算</button>
+    <button data-o="none">原图</button>
+  </div>
+  <p class="note" id="note"></p>
+</div>
+<script>
+const S=200;
+const ci=document.getElementById('in').getContext('2d');
+const co=document.getElementById('out').getContext('2d');
+const src=new Uint8Array(S*S);
+// 形状：圆 + 方块，加噪点与孔洞
+for(let y=0;y<S;y++)for(let x=0;x<S;x++){
+  let b=0;
+  const dx=x-80,dy=y-80;
+  if(dx*dx+dy*dy<2600)b=1;
+  if(x>110&&y>120&&x<170&&y<175)b=1;
+  // 孔洞（圆内部挖空）
+  if(dx*dx+dy*dy<300)b=0;
+  // 噪点
+  if(Math.random()<0.03)b=Math.random()<0.5?1:0;
+  src[y*S+x]=b;
+}
+const NEI=[[0,-1],[0,1],[-1,0],[1,0],[-1,-1],[1,1],[-1,1],[1,-1]];
+function dilate(a){const o=new Uint8Array(S*S);
+  for(let y=0;y<S;y++)for(let x=0;x<S;x++){
+    if(a[y*S+x]){o[y*S+x]=1;continue;}
+    for(const [dx,dy] of NEI){const px=x+dx,py=y+dy;
+      if(px>=0&&px<S&&py>=0&&py<S&&a[py*S+px]){o[y*S+x]=1;break;}}
+  }return o;}
+function erode(a){const o=new Uint8Array(S*S);
+  for(let y=0;y<S;y++)for(let x=0;x<S;x++){
+    let all=1;
+    for(const [dx,dy] of NEI){const px=x+dx,py=y+dy;
+      if(px<0||px>=S||py<0||py>=S||!a[py*S+px]){all=0;break;}}
+    o[y*S+x]=all&&a[y*S+x]?1:0;
+  }return o;}
+function show(op){
+  let out=src;
+  if(op==='e')out=erode(src);
+  else if(op==='d')out=dilate(src);
+  else if(op==='open')out=dilate(erode(src));
+  else if(op==='close')out=erode(dilate(src));
+  function draw(ctx,a){
+    const img=ctx.createImageData(S,S);
+    for(let i=0;i<S*S;i++){const v=a[i]?0:255;img.data[i*4]=v;img.data[i*4+1]=v;img.data[i*4+2]=v;img.data[i*4+3]=255;}
+    ctx.putImageData(img,0,0);
+  }
+  draw(ci,src);draw(co,out);
+  const notes={e:'腐蚀：边界向内收缩一圈，孤立白色噪点被消除',d:'膨胀：边界向外扩展一圈，小孔洞被填补',
+    open:'开运算：先腐蚀后膨胀，去掉毛刺与噪点，主体大小基本不变',close:'闭运算：先膨胀后腐蚀，填补孔洞与裂缝',
+    none:'原图：圆+方块，含随机噪点与内部孔洞'};
+  document.getElementById('note').textContent=notes[op];
+}
+document.querySelectorAll('button').forEach(b=>{
+  b.onclick=()=>{document.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');show(b.dataset.o);};
+});
+show('e');
+</script>
+</body>
+</html>
