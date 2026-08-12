@@ -19,6 +19,7 @@ backend/data/
 
 # ---- 运行时 / 临时 ----
 .probe/
+.reasonix/
 *.log
 .DS_Store
 Thumbs.db

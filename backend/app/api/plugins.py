@@ -2,7 +2,14 @@
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 
+from ..plugins.base import list_plugins
+
 router = APIRouter(prefix="/api/plugins", tags=["plugins"])
+
+
+@router.get("")
+def plugin_list():
+    return list_plugins()
 
 
 @router.post("/course/import")
