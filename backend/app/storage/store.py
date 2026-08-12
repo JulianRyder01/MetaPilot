@@ -1,0 +1,404 @@
+"""本地 JSON 文件存储层。
+
+布局（data_dir）:
+  index.json           库摘要列表
+  libraries/{id}.json  每个库的完整内容树
+  progress.json        学习进度（每课程独立）
+  stats.json           学习时长会话
+  assets/{cid}/        课程包资产（interactives 等）
+  kb/                  知识库向量索引
+"""
+from __future__ import annotations
+
+import json
+import shutil
+import threading
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Optional
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def gen_id() -> str:
+    return uuid.uuid4().hex[:12]
+
+
+def _read_json(path: Path, default: Any):
+    if not path.exists():
+        return default
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _write_json(path: Path, data: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with tmp.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    tmp.replace(path)
+
+
+# ---------------- 树内定位工具 ----------------
+
+def find_collection(lib: dict, cid: str) -> Optional[dict]:
+    for c in lib.get("collections", []):
+        if c["id"] == cid:
+            return c
+    return None
+
+
+def find_document(lib: dict, did: str) -> tuple[Optional[dict], Optional[dict]]:
+    for c in lib.get("collections", []):
+        for d in c.get("documents", []):
+            if d["id"] == did:
+                return c, d
+    return None, None
+
+
+def find_section(lib: dict, sid: str) -> tuple[Optional[dict], Optional[dict], Optional[dict]]:
+    for c in lib.get("collections", []):
+        for d in c.get("documents", []):
+            for s in d.get("sections", []):
+                if s["id"] == sid:
+                    return c, d, s
+    return None, None, None
+
+
+def find_block(lib: dict, bid: str) -> tuple[Optional[dict], Optional[dict], Optional[dict], Optional[dict]]:
+    for c in lib.get("collections", []):
+        for d in c.get("documents", []):
+            for s in d.get("sections", []):
+                for b in s.get("blocks", []):
+                    if b["id"] == bid:
+                        return c, d, s, b
+    return None, None, None, None
+
+
+# ---------------- 库存储 ----------------
+
+class LibraryStore:
+    def __init__(self, data_dir: str | Path):
+        self.root = Path(data_dir)
+        self.libs_dir = self.root / "libraries"
+        self.index_path = self.root / "index.json"
+        self.libs_dir.mkdir(parents=True, exist_ok=True)
+        self.lock = threading.Lock()
+        if not self.index_path.exists():
+            _write_json(self.index_path, {"libraries": []})
+
+    # ---- 内部 ----
+    def _load_index(self) -> list[dict]:
+        return _read_json(self.index_path, {"libraries": []})["libraries"]
+
+    def _save_index(self, items: list[dict]) -> None:
+        _write_json(self.index_path, {"libraries": items})
+
+    def _lib_path(self, lid: str) -> Path:
+        return self.libs_dir / f"{lid}.json"
+
+    def _load_lib(self, lid: str) -> dict:
+        lib = _read_json(self._lib_path(lid), None)
+        if lib is None:
+            raise KeyError(f"库不存在: {lid}")
+        return lib
+
+    def _save_lib(self, lib: dict) -> None:
+        _write_json(self._lib_path(lib["id"]), lib)
+        self._refresh_index_item(lib)
+
+    def _refresh_index_item(self, lib: dict) -> None:
+        items = self._load_index()
+        entry = {
+            "id": lib["id"],
+            "name": lib["name"],
+            "description": lib.get("description", ""),
+            "updatedAt": lib.get("updatedAt"),
+            "collectionCount": len(lib.get("collections", [])),
+            "collections": [
+                {"id": c["id"], "name": c["name"], "kind": c.get("kind", "course")}
+                for c in lib.get("collections", [])
+            ],
+        }
+        for i, it in enumerate(items):
+            if it["id"] == lib["id"]:
+                items[i] = entry
+                break
+        else:
+            items.append(entry)
+        self._save_index(items)
+
+    # ---- 库级 ----
+    def list_libraries(self) -> list[dict]:
+        return self._load_index()
+
+    def get_library(self, lid: str) -> dict:
+        return self._load_lib(lid)
+
+    def create_library(self, name: str, description: str = "") -> dict:
+        with self.lock:
+            lib = {
+                "id": gen_id(),
+                "name": name,
+                "description": description,
+                "createdAt": now_iso(),
+                "updatedAt": now_iso(),
+                "collections": [],
+            }
+            self._save_lib(lib)
+            return lib
+
+    def update_library(self, lid: str, name: Optional[str] = None, description: Optional[str] = None) -> dict:
+        with self.lock:
+            lib = self._load_lib(lid)
+            if name is not None:
+                lib["name"] = name
+            if description is not None:
+                lib["description"] = description
+            lib["updatedAt"] = now_iso()
+            self._save_lib(lib)
+            return lib
+
+    def delete_library(self, lid: str) -> None:
+        with self.lock:
+            path = self._lib_path(lid)
+            if path.exists():
+                path.unlink()
+            items = [it for it in self._load_index() if it["id"] != lid]
+            self._save_index(items)
+
+    # ---- 文档集（课程） ----
+    def create_collection(self, lid: str, data: dict) -> dict:
+        with self.lock:
+            lib = self._load_lib(lid)
+            col = {
+                "id": gen_id(),
+                "name": data["name"],
+                "kind": data.get("kind", "course"),
+                "description": data.get("description", ""),
+                "author": data.get("author", ""),
+                "version": data.get("version", "1.0.0"),
+                "formatVersion": data.get("formatVersion", 1),
+                "createdAt": now_iso(),
+                "updatedAt": now_iso(),
+                "documents": [],
+            }
+            lib.setdefault("collections", []).append(col)
+            lib["updatedAt"] = now_iso()
+            self._save_lib(lib)
+            return col
+
+    def update_collection(self, cid: str, data: dict) -> dict:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                col = find_collection(lib, cid)
+                if col is None:
+                    continue
+                for key in ("name", "kind", "description", "author", "version"):
+                    if key in data and data[key] is not None:
+                        col[key] = data[key]
+                col["updatedAt"] = now_iso()
+                lib["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return col
+            raise KeyError(f"文档集不存在: {cid}")
+
+    def delete_collection(self, cid: str) -> None:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                cols = lib.get("collections", [])
+                for i, c in enumerate(cols):
+                    if c["id"] == cid:
+                        del cols[i]
+                        lib["updatedAt"] = now_iso()
+                        self._save_lib(lib)
+                        return
+            raise KeyError(f"文档集不存在: {cid}")
+
+    def _iter_all_libs(self):
+        for it in self._load_index():
+            yield self._load_lib(it["id"])
+
+    # ---- 文档（章节） ----
+    def create_document(self, cid: str, data: dict) -> dict:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                col = find_collection(lib, cid)
+                if col is None:
+                    continue
+                doc = {
+                    "id": gen_id(),
+                    "name": data["name"],
+                    "docType": data.get("docType", "study"),
+                    "createdAt": now_iso(),
+                    "updatedAt": now_iso(),
+                    "sections": [],
+                }
+                col.setdefault("documents", []).append(doc)
+                lib["updatedAt"] = now_iso()
+                col["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return doc
+            raise KeyError(f"文档集不存在: {cid}")
+
+    def update_document(self, did: str, data: dict) -> dict:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                _, doc = find_document(lib, did)
+                if doc is None:
+                    continue
+                for key in ("name", "docType"):
+                    if key in data and data[key] is not None:
+                        doc[key] = data[key]
+                doc["updatedAt"] = now_iso()
+                lib["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return doc
+            raise KeyError(f"文档不存在: {did}")
+
+    def delete_document(self, did: str) -> None:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                col, doc = find_document(lib, did)
+                if col is None:
+                    continue
+                col["documents"] = [d for d in col.get("documents", []) if d["id"] != did]
+                col["updatedAt"] = now_iso()
+                lib["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return
+            raise KeyError(f"文档不存在: {did}")
+
+    # ---- 小节（知识点） ----
+    def create_section(self, did: str, data: dict) -> dict:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                _, doc = find_document(lib, did)
+                if doc is None:
+                    continue
+                sec = {
+                    "id": gen_id(),
+                    "name": data["name"],
+                    "createdAt": now_iso(),
+                    "updatedAt": now_iso(),
+                    "blocks": [],
+                }
+                doc.setdefault("sections", []).append(sec)
+                lib["updatedAt"] = now_iso()
+                doc["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return sec
+            raise KeyError(f"文档不存在: {did}")
+
+    def update_section(self, sid: str, data: dict) -> dict:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                _, _, sec = find_section(lib, sid)
+                if sec is None:
+                    continue
+                if "name" in data and data["name"] is not None:
+                    sec["name"] = data["name"]
+                if "blocks" in data and data["blocks"] is not None:
+                    sec["blocks"] = data["blocks"]
+                sec["updatedAt"] = now_iso()
+                lib["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return sec
+            raise KeyError(f"小节不存在: {sid}")
+
+    def delete_section(self, sid: str) -> None:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                _, doc, sec = find_section(lib, sid)
+                if doc is None:
+                    continue
+                doc["sections"] = [s for s in doc.get("sections", []) if s["id"] != sid]
+                doc["updatedAt"] = now_iso()
+                lib["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return
+            raise KeyError(f"小节不存在: {sid}")
+
+    def reorder_sections(self, did: str, ids: list[str]) -> list[dict]:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                _, doc = find_document(lib, did)
+                if doc is None:
+                    continue
+                by_id = {s["id"]: s for s in doc.get("sections", [])}
+                doc["sections"] = [by_id[i] for i in ids if i in by_id]
+                lib["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return doc["sections"]
+            raise KeyError(f"文档不存在: {did}")
+
+    # ---- 块 ----
+    def add_block(self, sid: str, data: dict) -> dict:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                _, _, sec = find_section(lib, sid)
+                if sec is None:
+                    continue
+                block = {"id": gen_id(), "type": data["type"]}
+                for key in (
+                    "content", "question", "options", "answer", "answers",
+                    "blanks", "reference", "explanation", "keywords",
+                    "ai_graded", "title", "file", "height",
+                ):
+                    if key in data and data[key] is not None:
+                        block[key] = data[key]
+                sec.setdefault("blocks", []).append(block)
+                lib["updatedAt"] = now_iso()
+                sec["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return block
+            raise KeyError(f"小节不存在: {sid}")
+
+    def update_block(self, bid: str, data: dict) -> dict:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                _, _, _, block = find_block(lib, bid)
+                if block is None:
+                    continue
+                if "type" in data and data["type"] is not None:
+                    block["type"] = data["type"]
+                for key in (
+                    "content", "question", "options", "answer", "answers",
+                    "blanks", "reference", "explanation", "keywords",
+                    "ai_graded", "title", "file", "height",
+                ):
+                    if key in data:
+                        block[key] = data[key]
+                lib["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return block
+            raise KeyError(f"块不存在: {bid}")
+
+    def delete_block(self, bid: str) -> None:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                _, _, sec, block = find_block(lib, bid)
+                if sec is None:
+                    continue
+                sec["blocks"] = [b for b in sec.get("blocks", []) if b["id"] != bid]
+                lib["updatedAt"] = now_iso()
+                sec["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return
+            raise KeyError(f"块不存在: {bid}")
+
+    def reorder_blocks(self, sid: str, ids: list[str]) -> list[dict]:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                _, _, sec = find_section(lib, sid)
+                if sec is None:
+                    continue
+                by_id = {b["id"]: b for b in sec.get("blocks", [])}
+                sec["blocks"] = [by_id[i] for i in ids if i in by_id]
+                lib["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return sec["blocks"]
+            raise KeyError(f"小节不存在: {sid}")
