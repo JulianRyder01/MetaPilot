@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException, Request
 
 from ..schemas import CollectionIn, LibraryIn
-from ..storage.store import LibraryStore
+from ..storage.store import LibraryStore, find_collection
 
 router = APIRouter(prefix="/api", tags=["libraries"])
 
@@ -57,6 +57,16 @@ def update_collection(cid: str, body: CollectionIn, request: Request):
         return _store(request).update_collection(cid, body.model_dump())
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/collections/{cid}")
+def get_collection(cid: str, request: Request):
+    for it in _store(request).list_libraries():
+        lib = _store(request).get_library(it["id"])
+        col = find_collection(lib, cid)
+        if col is not None:
+            return col
+    raise HTTPException(status_code=404, detail=f"文档集不存在: {cid}")
 
 
 @router.delete("/collections/{cid}")

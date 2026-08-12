@@ -2,16 +2,19 @@
 
 在 Conda 虚拟环境（如 Jyun）中运行：
     conda activate Jyun
-    pip install torch transformers
+    pip install torch transformers modelscope
     python scripts/kb_embedding_server.py --port 8760
 
-模型首次运行会自动下载 Qwen3-Embedding-0.6B（约 1.5GB，缓存于 ~/.cache/huggingface）。
-也可被后端按需拉起（见 app/services/embedding_server.py）。
+模型加载顺序：
+1. --model 指向本地目录（已下载）则直接加载；
+2. 否则通过 ModelScope 下载 Qwen3-Embedding-0.6B（国内网络推荐）；
+3. 最后退回 HuggingFace（国外网络）。
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import numpy as np
@@ -19,6 +22,19 @@ import torch
 from transformers import AutoModel, AutoTokenizer
 
 DEFAULT_MODEL = "Qwen/Qwen3-Embedding-0.6B"
+
+
+def resolve_model_path(model_id: str) -> str:
+    if os.path.isdir(model_id):
+        return model_id
+    try:
+        from modelscope import snapshot_download
+        path = snapshot_download(model_id)
+        print(f"已通过 ModelScope 下载模型到: {path}", flush=True)
+        return path
+    except Exception as e:
+        print(f"ModelScope 下载失败（{e}），退回 HuggingFace 直接加载", flush=True)
+        return model_id
 
 
 class EmbedHandler(BaseHTTPRequestHandler):
@@ -78,8 +94,9 @@ def main():
     args = parser.parse_args()
 
     print(f"加载模型 {args.model} ...", flush=True)
-    tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
-    model = AutoModel.from_pretrained(args.model, trust_remote_code=True)
+    model_path = resolve_model_path(args.model)
+    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    model = AutoModel.from_pretrained(model_path, trust_remote_code=True)
     model.eval()
     EmbedHandler.tokenizer = tokenizer
     EmbedHandler.model = model

@@ -613,14 +613,18 @@ def main() -> bool:
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[1/2] 已生成课程包清单: {manifest_path}")
 
-    # 2) 导入本地数据
+    # 2) 导入本地数据（幂等：复用同名库，同 packageId 课程自动替换）
     store = LibraryStore(DATA_DIR)
     importer = CourseImporter(store, DATA_DIR / "assets" / "courses")
     assets = {
-        p.name: p.read_bytes()
+        f"interactives/{p.name}": p.read_bytes()
         for p in INTERACTIVES_DIR.glob("*.html")
     }
-    result = importer.import_package(manifest, assets)
+    library_id = next(
+        (it["id"] for it in store.list_libraries() if it["name"] == COURSE_META["library"]["name"]),
+        "",
+    )
+    result = importer.import_package(manifest, assets, library_id=library_id)
     print(f"[2/2] 已导入课程: {result}")
     print("     可在客户端「我的库 → 数字图像处理」中开始学习。")
     return True

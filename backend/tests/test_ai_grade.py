@@ -69,14 +69,27 @@ async def test_parse_markdown_wrapped_json():
 
 
 @pytest.mark.asyncio
+async def test_parse_with_think_block():
+    text = ('<think>这是模型推理过程，包含 {score: 60} 这样的中间信息。</think>\n'
+            '{"score": 90, "feedback": "回答正确", "isCorrect": true}')
+    result = AIGrader._parse_response(text)
+    assert result["score"] == 90
+    assert result["isCorrect"] is True
+    assert "回答正确" in result["feedback"]
+
+
+@pytest.mark.asyncio
 async def test_parse_score_clamped():
     assert AIGrader._parse_response('{"score": 150, "feedback": "", "isCorrect": true}')["score"] == 100
     assert AIGrader._parse_response('{"score": -10, "feedback": "", "isCorrect": false}')["score"] == 0
 
 
-def test_no_api_key_raises():
+def test_no_api_key_raises(monkeypatch):
+    import asyncio
+
+    from app.services import ai_grader
+    monkeypatch.setattr(ai_grader.settings, "minimax_api_key", "")
     g = AIGrader(api_key="")
     with pytest.raises(RuntimeError, match="MINIMAX_API_KEY"):
-        import asyncio
         asyncio.run(g.grade({"blockType": "short_answer", "question": "q",
                              "userAnswer": "a", "reference": "r"}))

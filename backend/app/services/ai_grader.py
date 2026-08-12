@@ -44,15 +44,24 @@ class AIGrader:
 
     @staticmethod
     def _parse_response(text: str) -> dict[str, Any]:
-        """解析 AI 返回文本，容错 markdown 包裹等情况。"""
+        """解析 AI 返回文本，容错 <think> 推理块、markdown 包裹等情况。"""
         text = text.strip()
+        # 剥除 MiniMax-M3 的 <think> 推理块
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
         try:
             data = json.loads(text)
         except json.JSONDecodeError:
-            match = re.search(r"\{.*\}", text, re.DOTALL)
-            if not match:
+            decoder = json.JSONDecoder()
+            idx = text.find("{")
+            data = None
+            while idx != -1:
+                try:
+                    data, _ = decoder.raw_decode(text[idx:])
+                    break
+                except json.JSONDecodeError:
+                    idx = text.find("{", idx + 1)
+            if data is None:
                 raise ValueError(f"AI 返回无法解析: {text[:200]}")
-            data = json.loads(match.group(0))
         score = int(round(float(data.get("score", 0))))
         score = max(0, min(100, score))
         feedback = str(data.get("feedback", ""))
