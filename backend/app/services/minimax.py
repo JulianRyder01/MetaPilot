@@ -1,6 +1,7 @@
 """通用 MiniMax chat 调用（知识库问答等使用）。"""
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 import httpx
@@ -33,4 +34,6 @@ async def chat_completion(
         )
         resp.raise_for_status()
         data = resp.json()
-    return data["choices"][0]["message"]["content"]
+    content = data["choices"][0]["message"]["content"]
+    # 剥除 MiniMax-M3 的 <think> 推理块，只返回最终回答
+    return re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
