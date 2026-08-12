@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress as ProgressBar } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ImportDialog } from "@/components/library/ImportDialog"
+import { PluginGate } from "@/components/plugins/PluginGate"
 
 export default function CoursePage() {
   const { cid } = useParams()
@@ -184,17 +185,19 @@ export default function CoursePage() {
       </div>
 
       {/* 知识库入口 */}
-      <div className="mt-6 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-4">
-        <div className="flex items-center gap-2 text-sm">
-          <Rocket className="size-4 text-primary" />
-          <span>
-            个人知识库插件：对该课程建立向量索引后，可用 AI 提问并溯源到具体知识点。
-          </span>
+      <PluginGate pluginId="knowledge_base" hint="AI 问答与文档溯源" compact>
+        <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-4">
+          <div className="flex items-center gap-2 text-sm">
+            <Rocket className="size-4 text-primary" />
+            <span>
+              个人知识库插件：对该课程建立向量索引后，可用 AI 提问并溯源到具体知识点。
+            </span>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate(`/kb?cid=${cid}`)}>
+            打开知识库
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigate(`/kb?cid=${cid}`)}>
-          打开知识库
-        </Button>
-      </div>
+      </PluginGate>
     </div>
   )
 }

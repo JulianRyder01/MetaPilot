@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet } from "react-router-dom"
-import { BarChart3, BookOpen, Library, Rocket } from "lucide-react"
+import { BarChart3, BookOpen, Library, Puzzle, Rocket } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -7,6 +7,7 @@ const navItems = [
   { to: "/", label: "我的库", icon: Library },
   { to: "/stats", label: "学习统计", icon: BarChart3 },
   { to: "/kb", label: "知识库", icon: Rocket },
+  { to: "/plugins", label: "插件", icon: Puzzle },
 ]
 
 export default function AppLayout() {

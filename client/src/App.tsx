@@ -7,6 +7,7 @@ import CoursePage from "@/pages/CoursePage"
 import LearnPage from "@/pages/LearnPage"
 import StatsPage from "@/pages/StatsPage"
 import KnowledgeBasePage from "@/pages/KnowledgeBasePage"
+import PluginsPage from "@/pages/PluginsPage"
 import EditPage from "@/pages/EditPage"
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/edit/:cid" element={<EditPage />} />
         <Route path="/stats" element={<StatsPage />} />
         <Route path="/kb" element={<KnowledgeBasePage />} />
+        <Route path="/plugins" element={<PluginsPage />} />
       </Route>
     </Routes>
   )

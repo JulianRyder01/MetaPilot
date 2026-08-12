@@ -16,6 +16,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PluginGate } from "@/components/plugins/PluginGate"
 
 interface Props {
   libraryId?: string
@@ -70,42 +71,44 @@ export function ImportDialog({ libraryId, onImported }: Props) {
           <DialogTitle>导入内容</DialogTitle>
           <DialogDescription>支持课程包（zip）与 Markdown / Obsidian 笔记。</DialogDescription>
         </DialogHeader>
-        <Tabs defaultValue="course">
-          <TabsList className="w-full">
-            <TabsTrigger value="course" className="flex-1">课程包</TabsTrigger>
-            <TabsTrigger value="note" className="flex-1">Markdown 笔记</TabsTrigger>
-          </TabsList>
-          <TabsContent value="course" className="space-y-3">
-            <Label htmlFor="course-file">课程包文件（.zip，含 manifest.json）</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="course-file"
-                type="file"
-                accept=".zip"
-                onChange={(e) => setCourseFile(e.target.files?.[0] ?? null)}
-              />
-              <Button onClick={importCourse} disabled={!courseFile || busy}>
-                <FolderUp className="size-4" />
-                导入
-              </Button>
-            </div>
-          </TabsContent>
-          <TabsContent value="note" className="space-y-3">
-            <Label htmlFor="note-file">Markdown / Obsidian 文件（.md）</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="note-file"
-                type="file"
-                accept=".md,.markdown"
-                onChange={(e) => setNoteFile(e.target.files?.[0] ?? null)}
-              />
-              <Button onClick={importNote} disabled={!noteFile || busy}>
-                <FileUp className="size-4" />
-                导入
-              </Button>
-            </div>
-          </TabsContent>
-        </Tabs>
+        <PluginGate pluginId="course" hint="导入课程包与笔记">
+          <Tabs defaultValue="course">
+            <TabsList className="w-full">
+              <TabsTrigger value="course" className="flex-1">课程包</TabsTrigger>
+              <TabsTrigger value="note" className="flex-1">Markdown 笔记</TabsTrigger>
+            </TabsList>
+            <TabsContent value="course" className="space-y-3">
+              <Label htmlFor="course-file">课程包文件（.zip，含 manifest.json）</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="course-file"
+                  type="file"
+                  accept=".zip"
+                  onChange={(e) => setCourseFile(e.target.files?.[0] ?? null)}
+                />
+                <Button onClick={importCourse} disabled={!courseFile || busy}>
+                  <FolderUp className="size-4" />
+                  导入
+                </Button>
+              </div>
+            </TabsContent>
+            <TabsContent value="note" className="space-y-3">
+              <Label htmlFor="note-file">Markdown / Obsidian 文件（.md）</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="note-file"
+                  type="file"
+                  accept=".md,.markdown"
+                  onChange={(e) => setNoteFile(e.target.files?.[0] ?? null)}
+                />
+                <Button onClick={importNote} disabled={!noteFile || busy}>
+                  <FileUp className="size-4" />
+                  导入
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </PluginGate>
         <DialogFooter />
       </DialogContent>
     </Dialog>

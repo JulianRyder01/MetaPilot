@@ -89,6 +89,8 @@ export const api = {
 
   // 插件
   listPlugins: () => request<PluginInfo[]>("/plugins"),
+  setPluginEnabled: (id: string, enabled: boolean) =>
+    request<PluginInfo>(`/plugins/${id}/${enabled ? "enable" : "disable"}`, { method: "POST" }),
   importCourse: (file: File, libraryId = "") => {
     const fd = new FormData()
     fd.append("file", file)
@@ -199,7 +201,10 @@ export interface PluginInfo {
   name: string
   version: string
   description: string
+  author?: string
   enabled: boolean
+  dependsOn: string[]
+  missingDependencies: string[]
 }
 
 export interface KbStatus {

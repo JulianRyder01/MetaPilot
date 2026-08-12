@@ -3,13 +3,8 @@ import { Link, useSearchParams } from "react-router-dom"
 import { Database, Loader2, Play, Rocket, Send, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
-import {
-  api,
-  type Collection,
-  type KbEmbeddingStatus,
-  type KbSource,
-  type KbStatus,
-} from "@/lib/api"
+import { api, type Collection, type KbEmbeddingStatus, type KbSource, type KbStatus } from "@/lib/api"
+import { PluginGate } from "@/components/plugins/PluginGate"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -149,11 +144,12 @@ export default function KnowledgeBasePage() {
         </div>
       </div>
 
-      {/* 课程选择 + 索引 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">索引管理</CardTitle>
-        </CardHeader>
+      <PluginGate pluginId="knowledge_base" hint="AI 问答与文档溯源">
+        {/* 课程选择 + 索引 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">索引管理</CardTitle>
+          </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-3">
           <Select value={cid} onValueChange={setCid}>
             <SelectTrigger className="w-64">
@@ -281,6 +277,7 @@ export default function KnowledgeBasePage() {
           </div>
         </CardContent>
       </Card>
+      </PluginGate>
     </div>
   )
 }
