@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Progress } from "@/components/ui/progress"
+import { PluginGate } from "@/components/plugins/PluginGate"
 
 const RANGES = [
   { value: "all", label: "全部" },
@@ -62,7 +63,9 @@ export default function StatsPage() {
     <div className="mx-auto max-w-4xl space-y-6 px-6 py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">学习统计</h1>
-        <Tabs value={range} onValueChange={setRange}>
+      </div>
+      <PluginGate pluginId="course" hint="学习时长统计">
+        <Tabs value={range} onValueChange={setRange} className="mb-4">
           <TabsList>
             {RANGES.map((r) => (
               <TabsTrigger key={r.value} value={r.value}>
@@ -71,7 +74,6 @@ export default function StatsPage() {
             ))}
           </TabsList>
         </Tabs>
-      </div>
 
       {!data ? (
         <div className="grid gap-4 sm:grid-cols-3">
@@ -159,6 +161,7 @@ export default function StatsPage() {
           </Card>
         </>
       )}
+      </PluginGate>
     </div>
   )
 }

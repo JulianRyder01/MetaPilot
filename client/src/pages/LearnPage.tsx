@@ -12,12 +12,15 @@ import { toast } from "sonner"
 
 import { api, type Collection, type Progress } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { usePluginEnabled } from "@/stores/plugins"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { OutlineNav } from "@/components/learn/OutlineNav"
 import { BlockRenderer } from "@/components/learn/BlockRenderer"
+import { PluginGate } from "@/components/plugins/PluginGate"
 
 export default function LearnPage() {
   const { cid, sid } = useParams()
@@ -25,36 +28,43 @@ export default function LearnPage() {
   const [col, setCol] = useState<Collection | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
   const startRef = useRef(Date.now())
+  const courseEnabled = usePluginEnabled("course")
 
   const load = useCallback(async () => {
     if (!cid) return
-    const [c, p] = await Promise.all([api.getCollection(cid), api.getProgress(cid)])
+    const c = await api.getCollection(cid)
     setCol(c)
-    setProgress(p)
-  }, [cid])
+    // 学习进度是课程插件能力：课程类型才加载
+    if (c.kind === "course" && courseEnabled) {
+      api.getProgress(cid).then(setProgress).catch(() => {})
+    } else {
+      setProgress(null)
+    }
+  }, [cid, courseEnabled])
 
   useEffect(() => {
     load()
   }, [load])
 
-  // 学习时长统计：进入小节开始计时，离开时上报（StrictMode 毫秒级卸载会被 <2s 过滤）
+  // 学习时长统计（课程插件能力）：进入小节开始计时，离开时上报
   useEffect(() => {
     startRef.current = Date.now()
     return () => {
       const dur = Math.round((Date.now() - startRef.current) / 1000)
-      if (dur >= 2 && cid && sid) {
+      if (dur >= 2 && cid && sid && col?.kind === "course" && courseEnabled) {
         api.addSession({ collectionId: cid, sectionId: sid, durationSec: dur }).catch(() => {})
       }
     }
-  }, [sid, cid])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sid, cid, col?.kind, courseEnabled])
 
-  // 记录上次学习位置
+  // 记录上次学习位置（课程插件能力）
   useEffect(() => {
-    if (cid && sid) {
+    if (cid && sid && col?.kind === "course" && courseEnabled) {
       api.setPosition(cid, currentDocId(sid) ?? "", sid).catch(() => {})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cid, sid])
+  }, [cid, sid, col?.kind, courseEnabled])
 
   const flat = useMemo(() => {
     if (!col) return []
@@ -105,6 +115,16 @@ export default function LearnPage() {
       <div className="mx-auto max-w-3xl space-y-4 px-6 py-8">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-64 w-full" />
+      </div>
+    )
+  }
+
+  // 课程类型（含题目/交互块/进度）依赖课程插件；笔记类型是纯文档阅读
+  const isCourse = col.kind === "course"
+  if (isCourse && !courseEnabled) {
+    return (
+      <div className="mx-auto max-w-2xl px-6 py-16">
+        <PluginGate pluginId="course" hint="学习课程（知识点组件流 / 进度 / 题目判题 / 交互块）" />
       </div>
     )
   }
@@ -163,15 +183,19 @@ export default function LearnPage() {
               {current.doc.name}
             </Link>
           </div>
-          <Button
-            variant={isCompleted ? "outline" : "default"}
-            size="sm"
-            onClick={toggleDone}
-            className="gap-1.5"
-          >
-            {isCompleted ? <CheckCircle2 className="size-4" /> : <Circle className="size-4" />}
-            {isCompleted ? "已学完" : "标记学完"}
-          </Button>
+          {isCourse ? (
+            <Button
+              variant={isCompleted ? "outline" : "default"}
+              size="sm"
+              onClick={toggleDone}
+              className="gap-1.5"
+            >
+              {isCompleted ? <CheckCircle2 className="size-4" /> : <Circle className="size-4" />}
+              {isCompleted ? "已学完" : "标记学完"}
+            </Button>
+          ) : (
+            <Badge variant="secondary">笔记阅读</Badge>
+          )}
         </div>
 
         {/* 组件流 */}
@@ -211,9 +235,15 @@ export default function LearnPage() {
             <ArrowLeft className="size-4" />
             上一个知识点
           </Button>
-          <Button variant="ghost" size="sm" onClick={toggleDone}>
-            {isCompleted ? "取消学完标记" : "标记本知识点学完"}
-          </Button>
+          {isCourse ? (
+            <Button variant="ghost" size="sm" onClick={toggleDone}>
+              {isCompleted ? "取消学完标记" : "标记本知识点学完"}
+            </Button>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              {currentIndex + 1} / {flat.length}
+            </span>
+          )}
           <Button
             size="sm"
             disabled={!next}

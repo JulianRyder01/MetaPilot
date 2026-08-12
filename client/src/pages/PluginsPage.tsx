@@ -14,7 +14,7 @@ const PLUGIN_ICONS: Record<string, typeof Puzzle> = {
 }
 
 const PLUGIN_FEATURES: Record<string, string[]> = {
-  course: ["课程包导入 / 导出", "Markdown / Obsidian 笔记导入", "制作与分发新课程"],
+  course: ["课程包导入 / 导出", "章节知识点学习（组件流）", "学习进度与时长统计", "主观题 AI 判分", "动态交互块渲染"],
   knowledge_base: ["向量索引建立", "AI 问答与文档溯源（[来源N] 点击跳转）"],
 }
 

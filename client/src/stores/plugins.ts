@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { useEffect } from "react"
 import { api, type PluginInfo } from "@/lib/api"
 
 interface PluginsState {
@@ -39,4 +40,14 @@ export function ensurePluginsLoaded() {
   if (!loaded) {
     refresh().catch(() => {})
   }
+}
+
+/** React hook：订阅某插件是否启用（首次使用时触发加载）。 */
+export function usePluginEnabled(id: string): boolean {
+  const plugins = usePluginsStore((s) => s.plugins)
+  useEffect(() => {
+    ensurePluginsLoaded()
+  }, [])
+  const p = plugins.find((x) => x.id === id)
+  return p ? p.enabled : true
 }

@@ -15,11 +15,11 @@ import {
 import { toast } from "sonner"
 
 import { api, type Collection, type Progress } from "@/lib/api"
+import { usePluginEnabled } from "@/stores/plugins"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress as ProgressBar } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ImportDialog } from "@/components/library/ImportDialog"
 import { PluginGate } from "@/components/plugins/PluginGate"
 
 export default function CoursePage() {
@@ -27,13 +27,19 @@ export default function CoursePage() {
   const navigate = useNavigate()
   const [col, setCol] = useState<Collection | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
+  const courseEnabled = usePluginEnabled("course")
 
   const load = useCallback(async () => {
     if (!cid) return
-    const [c, p] = await Promise.all([api.getCollection(cid), api.getProgress(cid)])
+    const c = await api.getCollection(cid)
     setCol(c)
-    setProgress(p)
-  }, [cid])
+    // 学习进度是课程插件能力：仅课程类型加载
+    if (c.kind === "course" && courseEnabled) {
+      api.getProgress(cid).then(setProgress).catch(() => {})
+    } else {
+      setProgress(null)
+    }
+  }, [cid, courseEnabled])
 
   useEffect(() => {
     load()
@@ -84,6 +90,16 @@ export default function CoursePage() {
     )
   }
 
+  // 课程视图依赖课程插件；笔记集合仅作文档浏览
+  const isCourse = col.kind === "course"
+  if (isCourse && !courseEnabled) {
+    return (
+      <div className="mx-auto max-w-2xl px-6 py-16">
+        <PluginGate pluginId="course" hint="浏览与学习课程（进度 / 题目 / 交互块 / 导出）" />
+      </div>
+    )
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       <Link to="/" className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
@@ -104,37 +120,42 @@ export default function CoursePage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <ImportDialog libraryId={undefined} />
-          <Button variant="outline" size="sm" onClick={exportCourse}>
-            <Download className="size-4" />
-            导出
-          </Button>
+          {isCourse && (
+            <>
+              <Button variant="outline" size="sm" onClick={exportCourse}>
+                <Download className="size-4" />
+                导出
+              </Button>
+              <Button size="sm" onClick={continueLearning}>
+                <Play className="size-4" />
+                继续学习
+              </Button>
+            </>
+          )}
           <Button variant="outline" size="sm" onClick={() => navigate(`/edit/${cid}`)}>
             <Pencil className="size-4" />
             编辑
           </Button>
-          <Button size="sm" onClick={continueLearning}>
-            <Play className="size-4" />
-            继续学习
-          </Button>
         </div>
       </div>
 
-      {/* 进度 */}
-      <div className="mb-6 rounded-lg border p-4">
-        <div className="mb-2 flex items-center justify-between text-sm">
-          <span className="font-medium">学习进度</span>
-          <span className="text-muted-foreground">
-            {completedCount} / {total} 个知识点
-          </span>
+      {/* 进度（课程能力） */}
+      {isCourse && (
+        <div className="mb-6 rounded-lg border p-4">
+          <div className="mb-2 flex items-center justify-between text-sm">
+            <span className="font-medium">学习进度</span>
+            <span className="text-muted-foreground">
+              {completedCount} / {total} 个知识点
+            </span>
+          </div>
+          <ProgressBar value={percent} />
+          {progress?.lastPosition && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              上次学到：{allSections.find(({ section }) => section.id === progress.lastPosition!.sectionId)?.section.name ?? ""}
+            </p>
+          )}
         </div>
-        <ProgressBar value={percent} />
-        {progress?.lastPosition && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            上次学到：{allSections.find(({ section }) => section.id === progress.lastPosition!.sectionId)?.section.name ?? ""}
-          </p>
-        )}
-      </div>
+      )}
 
       {/* 章节列表 */}
       <div className="space-y-4">
