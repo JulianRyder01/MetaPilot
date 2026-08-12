@@ -182,6 +182,7 @@ class LibraryStore:
                 "author": data.get("author", ""),
                 "version": data.get("version", "1.0.0"),
                 "formatVersion": data.get("formatVersion", 1),
+                "packageId": data.get("packageId", ""),
                 "createdAt": now_iso(),
                 "updatedAt": now_iso(),
                 "documents": [],
@@ -197,7 +198,7 @@ class LibraryStore:
                 col = find_collection(lib, cid)
                 if col is None:
                     continue
-                for key in ("name", "kind", "description", "author", "version"):
+                for key in ("name", "kind", "description", "author", "version", "packageId", "formatVersion"):
                     if key in data and data[key] is not None:
                         col[key] = data[key]
                 col["updatedAt"] = now_iso()
