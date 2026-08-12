@@ -6,7 +6,7 @@ from .config import DATA_DIR
 from .storage.progress import ProgressStore
 from .storage.stats import StatsStore
 from .storage.store import LibraryStore
-from .api import documents, libraries, progress, stats
+from .api import ai, documents, libraries, progress, stats
 
 APP_VERSION = "1.0.0"
 
@@ -27,6 +27,7 @@ app.include_router(libraries.router)
 app.include_router(documents.router)
 app.include_router(progress.router)
 app.include_router(stats.router)
+app.include_router(ai.router)
 
 
 @app.get("/api/health")
