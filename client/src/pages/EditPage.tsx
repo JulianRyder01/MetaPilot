@@ -2,24 +2,29 @@ import { useCallback, useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
   BookOpen,
+  ChevronDown,
   FilePlus2,
   FileText,
+  Folder,
+  FolderPlus,
   ListPlus,
   Pencil,
   Plus,
   SquareStack,
   Trash2,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
-import { api, type Collection } from "@/lib/api"
+import { api, type Collection, type Document } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { buildCollectionTree, folderPath, type FolderNode } from "@/lib/tree"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Select,
   SelectContent,
@@ -177,6 +182,59 @@ export default function EditPage() {
     return null
   }
 
+  // ---- 文件夹操作 ----
+
+  async function createFolderIn(parentId: string) {
+    if (!col) return
+    const name = window.prompt("新建文件夹名称：")
+    if (!name?.trim()) return
+    try {
+      await api.createFolder(col.id, { name: name.trim(), parentId: parentId || undefined })
+      await load()
+      setDirty(true)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "创建失败")
+    }
+  }
+
+  async function renameFolder(fid: string) {
+    const folder = col?.folders.find((f) => f.id === fid)
+    if (!folder) return
+    const name = window.prompt("重命名文件夹：", folder.name)
+    if (!name?.trim() || name.trim() === folder.name) return
+    try {
+      await api.updateFolder(fid, { name: name.trim() })
+      await load()
+      setDirty(true)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "重命名失败")
+    }
+  }
+
+  async function removeFolder(fid: string) {
+    if (!window.confirm("删除该文件夹？其下所有子文件夹与文档将被一并删除。")) return
+    try {
+      await api.deleteFolder(fid)
+      await load()
+      setSel({ kind: "collection" })
+      setDirty(true)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "删除失败")
+    }
+  }
+
+  async function moveDoc(docId: string, folderId: string) {
+    const doc = col?.documents.find((d) => d.id === docId)
+    if (!col || !doc) return
+    try {
+      await api.updateDocument(docId, { name: doc.name, docType: doc.docType, folderId })
+      await load()
+      setDirty(true)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "移动失败")
+    }
+  }
+
   // 右侧编辑内容
   let editor: React.ReactNode = null
   if (sel.kind === "collection") {
@@ -267,6 +325,25 @@ export default function EditPage() {
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1.5">
+            <Label>所在文件夹（移动文档）</Label>
+            <Select
+              value={doc.folderId ?? ""}
+              onValueChange={(v) => moveDoc(doc.id, v)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="根目录" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">根目录</SelectItem>
+                {(col.folders ?? []).map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {folderPath(col, f.id)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <p className="text-xs text-muted-foreground">
             学习章节与测验章节可以自由搭配，实现学习与考试分离。
           </p>
@@ -299,6 +376,34 @@ export default function EditPage() {
                 setDirty(true)
               }}
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label>引用其他文档（小节引用）</Label>
+            <Select
+              value={found.section.refDocId ?? ""}
+              onValueChange={async (v) => {
+                await api.updateSection(found.section.id, { name: found.section.name, refDocId: v })
+                await load()
+                setDirty(true)
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="无引用" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">无引用</SelectItem>
+                {col.documents
+                  .filter((d) => d.id !== found.doc.id)
+                  .map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              设为引用后，学习页会显示引用卡片并跳转到目标文档。
+            </p>
           </div>
           <div>
             <Label className="mb-2 block">新增组件</Label>
@@ -351,6 +456,125 @@ export default function EditPage() {
     }
   }
 
+  // 文件夹树渲染（递归）
+  const editTree = buildCollectionTree(col)
+  const renderDocRow = (doc: Document): React.ReactNode => (
+    <div key={doc.id} className="space-y-0.5">
+      <div className="group flex items-center gap-1 rounded-md px-2 py-1.5 hover:bg-accent/60">
+        <button
+          onClick={() => setSel({ kind: "doc", id: doc.id })}
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm",
+            sel.kind === "doc" && sel.id === doc.id
+              ? "font-medium text-primary"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <BookOpen className="size-3.5 shrink-0" />
+          <span className="truncate">{doc.name}</span>
+        </button>
+        <button onClick={() => addSection(doc.id)} className="text-muted-foreground hover:text-foreground" title="新增小节">
+          <ListPlus className="size-3.5" />
+        </button>
+        <button onClick={() => removeDoc(doc.id)} className="text-muted-foreground hover:text-destructive" title="删除章节">
+          <Trash2 className="size-3.5" />
+        </button>
+      </div>
+      <div className="ml-4 space-y-0.5 border-l pl-2">
+        {doc.sections.map((sec) => (
+          <div key={sec.id} className="group">
+            <div className="flex items-center gap-1 rounded px-2 py-1 hover:bg-accent/60">
+              <button
+                onClick={() => setSel({ kind: "section", id: sec.id })}
+                className={cn(
+                  "flex min-w-0 flex-1 items-center gap-1.5 text-left text-[13px]",
+                  sel.kind === "section" && sel.id === sec.id
+                    ? "font-medium text-primary"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <FileText className="size-3.5 shrink-0" />
+                <span className="truncate">{sec.name}</span>
+                <span className="text-[10px] text-muted-foreground">{sec.blocks.length}</span>
+              </button>
+              <button onClick={() => removeSection(sec.id)} className="text-muted-foreground hover:text-destructive" title="删除小节">
+                <Trash2 className="size-3.5" />
+              </button>
+            </div>
+            <div className="ml-4 space-y-0.5 border-l pl-2">
+              {sec.blocks.map((b) => (
+                <button
+                  key={b.id}
+                  onClick={() => setSel({ kind: "block", id: b.id })}
+                  className={cn(
+                    "flex w-full items-center gap-1.5 rounded px-2 py-0.5 text-left text-xs",
+                    sel.kind === "block" && sel.id === b.id
+                      ? "bg-primary/10 font-medium text-primary"
+                      : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                  )}
+                >
+                  <span className="truncate">{BLOCK_TYPE_LABEL[b.type] ?? b.type}</span>
+                  <Trash2
+                    className="ml-auto size-3 shrink-0 opacity-0 hover:text-destructive group-hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeBlock(b.id)
+                    }}
+                  />
+                </button>
+              ))}
+              {sec.blocks.length === 0 && (
+                <p className="px-2 py-0.5 text-[11px] text-muted-foreground/60">暂无组件</p>
+              )}
+            </div>
+          </div>
+        ))}
+        {doc.sections.length === 0 && (
+          <p className="px-2 py-0.5 text-[11px] text-muted-foreground/60">暂无小节</p>
+        )}
+      </div>
+    </div>
+  )
+  const renderFolderNode = (node: FolderNode): React.ReactNode => (
+    <Collapsible key={node.id}>
+      <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-accent/60">
+        <ChevronDown className="size-3.5 text-muted-foreground transition-transform [&[data-state=closed]]:-rotate-90" />
+        <Folder className="size-3.5 shrink-0 text-primary" />
+        <span className="min-w-0 flex-1 truncate">{node.name}</span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="ml-3 space-y-0.5 border-l pl-2">
+          <div className="flex items-center gap-1 px-1 py-0.5">
+            <button
+              onClick={() => createFolderIn(node.id)}
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <FolderPlus className="size-3" />
+              子文件夹
+            </button>
+            <button
+              onClick={() => renameFolder(node.id)}
+              className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              重命名
+            </button>
+            <button
+              onClick={() => removeFolder(node.id)}
+              className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-destructive"
+            >
+              删除
+            </button>
+          </div>
+          {node.children.map(renderFolderNode)}
+          {node.documents.map(renderDocRow)}
+          {node.children.length === 0 && node.documents.length === 0 && (
+            <p className="px-2 py-0.5 text-[11px] text-muted-foreground/60">空文件夹</p>
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+
   return (
     <div className="flex h-[calc(100vh-56px)]">
       {/* 左：树 */}
@@ -366,6 +590,10 @@ export default function EditPage() {
           <Button variant="outline" size="sm" onClick={addDocument}>
             <FilePlus2 className="size-4" />
             章节
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => createFolderIn("")}>
+            <FolderPlus className="size-4" />
+            文件夹
           </Button>
           <Button
             variant="outline"
@@ -389,83 +617,8 @@ export default function EditPage() {
               <span className="truncate">{col.name}</span>
             </button>
             <div className="space-y-1">
-              {col.documents.map((doc) => (
-                <div key={doc.id} className="space-y-0.5">
-                  <div className="group flex items-center gap-1 rounded-md px-2 py-1.5 hover:bg-accent/60">
-                    <button
-                      onClick={() => setSel({ kind: "doc", id: doc.id })}
-                      className={cn(
-                        "flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm",
-                        sel.kind === "doc" && sel.id === doc.id
-                          ? "font-medium text-primary"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <BookOpen className="size-3.5 shrink-0" />
-                      <span className="truncate">{doc.name}</span>
-                    </button>
-                    <button onClick={() => addSection(doc.id)} className="text-muted-foreground hover:text-foreground" title="新增小节">
-                      <ListPlus className="size-3.5" />
-                    </button>
-                    <button onClick={() => removeDoc(doc.id)} className="text-muted-foreground hover:text-destructive" title="删除章节">
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  </div>
-                  <div className="ml-4 space-y-0.5 border-l pl-2">
-                    {doc.sections.map((sec) => (
-                      <div key={sec.id} className="group">
-                        <div className="flex items-center gap-1 rounded px-2 py-1 hover:bg-accent/60">
-                          <button
-                            onClick={() => setSel({ kind: "section", id: sec.id })}
-                            className={cn(
-                              "flex min-w-0 flex-1 items-center gap-1.5 text-left text-[13px]",
-                              sel.kind === "section" && sel.id === sec.id
-                                ? "font-medium text-primary"
-                                : "text-muted-foreground hover:text-foreground",
-                            )}
-                          >
-                            <FileText className="size-3.5 shrink-0" />
-                            <span className="truncate">{sec.name}</span>
-                            <span className="text-[10px] text-muted-foreground">{sec.blocks.length}</span>
-                          </button>
-                          <button onClick={() => removeSection(sec.id)} className="text-muted-foreground hover:text-destructive" title="删除小节">
-                            <Trash2 className="size-3.5" />
-                          </button>
-                        </div>
-                        <div className="ml-4 space-y-0.5 border-l pl-2">
-                          {sec.blocks.map((b) => (
-                            <button
-                              key={b.id}
-                              onClick={() => setSel({ kind: "block", id: b.id })}
-                              className={cn(
-                                "flex w-full items-center gap-1.5 rounded px-2 py-0.5 text-left text-xs",
-                                sel.kind === "block" && sel.id === b.id
-                                  ? "bg-primary/10 font-medium text-primary"
-                                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-                              )}
-                            >
-                              <span className="truncate">{BLOCK_TYPE_LABEL[b.type] ?? b.type}</span>
-                              <Trash2
-                                className="ml-auto size-3 shrink-0 opacity-0 hover:text-destructive group-hover:opacity-100"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  removeBlock(b.id)
-                                }}
-                              />
-                            </button>
-                          ))}
-                          {sec.blocks.length === 0 && (
-                            <p className="px-2 py-0.5 text-[11px] text-muted-foreground/60">暂无组件</p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {doc.sections.length === 0 && (
-                      <p className="px-2 py-0.5 text-[11px] text-muted-foreground/60">暂无小节</p>
-                    )}
-                  </div>
-                </div>
-              ))}
+              {editTree.roots.map(renderFolderNode)}
+              {editTree.rootDocuments.map(renderDocRow)}
             </div>
           </div>
         </ScrollArea>

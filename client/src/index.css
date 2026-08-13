@@ -223,3 +223,11 @@
   font-weight: 600;
 }
 
+
+/* Toast 交互：鼠标悬浮时半透明，方便查看被遮挡的内容 */
+[data-sonner-toast] {
+  transition: opacity 150ms ease;
+}
+[data-sonner-toast]:hover {
+  opacity: 0.55;
+}

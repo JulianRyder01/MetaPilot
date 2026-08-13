@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { Database, Loader2, Play, Rocket, Send, Sparkles } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 import { api, type Collection, type KbEmbeddingStatus, type KbSource, type KbStatus } from "@/lib/api"
 import { PluginGate } from "@/components/plugins/PluginGate"

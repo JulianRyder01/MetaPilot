@@ -6,12 +6,14 @@ import {
   CheckCircle2,
   ChevronLeft,
   Circle,
+  Link2,
   ListTree,
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { api, type Collection, type Progress } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { resolveRefTarget } from "@/lib/tree"
 import { usePluginEnabled } from "@/stores/plugins"
 import { useSettingsStore } from "@/stores/settings"
 import { Badge } from "@/components/ui/badge"
@@ -83,6 +85,12 @@ export default function LearnPage() {
   const current = flat[currentIndex]
   const prev = flat[currentIndex - 1]
   const next = flat[currentIndex + 1]
+
+  // 小节引用其他文档：显示引用卡片并跳转
+  const refTarget = useMemo(
+    () => (col && current ? resolveRefTarget(col, current.section.refDocId) : null),
+    [col, current],
+  )
 
   const completedSet = useMemo(
     () => new Set(progress?.completedSections ?? []),
@@ -214,9 +222,30 @@ export default function LearnPage() {
               </p>
               <h1 className="mt-1 text-2xl font-semibold">{current.section.name}</h1>
               <p className="mt-1 text-xs text-muted-foreground">
-                {currentIndex + 1} / {flat.length} 个知识点
+                {currentIndex + 1} / {flat.length} {isCourse ? "个知识点" : "篇"}
               </p>
             </header>
+
+            {/* 小节引用其他文档：引用卡片 */}
+            {refTarget && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <Link2 className="size-4 text-primary" />
+                  <span>
+                    本小节引用文档「{refTarget.doc.name}」
+                    {refTarget.section.name && <span className="text-muted-foreground">（{refTarget.section.name}）</span>}
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!refTarget.section.id}
+                  onClick={() => refTarget.section.id && navigate(`/learn/${cid}/${refTarget.section.id}`)}
+                >
+                  前往引用文档
+                </Button>
+              </div>
+            )}
             <div className="space-y-6">
               {current.section.blocks.map((block) => (
                 <BlockRenderer key={block.id} block={block} collectionId={cid!} />

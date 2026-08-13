@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import { GraduationCap, Puzzle, Rocket } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 import { usePluginsStore, ensurePluginsLoaded } from "@/stores/plugins"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"

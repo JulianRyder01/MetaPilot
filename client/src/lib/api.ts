@@ -1,5 +1,5 @@
 /** 后端 API 客户端。 */
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 import { useSettingsStore } from "@/stores/settings"
 
@@ -57,11 +57,18 @@ export const api = {
   deleteCollection: (id: string) => request<{ ok: boolean }>(`/collections/${id}`, { method: "DELETE" }),
 
   // 文档（章节）
-  createDocument: (cid: string, data: { name: string; docType: string }) =>
+  createDocument: (cid: string, data: { name: string; docType: string; folderId?: string }) =>
     request<Document>(`/collections/${cid}/documents`, { method: "POST", body: JSON.stringify(data) }),
-  updateDocument: (id: string, data: { name: string; docType: string }) =>
+  updateDocument: (id: string, data: { name: string; docType: string; folderId?: string }) =>
     request<Document>(`/documents/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteDocument: (id: string) => request<{ ok: boolean }>(`/documents/${id}`, { method: "DELETE" }),
+
+  // 文件夹
+  createFolder: (cid: string, data: { name: string; parentId?: string }) =>
+    request<Folder>(`/collections/${cid}/folders`, { method: "POST", body: JSON.stringify(data) }),
+  updateFolder: (id: string, data: { name?: string; parentId?: string }) =>
+    request<Folder>(`/folders/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteFolder: (id: string) => request<{ ok: boolean }>(`/folders/${id}`, { method: "DELETE" }),
 
   // 小节（知识点）
   createSection: (did: string, data: { name: string }) =>
@@ -157,9 +164,17 @@ export interface Block {
   [key: string]: unknown
 }
 
+export interface Folder {
+  id: string
+  name: string
+  parentId: string
+  createdAt?: string
+}
+
 export interface Section {
   id: string
   name: string
+  refDocId?: string
   blocks: Block[]
 }
 
@@ -167,6 +182,7 @@ export interface Document {
   id: string
   name: string
   docType: string
+  folderId?: string
   sections: Section[]
 }
 
@@ -179,6 +195,7 @@ export interface Collection {
   version: string
   packageId?: string
   documents: Document[]
+  folders: Folder[]
 }
 
 export interface Library {

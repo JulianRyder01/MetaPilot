@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Loader2, Sparkles } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 import { api, type GradeResult } from "@/lib/api"
 import { Button } from "@/components/ui/button"

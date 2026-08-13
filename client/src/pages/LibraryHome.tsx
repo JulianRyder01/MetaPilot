@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { BookOpen, FileText, GraduationCap, Plus, Trash2 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 import { api, type LibraryMeta } from "@/lib/api"
 import { cn } from "@/lib/utils"
