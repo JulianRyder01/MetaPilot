@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react"
-import { Link } from "react-router-dom"
-import { BookOpen, FileText, GraduationCap, Plus, Trash2 } from "lucide-react"
+import { Link, useNavigate } from "react-router-dom"
+import { BookOpen, FileText, GraduationCap, HardDrive, Link2, Plus, Trash2 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
-import { api, type LibraryMeta } from "@/lib/api"
+import { api, type LibraryMeta, type SymlinkMount } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/stores/app"
+import { usePluginEnabled } from "@/stores/plugins"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -21,6 +22,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ImportDialog } from "@/components/library/ImportDialog"
+import { AddMountDialog } from "@/components/symlink/AddMountDialog"
 
 const KIND_META: Record<string, { label: string; icon: typeof BookOpen }> = {
   course: { label: "课程", icon: GraduationCap },
@@ -29,9 +31,12 @@ const KIND_META: Record<string, { label: string; icon: typeof BookOpen }> = {
 }
 
 export default function LibraryHome() {
+  const navigate = useNavigate()
   const [libraries, setLibraries] = useState<LibraryMeta[]>([])
   const [loading, setLoading] = useState(true)
+  const [mounts, setMounts] = useState<SymlinkMount[]>([])
   const { currentLibraryId, setCurrentLibraryId } = useAppStore()
+  const symlinkEnabled = usePluginEnabled("symlink")
 
   const refresh = useCallback(async () => {
     const list = await api.listLibraries()
@@ -40,15 +45,38 @@ export default function LibraryHome() {
     if (!cur) setCurrentLibraryId(list[0]?.id ?? null)
   }, [setCurrentLibraryId])
 
+  const loadMounts = useCallback(async () => {
+    if (!symlinkEnabled) {
+      setMounts([])
+      return
+    }
+    try {
+      setMounts(await api.symlinkMounts())
+    } catch {
+      setMounts([])
+    }
+  }, [symlinkEnabled])
+
   useEffect(() => {
     refresh().finally(() => setLoading(false))
   }, [refresh])
+
+  useEffect(() => {
+    loadMounts()
+  }, [loadMounts])
 
   async function handleDelete(id: string) {
     if (!window.confirm("确定删除该库？其下所有内容将一并删除。")) return
     await api.deleteLibrary(id)
     toast.success("已删除库")
     refresh()
+  }
+
+  async function removeMount(id: string) {
+    if (!window.confirm("卸载该软链接？不会删除磁盘上的文件。")) return
+    await api.symlinkRemoveMount(id)
+    toast.success("已卸载")
+    loadMounts()
   }
 
   const current = libraries.find((l) => l.id === currentLibraryId)
@@ -91,6 +119,47 @@ export default function LibraryHome() {
                 暂无库。点击右上角导入课程包，或新建一个库。
               </p>
             )}
+          </div>
+        )}
+
+        {/* 软链接分区：集成自「软链接」插件；插件禁用时整区隐藏 */}
+        {symlinkEnabled && (
+          <div className="mt-6 border-t pt-3">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
+                <Link2 className="size-3.5" />
+                软链接
+                <Badge variant="outline" className="text-[10px]">插件</Badge>
+              </h2>
+              <AddMountDialog onAdded={loadMounts} />
+            </div>
+            <div className="space-y-1">
+              {mounts.map((m) => (
+                <div key={m.id} className="group flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-accent/60">
+                  <button
+                    onClick={() => navigate(`/files?mount=${m.id}`)}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm"
+                    title={`${m.name} → ${m.root}`}
+                  >
+                    <HardDrive className="size-3.5 shrink-0 text-primary" />
+                    <Link2 className="size-3 shrink-0 text-muted-foreground/60" />
+                    <span className="truncate">{m.name}</span>
+                  </button>
+                  <button
+                    onClick={() => removeMount(m.id)}
+                    className="text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
+                    title="卸载软链接"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+              {mounts.length === 0 && (
+                <p className="px-2 text-xs text-muted-foreground">
+                  暂无软链接，点击右侧添加本机目录
+                </p>
+              )}
+            </div>
           </div>
         )}
       </aside>

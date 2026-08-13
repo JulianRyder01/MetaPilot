@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import {
   ChevronRight,
   FileText,
   Folder,
   FolderOpen,
   HardDrive,
+  Link2,
   Pencil,
   Plus,
   RefreshCw,
@@ -17,23 +19,24 @@ import { toast } from "@/lib/toast"
 import { api, type SymlinkItem, type SymlinkMount, type SymlinkTree } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { MarkdownBlock } from "@/components/learn/blocks/MarkdownBlock"
 import { PluginGate } from "@/components/plugins/PluginGate"
+import { AddMountDialog } from "@/components/symlink/AddMountDialog"
 
 function joinPath(base: string, name: string) {
   return base ? `${base}/${name}` : name
+}
+
+/** 软链接来源的文档图标：文件图标带 Link2 角标，标识来自软链接插件。 */
+function SoftLinkFileIcon() {
+  return (
+    <span className="relative inline-flex shrink-0">
+      <FileText className="size-4 text-muted-foreground" />
+      <Link2 className="absolute -bottom-1 -right-1.5 size-2.5 rounded-full bg-background text-primary" />
+    </span>
+  )
 }
 
 function fmtSize(n: number) {
@@ -43,8 +46,9 @@ function fmtSize(n: number) {
 }
 
 export default function FilesPage() {
+  const [params] = useSearchParams()
   const [mounts, setMounts] = useState<SymlinkMount[]>([])
-  const [mid, setMid] = useState("")
+  const [mid, setMid] = useState(params.get("mount") ?? "")
   const [path, setPath] = useState("")
   const [tree, setTree] = useState<SymlinkTree | null>(null)
   const [file, setFile] = useState<{ path: string; content: string } | null>(null)
@@ -139,9 +143,10 @@ export default function FilesPage() {
       <div className="mb-4 flex items-center gap-2">
         <FolderOpen className="size-6 text-primary" />
         <h1 className="text-2xl font-semibold">文件浏览器</h1>
-        <p className="ml-2 text-sm text-muted-foreground">
-          软链接插件：挂载本机目录，像操作系统一样浏览与读写
-        </p>
+        <Badge variant="outline" className="gap-1">
+          <Link2 className="size-3" />
+          软链接插件
+        </Badge>
       </div>
 
       <PluginGate pluginId="symlink" hint="浏览与读写本机目录">
@@ -169,6 +174,7 @@ export default function FilesPage() {
                     className="flex min-w-0 flex-1 items-center gap-2 text-left"
                   >
                     <HardDrive className="size-4 shrink-0 text-primary" />
+                    <Link2 className="size-3 shrink-0 text-muted-foreground/60" />
                     <span className="truncate">{m.name}</span>
                   </button>
                   <button
@@ -238,7 +244,7 @@ export default function FilesPage() {
                           {item.type === "dir" ? (
                             <Folder className="size-4 shrink-0 text-primary" />
                           ) : (
-                            <FileText className="size-4 shrink-0 text-muted-foreground" />
+                            <SoftLinkFileIcon />
                           )}
                           <span className="truncate">{item.name}</span>
                           {item.type === "file" && (
@@ -317,57 +323,3 @@ export default function FilesPage() {
   )
 }
 
-function AddMountDialog({ onAdded }: { onAdded: () => void }) {
-  const [name, setName] = useState("")
-  const [root, setRoot] = useState("")
-  const [open, setOpen] = useState(false)
-
-  async function add() {
-    if (!name.trim() || !root.trim()) return
-    try {
-      await api.symlinkAddMount(name.trim(), root.trim())
-      toast.success("挂载成功")
-      setName("")
-      setRoot("")
-      setOpen(false)
-      onAdded()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "挂载失败")
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Plus className="size-4" />
-          添加
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>挂载本机目录</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>显示名称</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：我的笔记" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>目录路径（Windows/Linux 均支持）</Label>
-            <Input
-              value={root}
-              onChange={(e) => setRoot(e.target.value)}
-              placeholder={'例如：D:/Documents/notes 或 /home/user/notes'}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button onClick={add} disabled={!name.trim() || !root.trim()}>
-            挂载
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}

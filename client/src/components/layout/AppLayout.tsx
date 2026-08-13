@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet } from "react-router-dom"
 import { useEffect } from "react"
-import { BarChart3, BookOpen, FolderOpen, Library, Puzzle, Rocket, Settings2 } from "lucide-react"
+import { BarChart3, BookOpen, Library, Puzzle, Rocket, Settings2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useThemeStore } from "@/stores/theme"
@@ -8,7 +8,6 @@ import ThemeToggle from "@/components/layout/ThemeToggle"
 
 const navItems = [
   { to: "/", label: "我的库", icon: Library },
-  { to: "/files", label: "文件", icon: FolderOpen },
   { to: "/stats", label: "学习统计", icon: BarChart3 },
   { to: "/kb", label: "知识库", icon: Rocket },
   { to: "/plugins", label: "插件", icon: Puzzle },
