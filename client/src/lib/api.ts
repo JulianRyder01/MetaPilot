@@ -107,6 +107,7 @@ export const api = {
   listPlugins: () => request<PluginInfo[]>("/plugins"),
   setPluginEnabled: (id: string, enabled: boolean) =>
     request<PluginInfo>(`/plugins/${id}/${enabled ? "enable" : "disable"}`, { method: "POST" }),
+  deletePlugin: (id: string) => request<{ ok: boolean }>(`/plugins/${id}`, { method: "DELETE" }),
   importCourse: (file: File, libraryId = "") => {
     const fd = new FormData()
     fd.append("file", file)
@@ -231,7 +232,10 @@ export interface PluginInfo {
   version: string
   description: string
   author?: string
+  source: "core" | "official" | "user"
   enabled: boolean
+  locked: boolean
+  removable: boolean
   dependsOn: string[]
   missingDependencies: string[]
 }
