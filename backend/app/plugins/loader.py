@@ -27,7 +27,7 @@ def _apply_metadata(plugin: Plugin, meta_path: Path) -> None:
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
     except Exception:
         return
-    for key in ("id", "name", "version", "description", "author", "depends_on"):
+    for key in ("id", "name", "version", "description", "author", "depends_on", "source"):
         if key in meta and meta[key]:
             setattr(plugin, key, meta[key])
 

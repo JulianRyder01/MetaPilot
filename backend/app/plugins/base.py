@@ -24,6 +24,8 @@ class Plugin:
     version: str = "1.0.0"
     description: str = ""
     author: str = ""
+    # 来源分类：core（MetaPilot 本身，不可禁用/删除）| official（官方插件，可禁用不可删除）| user（用户自定义，可删除/禁用）
+    source: str = "user"
     # 依赖的其它插件 id
     depends_on: list[str] = []
 
@@ -69,11 +71,27 @@ class PluginManager:
         return self._registry.get(plugin_id)
 
     def list(self) -> list[dict]:
-        """插件清单（含启用状态与依赖信息）。"""
-        out = []
+        """插件清单（含启用状态、来源分类与依赖信息），首位为官方核心。"""
+        out = [self._core_info()]
         for p in self._registry.values():
             out.append(self._info(p))
         return out
+
+    @staticmethod
+    def _core_info() -> dict:
+        return {
+            "id": "core",
+            "name": "MetaPilot 文档库",
+            "version": "1.0.0",
+            "description": "MetaPilot 本身：库-文档集-文档-小节 的浏览与 Markdown 阅读、笔记导入、插件管理。官方核心，不允许禁用或删除。",
+            "author": "MetaPilot",
+            "source": "core",
+            "enabled": True,
+            "locked": True,
+            "removable": False,
+            "dependsOn": [],
+            "missingDependencies": [],
+        }
 
     def _info(self, p: Plugin) -> dict:
         deps = [d for d in p.depends_on if d in self._registry]
@@ -85,7 +103,10 @@ class PluginManager:
             "version": p.version,
             "description": p.description,
             "author": p.author,
+            "source": p.source,
             "enabled": enabled,
+            "locked": p.source == "core",
+            "removable": p.source == "user",
             "dependsOn": deps,
             "missingDependencies": missing_deps,
         }
@@ -100,6 +121,8 @@ class PluginManager:
             p = self._registry.get(plugin_id)
             if p is None:
                 raise KeyError(f"插件不存在: {plugin_id}")
+            if p.source == "core":
+                raise ValueError("官方核心（MetaPilot 本身）不允许禁用")
             if enabled:
                 # 启用前检查依赖是否已启用
                 missing = [d for d in p.depends_on if d in self._registry and not self.is_enabled(d)]
@@ -115,6 +138,23 @@ class PluginManager:
 
     def disable(self, plugin_id: str) -> dict:
         return self.set_enabled(plugin_id, False)
+
+    def remove(self, plugin_id: str) -> None:
+        """删除用户自定义插件：移除注册并从物理目录删除。"""
+        with self._lock:
+            p = self._registry.get(plugin_id)
+            if p is None:
+                raise KeyError(f"插件不存在: {plugin_id}")
+            if p.source != "user":
+                raise ValueError("仅用户自定义插件可以删除")
+            self._registry.pop(plugin_id, None)
+            self._state.pop(plugin_id, None)
+            self._save_state()
+            from .loader import PLUGINS_DIR
+            target = PLUGINS_DIR / plugin_id
+            if target.exists():
+                import shutil
+                shutil.rmtree(target, ignore_errors=True)
 
 
 # 全局插件管理器（由加载器在应用启动时填充）

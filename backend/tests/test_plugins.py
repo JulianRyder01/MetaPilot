@@ -55,12 +55,55 @@ def test_plugin_list_contains_loaded_plugins():
     assert r.status_code == 200
     plugins = r.json()
     ids = [p["id"] for p in plugins]
+    assert "core" in ids
     assert "course" in ids
     assert "knowledge_base" in ids
     for p in plugins:
         assert "enabled" in p
         assert "description" in p
         assert "dependsOn" in p
+        assert "source" in p
+        assert "locked" in p
+        assert "removable" in p
+
+
+def test_plugin_classification():
+    by_id = {p["id"]: p for p in client.get("/api/plugins").json()}
+    # 官方核心：不可禁用、不可删除
+    core = by_id["core"]
+    assert core["source"] == "core"
+    assert core["locked"] is True
+    assert core["removable"] is False
+    assert core["enabled"] is True
+    # 官方插件：可禁用、不可删除
+    course = by_id["course"]
+    assert course["source"] == "official"
+    assert course["locked"] is False
+    assert course["removable"] is False
+    # 禁用核心被拒绝（核心不在注册表，按 404 处理）
+    assert client.post("/api/plugins/core/disable").status_code == 404
+    # 删除官方插件被拒绝
+    assert client.delete("/api/plugins/course").status_code == 400
+
+
+def test_user_plugin_removable():
+    from app.plugins.base import Plugin, manager
+
+    class FakeUserPlugin(Plugin):
+        id = "fake_user_plugin"
+        name = "测试用户插件"
+        source = "user"
+
+    manager.register(FakeUserPlugin())
+    # 用户插件可禁用
+    r = client.post("/api/plugins/fake_user_plugin/disable").json()
+    assert r["enabled"] is False
+    assert r["removable"] is True
+    # 用户插件可删除（物理目录不存在时跳过删除）
+    assert client.delete("/api/plugins/fake_user_plugin").status_code == 200
+    assert "fake_user_plugin" not in [p["id"] for p in client.get("/api/plugins").json()]
+    # 删除后 404
+    assert client.delete("/api/plugins/fake_user_plugin").status_code == 404
 
 
 def test_disable_course_blocks_import_and_notes():
