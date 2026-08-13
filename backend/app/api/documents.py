@@ -16,10 +16,8 @@ def _not_found(e: KeyError):
 
 
 def _doc_payload(body: DocumentIn) -> dict:
-    data = body.model_dump(exclude_unset=True)
-    if "doc_type" in data:
-        data["docType"] = data.pop("doc_type")
-    return data
+    # by_alias=True：输出 docType / folderId（与后端存储字段一致）
+    return body.model_dump(exclude_unset=True, by_alias=True)
 
 
 @router.post("/collections/{cid}/documents")
@@ -50,7 +48,9 @@ def delete_document(did: str, request: Request):
 @router.post("/documents/{did}/sections")
 def create_section(did: str, body: SectionIn, request: Request):
     try:
-        return _store(request).create_section(did, body.model_dump())
+        return _store(request).create_section(
+            did, body.model_dump(exclude_unset=True, by_alias=True)
+        )
     except KeyError as e:
         _not_found(e)
 

@@ -186,6 +186,7 @@ class LibraryStore:
                 "createdAt": now_iso(),
                 "updatedAt": now_iso(),
                 "documents": [],
+                "folders": [],
             }
             lib.setdefault("collections", []).append(col)
             lib["updatedAt"] = now_iso()
@@ -223,6 +224,105 @@ class LibraryStore:
         for it in self._load_index():
             yield self._load_lib(it["id"])
 
+    # ---- 文件夹（文档集内的目录层级） ----
+
+    def _folder_tree(self, col: dict) -> dict[str, dict]:
+        """返回 folderId -> folder 的映射。"""
+        return {f["id"]: f for f in col.get("folders", [])}
+
+    def _folder_descendants(self, col: dict, fid: str) -> set[str]:
+        """返回 fid 及其全部子孙文件夹 id。"""
+        tree = self._folder_tree(col)
+        out: set[str] = set()
+        stack = [fid]
+        while stack:
+            cur = stack.pop()
+            if cur in out:
+                continue
+            out.add(cur)
+            for f in tree.values():
+                if f.get("parentId") == cur:
+                    stack.append(f["id"])
+        return out
+
+    def create_folder(self, cid: str, data: dict) -> dict:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                col = find_collection(lib, cid)
+                if col is None:
+                    continue
+                parent_id = data.get("parentId", "")
+                if parent_id:
+                    tree = self._folder_tree(col)
+                    if parent_id not in tree:
+                        raise KeyError(f"父文件夹不存在: {parent_id}")
+                folder = {
+                    "id": gen_id(),
+                    "name": data["name"],
+                    "parentId": parent_id,
+                    "createdAt": now_iso(),
+                }
+                col.setdefault("folders", []).append(folder)
+                col["updatedAt"] = now_iso()
+                lib["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return folder
+            raise KeyError(f"文档集不存在: {cid}")
+
+    def update_folder(self, fid: str, data: dict) -> dict:
+        with self.lock:
+            for lib in self._iter_all_libs():
+                col = self._find_col_by_folder(fid, lib)
+                if col is None:
+                    continue
+                folder = next((f for f in col.get("folders", []) if f["id"] == fid), None)
+                if folder is None:
+                    raise KeyError(f"文件夹不存在: {fid}")
+                if "name" in data and data["name"] is not None:
+                    folder["name"] = data["name"]
+                if "parentId" in data:
+                    new_parent = data["parentId"] or ""
+                    # 防环：父不能是自身或其后代
+                    if new_parent == fid:
+                        raise ValueError("父文件夹不能是自身")
+                    if new_parent:
+                        descendants = self._folder_descendants(col, fid)
+                        if new_parent in descendants:
+                            raise ValueError("父文件夹不能是其自身的子文件夹")
+                        if new_parent not in self._folder_tree(col):
+                            raise KeyError(f"父文件夹不存在: {new_parent}")
+                    folder["parentId"] = new_parent
+                col["updatedAt"] = now_iso()
+                lib["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return folder
+            raise KeyError(f"文件夹不存在: {fid}")
+
+    def delete_folder(self, fid: str) -> None:
+        """删除文件夹：级联删除其全部子孙文件夹与其中的文档。"""
+        with self.lock:
+            for lib in self._iter_all_libs():
+                col = self._find_col_by_folder(fid, lib)
+                if col is None:
+                    raise KeyError(f"文件夹不存在: {fid}")
+                doomed = self._folder_descendants(col, fid)
+                col["folders"] = [f for f in col.get("folders", []) if f["id"] not in doomed]
+                col["documents"] = [
+                    d for d in col.get("documents", [])
+                    if (d.get("folderId") or "") not in doomed
+                ]
+                col["updatedAt"] = now_iso()
+                lib["updatedAt"] = now_iso()
+                self._save_lib(lib)
+                return
+
+    @staticmethod
+    def _find_col_by_folder(fid: str, lib: dict):
+        for c in lib.get("collections", []):
+            if any(f["id"] == fid for f in c.get("folders", [])):
+                return c
+        return None
+
     # ---- 文档（章节） ----
     def create_document(self, cid: str, data: dict) -> dict:
         with self.lock:
@@ -234,6 +334,7 @@ class LibraryStore:
                     "id": gen_id(),
                     "name": data["name"],
                     "docType": data.get("docType", "study"),
+                    "folderId": data.get("folderId", ""),
                     "createdAt": now_iso(),
                     "updatedAt": now_iso(),
                     "sections": [],
@@ -251,7 +352,7 @@ class LibraryStore:
                 _, doc = find_document(lib, did)
                 if doc is None:
                     continue
-                for key in ("name", "docType"):
+                for key in ("name", "docType", "folderId"):
                     if key in data and data[key] is not None:
                         doc[key] = data[key]
                 doc["updatedAt"] = now_iso()
@@ -283,6 +384,7 @@ class LibraryStore:
                 sec = {
                     "id": gen_id(),
                     "name": data["name"],
+                    "refDocId": data.get("refDocId", ""),
                     "createdAt": now_iso(),
                     "updatedAt": now_iso(),
                     "blocks": [],
@@ -302,6 +404,8 @@ class LibraryStore:
                     continue
                 if "name" in data and data["name"] is not None:
                     sec["name"] = data["name"]
+                if "refDocId" in data:
+                    sec["refDocId"] = data["refDocId"] or ""
                 if "blocks" in data and data["blocks"] is not None:
                     sec["blocks"] = data["blocks"]
                 sec["updatedAt"] = now_iso()

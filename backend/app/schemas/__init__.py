@@ -22,10 +22,22 @@ class DocumentIn(BaseModel):
 
     name: str = Field(min_length=1, max_length=200)
     doc_type: Literal["study", "quiz", "note"] = Field(default="study", alias="docType")
+    folder_id: Optional[str] = Field(default="", alias="folderId")
+
+
+class FolderIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    parent_id: Optional[str] = Field(default="", alias="parentId")
+
+
+class FolderUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    parent_id: Optional[str] = Field(default=None, alias="parentId")
 
 
 class SectionIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
+    ref_doc_id: Optional[str] = Field(default="", alias="refDocId")
 
 
 class BlockIn(BaseModel):

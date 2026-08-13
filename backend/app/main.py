@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import DATA_DIR
 from .storage.store import LibraryStore
-from .api import documents, libraries, notes, plugins
+from .api import documents, folders, libraries, notes, plugins
 from .plugins.base import manager
 from .plugins.loader import load_plugins
 from .services.importer import CourseImporter
@@ -34,6 +34,7 @@ app.state.importer = CourseImporter(app.state.store, ASSETS_DIR)
 
 app.include_router(libraries.router)
 app.include_router(documents.router)
+app.include_router(folders.router)
 app.include_router(notes.router)
 app.include_router(plugins.router)
 
