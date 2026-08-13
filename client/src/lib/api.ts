@@ -146,6 +146,36 @@ export const api = {
 
   // 主题插件
   listThemes: () => request<ThemeDef[]>("/plugins/themes"),
+
+  // 软链接插件（文件浏览器）
+  symlinkMounts: () => request<SymlinkMount[]>("/plugins/symlink/mounts"),
+  symlinkAddMount: (name: string, root: string) =>
+    request<SymlinkMount>("/plugins/symlink/mounts", { method: "POST", body: JSON.stringify({ name, root }) }),
+  symlinkRenameMount: (id: string, name: string) =>
+    request<SymlinkMount>(`/plugins/symlink/mounts/${id}`, { method: "PUT", body: JSON.stringify({ name }) }),
+  symlinkRemoveMount: (id: string) =>
+    request<{ ok: boolean }>(`/plugins/symlink/mounts/${id}`, { method: "DELETE" }),
+  symlinkTree: (mid: string, path = "") =>
+    request<SymlinkTree>(`/plugins/symlink/mounts/${mid}/tree?path=${encodeURIComponent(path)}`),
+  symlinkReadFile: (mid: string, path: string) =>
+    request<{ path: string; content: string }>(
+      `/plugins/symlink/mounts/${mid}/file?path=${encodeURIComponent(path)}`,
+    ),
+  symlinkWriteFile: (mid: string, path: string, content: string) =>
+    request<{ ok: boolean; path: string; bytes: number }>(
+      `/plugins/symlink/mounts/${mid}/file?path=${encodeURIComponent(path)}`,
+      { method: "PUT", body: JSON.stringify({ content }) },
+    ),
+  symlinkMkdir: (mid: string, path: string) =>
+    request<{ ok: boolean; path: string }>(`/plugins/symlink/mounts/${mid}/mkdir`, {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    }),
+  symlinkDelete: (mid: string, path: string) =>
+    request<{ ok: boolean; path: string }>(
+      `/plugins/symlink/mounts/${mid}/path?path=${encodeURIComponent(path)}`,
+      { method: "DELETE" },
+    ),
 }
 
 // ---------- 类型 ----------
@@ -272,4 +302,23 @@ export interface KbEmbeddingStatus {
   model: string
   healthy: boolean
   serverRunning: boolean
+}
+
+export interface SymlinkMount {
+  id: string
+  name: string
+  root: string
+  createdAt?: string
+}
+
+export interface SymlinkItem {
+  name: string
+  type: "dir" | "file"
+  size: number
+  mtime: number
+}
+
+export interface SymlinkTree {
+  path: string
+  items: SymlinkItem[]
 }

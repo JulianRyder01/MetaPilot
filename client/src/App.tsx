@@ -9,6 +9,7 @@ import StatsPage from "@/pages/StatsPage"
 import KnowledgeBasePage from "@/pages/KnowledgeBasePage"
 import PluginsPage from "@/pages/PluginsPage"
 import SettingsPage from "@/pages/SettingsPage"
+import FilesPage from "@/pages/FilesPage"
 import EditPage from "@/pages/EditPage"
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/kb" element={<KnowledgeBasePage />} />
         <Route path="/plugins" element={<PluginsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/files" element={<FilesPage />} />
       </Route>
     </Routes>
   )
