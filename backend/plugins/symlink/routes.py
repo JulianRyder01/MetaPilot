@@ -1,0 +1,111 @@
+"""软链接插件路由：挂载本机目录，像文件系统一样浏览/读写。"""
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+
+from app.plugins.base import requires_plugin
+from .service import MountError
+
+router = APIRouter(
+    prefix="/api/plugins/symlink",
+    tags=["symlink"],
+    dependencies=[Depends(requires_plugin("symlink"))],
+)
+
+
+class MountIn(BaseModel):
+    name: str
+    root: str
+
+
+class MountRename(BaseModel):
+    name: str
+
+
+class FileIn(BaseModel):
+    content: str
+
+
+class PathIn(BaseModel):
+    path: str = ""
+
+
+def _svc(request: Request):
+    return request.app.state.symlink
+
+
+def _err(e: Exception):
+    if isinstance(e, KeyError):
+        raise HTTPException(status_code=404, detail=str(e))
+    if isinstance(e, (MountError, ValueError)):
+        raise HTTPException(status_code=400, detail=str(e))
+    raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/mounts")
+def list_mounts(request: Request):
+    return _svc(request).list_mounts()
+
+
+@router.post("/mounts")
+def add_mount(body: MountIn, request: Request):
+    try:
+        return _svc(request).add_mount(body.name.strip(), body.root.strip())
+    except Exception as e:
+        _err(e)
+
+
+@router.put("/mounts/{mid}")
+def rename_mount(mid: str, body: MountRename, request: Request):
+    try:
+        return _svc(request).rename_mount(mid, body.name.strip())
+    except Exception as e:
+        _err(e)
+
+
+@router.delete("/mounts/{mid}")
+def remove_mount(mid: str, request: Request):
+    try:
+        _svc(request).remove_mount(mid)
+        return {"ok": True}
+    except Exception as e:
+        _err(e)
+
+
+@router.get("/mounts/{mid}/tree")
+def list_dir(mid: str, path: str = "", request: Request = None):
+    try:
+        return _svc(request).list_dir(mid, path)
+    except Exception as e:
+        _err(e)
+
+
+@router.get("/mounts/{mid}/file")
+def read_file(mid: str, path: str = "", request: Request = None):
+    try:
+        return _svc(request).read_file(mid, path)
+    except Exception as e:
+        _err(e)
+
+
+@router.put("/mounts/{mid}/file")
+def write_file(mid: str, path: str = "", body: FileIn = None, request: Request = None):
+    try:
+        return _svc(request).write_file(mid, path, body.content)
+    except Exception as e:
+        _err(e)
+
+
+@router.post("/mounts/{mid}/mkdir")
+def mkdir(mid: str, body: PathIn, request: Request):
+    try:
+        return _svc(request).mkdir(mid, body.path.strip("/\\"))
+    except Exception as e:
+        _err(e)
+
+
+@router.delete("/mounts/{mid}/path")
+def delete_path(mid: str, path: str = "", request: Request = None):
+    try:
+        return _svc(request).delete_path(mid, path)
+    except Exception as e:
+        _err(e)
