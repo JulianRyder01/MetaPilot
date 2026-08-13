@@ -151,7 +151,11 @@ class PluginManager:
             self._state.pop(plugin_id, None)
             self._save_state()
             from .loader import PLUGINS_DIR
-            target = PLUGINS_DIR / plugin_id
+            # 路径净化：仅允许删除 PLUGINS_DIR 下的直接子目录（防 ../ 与任意路径删除）
+            plugins_root = PLUGINS_DIR.resolve()
+            target = (plugins_root / plugin_id).resolve()
+            if not target.is_relative_to(plugins_root) or target == plugins_root:
+                raise ValueError("非法插件路径，已拒绝删除")
             if target.exists():
                 import shutil
                 shutil.rmtree(target, ignore_errors=True)

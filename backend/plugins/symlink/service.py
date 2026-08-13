@@ -20,7 +20,7 @@ from app.storage.store import _read_json, _write_json, gen_id
 TEXT_EXTENSIONS = {
     ".md", ".markdown", ".txt", ".text", ".json", ".yaml", ".yml",
     ".csv", ".tsv", ".log", ".xml", ".html", ".css", ".js", ".ts",
-    ".py", ".toml", ".ini", ".conf", ".cfg", ".env",
+    ".py", ".toml", ".ini", ".conf", ".cfg",
 }
 MAX_WRITE_BYTES = 10 * 1024 * 1024  # 10MB
 
@@ -150,6 +150,11 @@ class SymlinkService:
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
+            # TOCTOU 缓解：写入后复核真实路径仍位于挂载根内（防路径被替换为外部符号链接）
+            if not target.resolve().is_relative_to(Path(mount["root"]).resolve()):
+                raise MountError("写入目标已被替换为挂载根之外的路径，已拒绝")
+        except MountError:
+            raise
         except OSError as e:
             raise MountError(f"写入失败: {e}")
         return {"ok": True, "path": rel, "bytes": len(data)}
@@ -172,9 +177,21 @@ class SymlinkService:
             raise MountError(f"路径不存在: {rel}")
         try:
             if target.is_dir():
-                shutil.rmtree(target)
+                self._rmtree_no_follow(target)
             else:
                 target.unlink()
         except OSError as e:
             raise MountError(f"删除失败: {e}")
         return {"ok": True, "path": rel}
+
+    @staticmethod
+    def _rmtree_no_follow(path: Path) -> None:
+        """递归删除目录，绝不跟随符号链接：符号链接只删除链接本身。"""
+        for child in path.iterdir():
+            if child.is_symlink():
+                child.unlink()
+            elif child.is_dir():
+                SymlinkService._rmtree_no_follow(child)
+            else:
+                child.unlink()
+        path.rmdir()
