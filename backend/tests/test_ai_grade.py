@@ -1,4 +1,6 @@
-"""AI 判题服务测试：monkeypatch httpx 模拟 MiniMax 响应，验证 prompt 构造与解析。"""
+"""AI 判题服务测试：经统一网关（FakeGateway）验证 prompt 构造与解析；解析容错用例保留。"""
+import asyncio
+
 import pytest
 
 from app.services.ai_grader import AIGrader
@@ -6,46 +8,23 @@ from app.services.ai_grader import AIGrader
 VALID_JSON = '{"score": 82, "feedback": "回答正确，抓住了核心要点。", "isCorrect": true}'
 
 
-class FakeResponse:
-    def __init__(self, content: str, status: int = 200):
-        self._content = content
-        self.status_code = status
+class FakeGateway:
+    def __init__(self):
+        self.captured: dict = {}
+        self.reply = VALID_JSON
 
-    def raise_for_status(self):
-        if self.status_code >= 400:
-            raise RuntimeError(f"HTTP {self.status_code}")
-
-    def json(self):
-        return {"choices": [{"message": {"content": self._content}}]}
+    async def chat(self, messages, temperature=0.3, max_tokens=1024, response_format=None, plugin="core"):
+        self.captured["messages"] = messages
+        self.captured["response_format"] = response_format
+        self.captured["plugin"] = plugin
+        return {"content": self.reply, "inputTokens": 1, "cachedTokens": 0,
+                "outputTokens": 1, "model": "fake", "provider": "fake"}
 
 
 @pytest.mark.asyncio
-async def test_grade_prompt_and_parse(monkeypatch):
-    captured = {}
-
-    class FakeClient:
-        def __init__(self, *a, **k):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *a):
-            return False
-
-        async def post(self, url, headers=None, json=None):
-            captured["url"] = url
-            captured["headers"] = headers
-            captured["body"] = json
-            assert json["response_format"] == {"type": "json_object"}
-            prompt = json["messages"][0]["content"]
-            assert "题型" not in prompt  # 验证用中文 prompt
-            assert "采样定理" in prompt
-            return FakeResponse(VALID_JSON)
-
-    monkeypatch.setattr("app.services.ai_grader.httpx.AsyncClient", FakeClient)
-
-    g = AIGrader(api_key="test-key")
+async def test_grade_prompt_and_parse():
+    gw = FakeGateway()
+    g = AIGrader(gateway=gw)
     result = await g.grade({
         "blockType": "short_answer",
         "question": "简述采样定理",
@@ -56,8 +35,21 @@ async def test_grade_prompt_and_parse(monkeypatch):
     assert result["score"] == 82
     assert result["isCorrect"] is True
     assert "核心要点" in result["feedback"]
-    assert "api.minimaxi.com" in captured["url"]
-    assert captured["headers"]["Authorization"] == "Bearer test-key"
+    # 走网关：JSON 格式要求 + 中文 prompt + 插件来源 course
+    assert gw.captured["response_format"] == {"type": "json_object"}
+    assert gw.captured["plugin"] == "course"
+    prompt = gw.captured["messages"][0]["content"]
+    assert "采样定理" in prompt and "采样频率" in prompt
+    assert "两倍" in prompt
+
+
+@pytest.mark.asyncio
+async def test_grade_uses_gateway_not_legacy():
+    """网关可用时走中转（不直接 httpx 调 MiniMax）。"""
+    gw = FakeGateway()
+    g = AIGrader(gateway=gw)
+    await g.grade({"blockType": "short_answer", "question": "q", "userAnswer": "a"})
+    assert gw.captured["messages"][0]["role"] == "user"
 
 
 @pytest.mark.asyncio
@@ -84,12 +76,11 @@ async def test_parse_score_clamped():
     assert AIGrader._parse_response('{"score": -10, "feedback": "", "isCorrect": false}')["score"] == 0
 
 
-def test_no_api_key_raises(monkeypatch):
-    import asyncio
-
+def test_no_key_raises_on_legacy_fallback(monkeypatch):
+    """网关不可用且未配置任何 key 时抛错（回退旧直连路径）。"""
     from app.services import ai_grader
     monkeypatch.setattr(ai_grader.settings, "minimax_api_key", "")
-    g = AIGrader(api_key="")
+    g = AIGrader(gateway=None)
     with pytest.raises(RuntimeError, match="MINIMAX_API_KEY"):
         asyncio.run(g.grade({"blockType": "short_answer", "question": "q",
                              "userAnswer": "a", "reference": "r"}))

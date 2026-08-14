@@ -2,6 +2,8 @@
 
 被禁用时所有端点返回 503 + 启用提示（requires_plugin("ai_insight")）。
 未建索引直接提问/规划时返回 409 + code=NOT_INDEXED（前端自动建索引并等待完成后重发）。
+核心 1.1.1 起：AI 调用（对话/向量）统一经 app.state.ai_gateway 中转（密钥/地址不出核心并统计用量），
+本地向量服务启停走 app.state.local_servers。
 """
 from __future__ import annotations
 
@@ -10,10 +12,9 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from app.config import settings
 from app.plugins.base import requires_plugin
-from app.services.embedding import EMBEDDING_MODELS, EmbeddingError
-from app.services.embedding_server import embedding_server_manager
+from app.services.ai_gateway import AIError, NotConfiguredError
+from app.services.embedding import EMBEDDING_MODELS
 from .service import InsightService, MODE_PROMPTS, NotIndexedError
 
 router = APIRouter(
@@ -61,6 +62,9 @@ class ModelIn(BaseModel):
 
 def _svc(request: Request) -> InsightService:
     svc: InsightService = request.app.state.ai_insight
+    # AI 统一网关：核心 1.1.1 起注入（测试可预置替身，优先保留）
+    if svc.gateway is None:
+        svc.gateway = getattr(request.app.state, "ai_gateway", None)
     # 软链接插件可能注册在后：路由请求时懒注入；仅当软链接插件启用时才注入，
     # 禁用后不再把本机目录列为数据源（软链接支持不写死）。
     from app.plugins.base import manager
@@ -72,45 +76,46 @@ def _svc(request: Request) -> InsightService:
     return svc
 
 
-def _ensure_auto_start() -> None:
-    """插件首次访问：若配置了自动启动且服务未运行，则自动拉起（首次含模型多路下载）。"""
-    if settings.embedding_auto_start and not embedding_server_manager.is_running():
+def _ensure_auto_start(request: Request) -> None:
+    """插件首次访问：本地向量服务未运行且配置为本地时自动拉起（首次含模型多路下载）。"""
+    gw = getattr(request.app.state, "ai_gateway", None)
+    if gw is None:
+        return
+    if gw.config.embedding_provider == "local_transformers":
         try:
-            embedding_server_manager.start()
+            request.app.state.local_servers.start("embedding", wait_ready=False)
         except Exception as e:
-            print(f"[ai_insight] 自动启动 embedding 服务失败: {e}")
+            print(f"[ai_insight] 自动启动向量服务失败: {e}")
 
 
 @router.get("/embedding-status")
 async def embedding_status(request: Request):
-    _ensure_auto_start()
+    _ensure_auto_start(request)
     svc = _svc(request)
+    st = request.app.state.local_servers.status("embedding")
     return {
-        "provider": svc.embedding.provider,
-        "url": svc.embedding.url,
-        "model": svc.embedding.model,
+        "provider": svc.gateway.config.embedding_provider,
+        "url": svc.gateway.config.embedding_url,
+        "model": svc.gateway.config.embedding_model,
         "models": EMBEDDING_MODELS,
-        "healthy": await svc.embedding.health(),
-        "serverRunning": embedding_server_manager.is_running(),
-        "autoStart": settings.embedding_auto_start,
+        "healthy": st["running"],
+        "serverRunning": st["running"],
+        "autoStart": True,
     }
 
 
 @router.post("/embedding/start")
-def embedding_start(body: ModelIn):
-    """启动本地 embedding 服务；body.model 可切换 Qwen3 模型（0.6B / 4B），自动多路下载。"""
-    model = body.model or settings.embedding_model
+def embedding_start(body: ModelIn, request: Request):
+    """启动本地向量服务；body.model 可切换 Qwen3 模型（0.6B / 4B），自动多路下载。"""
+    model = body.model or request.app.state.ai_gateway.config.embedding_model
     if model not in EMBEDDING_MODELS:
         raise HTTPException(status_code=400, detail=f"不支持的模型: {model}，可选 {list(EMBEDDING_MODELS)}")
-    if embedding_server_manager.is_running():
-        embedding_server_manager.stop()
-    return embedding_server_manager.start(model)
+    return request.app.state.local_servers.start("embedding", model)
 
 
 @router.post("/embedding/stop")
-def embedding_stop():
-    embedding_server_manager.stop()
-    return {"ok": True}
+def embedding_stop(request: Request):
+    return request.app.state.local_servers.stop("embedding")
 
 
 @router.get("/resources")
@@ -164,7 +169,7 @@ async def ask(body: AskIn, request: Request):
         raise HTTPException(status_code=400, detail=str(e))
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except EmbeddingError as e:
+    except (NotConfiguredError, AIError) as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"问答失败: {e}")
@@ -183,7 +188,7 @@ async def plan(body: PlanIn, request: Request):
         raise HTTPException(status_code=400, detail=str(e))
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except EmbeddingError as e:
+    except (NotConfiguredError, AIError) as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"洞察规划失败: {e}")

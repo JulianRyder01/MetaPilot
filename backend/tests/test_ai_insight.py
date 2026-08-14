@@ -23,18 +23,23 @@ settings.embedding_auto_start = False
 client = TestClient(app)
 
 
-class FakeEmbedding:
-    """文本前缀决定向量：傅里叶/第一个→e0，卷积/第二个→e1，其他→e2；问题→e0。"""
+class FakeGateway:
+    """AI 统一网关测试替身：embed 按文本前缀给向量；chat 走 replies 队列并捕获 messages。
+
+    - embed：傅里叶/第一个→e0，卷积/第二个→e1，其他→e2；问题→e0（与旧 FakeEmbedding 一致）
+    - chat：无 replies 时返回固定回答；有 replies 时依次弹出
+    """
 
     def __init__(self):
-        self.provider = "fake"
-        self.url = "fake"
-        self.model = "Qwen/Qwen3-Embedding-0.6B"
+        self.replies: list[str] = []
+        self.captured: dict = {}
+        self.config = type("C", (), {
+            "embedding_provider": "local_transformers",
+            "embedding_url": "http://127.0.0.1:8760",
+            "embedding_model": "Qwen/Qwen3-Embedding-0.6B",
+        })()
 
-    async def health(self):
-        return True
-
-    async def embed(self, texts):
+    async def embed(self, texts, model="", plugin="core"):
         out = []
         for t in texts:
             if t.startswith("问题"):
@@ -46,6 +51,13 @@ class FakeEmbedding:
             else:
                 out.append([0.0, 0.0, 1.0, 0.0])
         return out
+
+    async def chat(self, messages, temperature=0.3, max_tokens=1024, response_format=None, plugin="core"):
+        self.captured.setdefault("messages", []).append(messages)
+        content = self.replies.pop(0) if self.replies else \
+            "根据[来源1]，傅里叶变换将信号从时域转换到频域。\n引用来源：[来源1]"
+        return {"content": content, "inputTokens": 1, "cachedTokens": 0,
+                "outputTokens": 1, "model": "fake", "provider": "fake"}
 
 
 class FakeSymlink:
@@ -86,8 +98,14 @@ def _reset():
     app.state.store = LibraryStore(tmp)
     app.state.progress = ProgressStore(tmp)
     app.state.stats = StatsStore(tmp)
-    app.state.ai_insight = InsightService(app.state.store, tmp / "ai_insight", FakeEmbedding())
+    global GW
+    GW = FakeGateway()
+    app.state.ai_insight = InsightService(app.state.store, tmp / "ai_insight", gateway=GW)
     app.state.symlink = None
+
+
+# 当前测试的网关替身（_reset 重建）
+GW: FakeGateway = FakeGateway()
 
 
 def setup_function():
@@ -250,18 +268,17 @@ def test_index_symlink_mount_and_inner_path():
     assert r.status_code == 400
 
 
-def test_index_progress_reported_while_running(monkeypatch):
+def test_index_progress_reported_while_running():
     t = _make_library()
     key = f"lib_{t['lib']['id']}"
-    # 放慢 embedding，确保第二次提交时任务仍在进行中
-    svc = app.state.ai_insight
-    orig_embed = svc.embedding.embed
+    # 放慢 embed，确保第二次提交时任务仍在进行中
+    orig_embed = GW.embed
 
-    async def slow_embed(texts):
+    async def slow_embed(texts, model="", plugin="core"):
         await asyncio.sleep(0.3)
         return await orig_embed(texts)
 
-    svc.embedding.embed = slow_embed
+    GW.embed = slow_embed
 
     r = client.post("/api/plugins/ai_insight/index", json={
         "sources": [{"type": "library", "id": t["lib"]["id"]}],
@@ -281,7 +298,7 @@ def test_index_progress_reported_while_running(monkeypatch):
     assert "running" not in st
 
 
-def test_ask_modes_and_history(monkeypatch):
+def test_ask_modes_and_history():
     t = _make_library()
     key = f"lib_{t['lib']['id']}"
     client.post("/api/plugins/ai_insight/index", json={
@@ -289,13 +306,7 @@ def test_ask_modes_and_history(monkeypatch):
     })
     _wait_indexed([key])
 
-    captured = {}
-
-    async def fake_chat(messages, **kwargs):
-        captured["messages"] = messages
-        return "根据[来源1]，傅里叶变换将信号从时域转换到频域。\n引用来源：[来源1]"
-
-    monkeypatch.setattr("plugins.ai_insight.service.chat_completion", fake_chat)
+    GW.captured.clear()
 
     r = client.post("/api/plugins/ai_insight/ask", json={
         "sources": [{"type": "library", "id": t["lib"]["id"]}],
@@ -309,7 +320,7 @@ def test_ask_modes_and_history(monkeypatch):
     assert result["sources"][0]["sectionId"] == t["s1"]["id"]
     assert result["sources"][0]["link"]["kind"] == "learn"
 
-    msgs = captured["messages"]
+    msgs = GW.captured["messages"][-1]  # 最近一次 chat 的 messages
     assert msgs[0]["role"] == "system"
     assert "分析它们之间的联系" in msgs[0]["content"]  # assist 模式
     # 多轮历史原样透传（位于 system 与最新问题之间）
@@ -320,20 +331,14 @@ def test_ask_modes_and_history(monkeypatch):
     assert "问题：什么是傅里叶变换" in msgs[-1]["content"]
 
 
-def test_ask_mode_prompt_differs(monkeypatch):
+def test_ask_mode_prompt_differs():
     t = _make_library()
     client.post("/api/plugins/ai_insight/index", json={
         "sources": [{"type": "library", "id": t["lib"]["id"]}],
     })
     _wait_indexed([f"lib_{t['lib']['id']}"])
 
-    captured = {}
-
-    async def fake_chat(messages, **kwargs):
-        captured.setdefault("prompts", []).append(messages[0]["content"])
-        return "ok"
-
-    monkeypatch.setattr("plugins.ai_insight.service.chat_completion", fake_chat)
+    GW.captured.clear()
 
     for mode in ("assist", "wander", "reflect"):
         r = client.post("/api/plugins/ai_insight/ask", json={
@@ -343,11 +348,12 @@ def test_ask_mode_prompt_differs(monkeypatch):
         })
         assert r.status_code == 200, r.text
 
-    assert len(captured["prompts"]) == 3
-    assert captured["prompts"][0] != captured["prompts"][1]
-    assert captured["prompts"][1] != captured["prompts"][2]
-    assert "思维漫游" in captured["prompts"][1]
-    assert "没有注意到" in captured["prompts"][2]
+    prompts = [m[0]["content"] for m in GW.captured["messages"]]
+    assert len(prompts) == 3
+    assert prompts[0] != prompts[1]
+    assert prompts[1] != prompts[2]
+    assert "思维漫游" in prompts[1]
+    assert "没有注意到" in prompts[2]
 
 
 def test_ask_not_indexed_returns_409():
@@ -363,28 +369,24 @@ def test_ask_not_indexed_returns_409():
     assert f"lib_{t['lib']['id']}" in detail["keys"]
 
 
-def test_plan_generates_canvas(monkeypatch):
+def test_plan_generates_canvas():
     t = _make_library()
     client.post("/api/plugins/ai_insight/index", json={
         "sources": [{"type": "library", "id": t["lib"]["id"]}],
     })
     _wait_indexed([f"lib_{t['lib']['id']}"])
 
-    calls = []
-
-    async def fake_chat(messages, **kwargs):
-        calls.append(len(messages))
-        if len(calls) == 1:
-            return json.dumps({
-                "theme": "时域与频域的联系",
-                "summary": "傅里叶变换与卷积共同构成信号处理的核心。",
-                "keyPoints": ["傅里叶变换", "卷积"],
-                "relations": [{"a": "傅里叶变换", "b": "卷积", "relation": "互为工具"}],
-                "outline": ["时域", "频域"],
-            }, ensure_ascii=False)
-        if len(calls) == 2:
-            return json.dumps({"revisions": [], "extraPoints": ["采样"]}, ensure_ascii=False)
-        return json.dumps({
+    GW.captured.clear()
+    GW.replies = [
+        json.dumps({
+            "theme": "时域与频域的联系",
+            "summary": "傅里叶变换与卷积共同构成信号处理的核心。",
+            "keyPoints": ["傅里叶变换", "卷积"],
+            "relations": [{"a": "傅里叶变换", "b": "卷积", "relation": "互为工具"}],
+            "outline": ["时域", "频域"],
+        }, ensure_ascii=False),
+        json.dumps({"revisions": [], "extraPoints": ["采样"]}, ensure_ascii=False),
+        json.dumps({
             "name": "信号处理概念图",
             "nodes": [
                 {"id": "n1", "type": "text", "x": 100, "y": 100, "width": 240, "height": 90,
@@ -397,9 +399,8 @@ def test_plan_generates_canvas(monkeypatch):
                 {"id": "e1", "fromNode": "n1", "toNode": "n2", "label": "联系", "toEnd": "arrow"},
                 {"id": "e2", "fromNode": "n1", "toNode": "missing"},  # 应被丢弃
             ],
-        }, ensure_ascii=False)
-
-    monkeypatch.setattr("plugins.ai_insight.service.chat_completion", fake_chat)
+        }, ensure_ascii=False),
+    ]
 
     r = client.post("/api/plugins/ai_insight/plan", json={
         "sources": [{"type": "library", "id": t["lib"]["id"]}],
@@ -419,27 +420,23 @@ def test_plan_generates_canvas(monkeypatch):
     assert len(edges) == 1  # 悬空边被丢弃
     assert edges[0]["fromNode"] == "n1" and edges[0]["toNode"] == "n2"
     # 三轮 agent 调用
-    assert len(calls) == 3
+    assert len(GW.captured["messages"]) == 3
 
 
-def test_plan_generates_course(monkeypatch):
+def test_plan_generates_course():
     t = _make_library()
     client.post("/api/plugins/ai_insight/index", json={
         "sources": [{"type": "library", "id": t["lib"]["id"]}],
     })
     _wait_indexed([f"lib_{t['lib']['id']}"])
 
-    calls = []
-
-    async def fake_chat(messages, **kwargs):
-        calls.append(1)
-        if len(calls) == 1:
-            return json.dumps({"theme": "信号处理入门", "summary": "s",
-                               "keyPoints": [], "relations": [], "outline": ["时域", "频域"]},
-                              ensure_ascii=False)
-        if len(calls) == 2:
-            return json.dumps({"revisions": [], "extraPoints": []}, ensure_ascii=False)
-        return json.dumps({
+    GW.captured.clear()
+    GW.replies = [
+        json.dumps({"theme": "信号处理入门", "summary": "s",
+                    "keyPoints": [], "relations": [], "outline": ["时域", "频域"]},
+                   ensure_ascii=False),
+        json.dumps({"revisions": [], "extraPoints": []}, ensure_ascii=False),
+        json.dumps({
             "name": "信号处理微课",
             "description": "从时域到频域",
             "documents": [
@@ -450,9 +447,8 @@ def test_plan_generates_course(monkeypatch):
                     ]},
                 ]},
             ],
-        }, ensure_ascii=False)
-
-    monkeypatch.setattr("plugins.ai_insight.service.chat_completion", fake_chat)
+        }, ensure_ascii=False),
+    ]
 
     r = client.post("/api/plugins/ai_insight/plan", json={
         "sources": [{"type": "library", "id": t["lib"]["id"]}],
@@ -483,11 +479,16 @@ def test_plan_not_indexed_returns_409():
     assert r.json()["detail"]["code"] == "NOT_INDEXED"
 
 
-def test_embedding_status_models_and_health():
+def test_embedding_status_models_and_health(monkeypatch):
+    # healthy 来自本地向量服务运行状态；测试环境探测不到服务 → False（结构字段仍完整）
+    monkeypatch.setattr(
+        "app.services.local_servers.LocalServersManager._port_alive", lambda self, url: False,
+    )
     r = client.get("/api/plugins/ai_insight/embedding-status")
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data["healthy"] is True
+    assert data["healthy"] is False
+    assert data["provider"] == "local_transformers"
     assert "Qwen/Qwen3-Embedding-0.6B" in data["models"]
     assert "Qwen/Qwen3-Embedding-4B" in data["models"]
     assert data["model"] == "Qwen/Qwen3-Embedding-0.6B"

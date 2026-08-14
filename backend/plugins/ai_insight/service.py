@@ -21,8 +21,7 @@ from typing import Optional
 import numpy as np
 
 from app.config import settings
-from app.services.embedding import EmbeddingError, EmbeddingProvider
-from app.services.minimax import chat_completion
+from app.services.ai_gateway import AIGateway
 from app.storage.store import LibraryStore
 
 EMBED_BATCH = 16
@@ -94,12 +93,14 @@ class NotIndexedError(RuntimeError):
 
 
 class InsightService:
-    def __init__(self, store: LibraryStore, data_dir: Path, embedding: Optional[EmbeddingProvider] = None,
-                 symlink=None):
+    def __init__(self, store: LibraryStore, data_dir: Path, embedding=None,
+                 symlink=None, gateway: Optional[AIGateway] = None):
         self.store = store
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.embedding = embedding or EmbeddingProvider()
+        # AI 统一网关（核心 1.1.1 起）：所有 AI 调用经 MetaPilot 中转并统计用量，
+        # 由路由注入 app.state.ai_gateway；测试可传入替身
+        self.gateway = gateway
         # 软链接服务（由路由懒注入；软链接插件未启用时为 None）
         self.symlink = symlink
         # 索引进度表：key → {status: running|done|error, total, done, error}
@@ -391,7 +392,7 @@ class InsightService:
         self._tasks[key]["total"] = total
         for i in range(0, len(texts), EMBED_BATCH):
             batch = texts[i:i + EMBED_BATCH]
-            vectors.extend(await self.embedding.embed(batch))
+            vectors.extend(await self.gateway.embed(batch, plugin="ai_insight"))
             self._tasks[key]["done"] = min(i + len(batch), total)
 
         arr = np.asarray(vectors, dtype=np.float32)
@@ -457,7 +458,7 @@ class InsightService:
             raise RuntimeError("所选数据源索引均为空，请先建立索引")
 
         combined = np.vstack(all_vectors)
-        q = (await self.embedding.embed([question]))[0]
+        q = (await self.gateway.embed([question], plugin="ai_insight"))[0]
         q = np.asarray(q, dtype=np.float32)
         sims = combined @ q
         k = min(top_k, len(all_sections))
@@ -507,8 +508,8 @@ class InsightService:
                 messages.append({"role": role, "content": h["content"]})
         messages.append({"role": "user", "content": user_msg})
 
-        answer = await chat_completion(messages, temperature=0.4, max_tokens=1536)
-        return {"answer": answer, "sources": hits}
+        result = await self.gateway.chat(messages, temperature=0.4, max_tokens=1536, plugin="ai_insight")
+        return {"answer": result["content"], "sources": hits}
 
     # ---------------- 洞察规划（多轮 agent + 生成） ----------------
 
@@ -526,7 +527,7 @@ class InsightService:
         context = self._context_text(hits)
 
         # Round 1：主题与联系分析
-        r1 = await chat_completion([
+        r1 = await self.gateway.chat([
             {"role": "system", "content": (
                 "你是 AI 洞察规划引擎。请分析下面资料之间的联系，形成一份主题洞察规划。"
                 "只依据给定资料，不要编造资料中没有的事实。"
@@ -537,11 +538,11 @@ class InsightService:
                 '"outline": ["可教学的知识点标题1", ...]}'
             )},
             {"role": "user", "content": f"{context}\n\n用户目标：{question}"},
-        ], temperature=0.3, max_tokens=1600, response_format={"type": "json_object"})
-        plan1 = _extract_json(r1)
+        ], temperature=0.3, max_tokens=1600, response_format={"type": "json_object"}, plugin="ai_insight")
+        plan1 = _extract_json(r1["content"])
 
         # Round 2：批判反思，补充遗漏
-        r2 = await chat_completion([
+        r2 = await self.gateway.chat([
             {"role": "system", "content": (
                 "你是批判性审阅者。以下是第一轮形成的洞察规划。请以批判性视角结合资料审视，"
                 "指出遗漏的联系、可补充的关键点或需要修正的地方。"
@@ -552,8 +553,8 @@ class InsightService:
             {"role": "user", "content": (
                 f"第一轮规划：\n{json.dumps(plan1, ensure_ascii=False, indent=2)}\n\n资料：\n{context}"
             )},
-        ], temperature=0.3, max_tokens=1200, response_format={"type": "json_object"})
-        plan2 = _extract_json(r2)
+        ], temperature=0.3, max_tokens=1200, response_format={"type": "json_object"}, plugin="ai_insight")
+        plan2 = _extract_json(r2["content"])
 
         merged = {"plan": plan1, "review": plan2, "question": question, "context": context}
         if output == "canvas":
@@ -562,7 +563,7 @@ class InsightService:
 
     async def _generate_canvas(self, merged: dict, library_id: Optional[str]) -> dict:
         plan1, plan2, question, context = merged["plan"], merged["review"], merged["question"], merged["context"]
-        r = await chat_completion([
+        r = await self.gateway.chat([
             {"role": "system", "content": (
                 "你是知识图表设计师。请根据洞察规划生成一张知识图表（canvas），用于直观展示概念与联系。"
                 "节点用 text 类型表达概念，连线表达关系。"
@@ -578,8 +579,8 @@ class InsightService:
                 f"洞察规划：\n{json.dumps(merged, ensure_ascii=False, indent=2)[:14000]}"
                 f"\n\n资料：\n{context[:16000]}"
             )},
-        ], temperature=0.4, max_tokens=4000, response_format={"type": "json_object"})
-        data = _extract_json(r)
+        ], temperature=0.4, max_tokens=4000, response_format={"type": "json_object"}, plugin="ai_insight")
+        data = _extract_json(r["content"])
 
         name = str(data.get("name") or plan1.get("theme") or "AI 洞察图表").strip()[:100]
         nodes = self._sanitize_canvas_nodes(data.get("nodes") or [])
@@ -593,7 +594,7 @@ class InsightService:
 
     async def _generate_course(self, merged: dict, library_id: Optional[str]) -> dict:
         plan1, plan2, question, context = merged["plan"], merged["review"], merged["question"], merged["context"]
-        r = await chat_completion([
+        r = await self.gateway.chat([
             {"role": "system", "content": (
                 "你是课程设计师。请根据洞察规划生成一门微课程（文档结构），用于循序渐进地教学用户。"
                 "块类型仅使用 markdown（content 为 Markdown 文本，可含 # 标题、列表、表格、示例代码）。"
@@ -608,8 +609,8 @@ class InsightService:
                 f"洞察规划：\n{json.dumps(merged, ensure_ascii=False, indent=2)[:14000]}"
                 f"\n\n资料：\n{context[:16000]}"
             )},
-        ], temperature=0.4, max_tokens=5000, response_format={"type": "json_object"})
-        data = _extract_json(r)
+        ], temperature=0.4, max_tokens=5000, response_format={"type": "json_object"}, plugin="ai_insight")
+        data = _extract_json(r["content"])
 
         name = str(data.get("name") or plan1.get("theme") or "AI 洞察课程").strip()[:100]
         lib_id = self._pick_library(library_id)

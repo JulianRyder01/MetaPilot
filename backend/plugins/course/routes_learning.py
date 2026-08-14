@@ -126,8 +126,9 @@ class GradeIn(BaseModel):
 
 
 @ai_router.post("/grade")
-async def grade(body: GradeIn):
-    g = AIGrader()
+async def grade(body: GradeIn, request: Request):
+    # 统一 AI 网关（核心 1.1.1）：判题经 MetaPilot 中转并统计用量；网关不可用时回退旧直连
+    g = AIGrader(gateway=getattr(request.app.state, "ai_gateway", None))
     try:
         return await g.grade(body.model_dump())
     except RuntimeError as e:

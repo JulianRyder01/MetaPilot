@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -18,6 +19,11 @@ import httpx
 from ..config import settings
 from .ai_config import AIConfig
 from ..storage.ai_usage import AIUsageStore
+
+
+def _strip_think(text: str) -> str:
+    """剥除推理模型（如 MiniMax-M3）的 <think> 块，只保留最终回答。"""
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
 
 class AIError(RuntimeError):
@@ -109,7 +115,7 @@ class AIGateway:
         input_tokens = int(usage.get("prompt_tokens") or 0)
         cached_tokens = int((usage.get("prompt_tokens_details") or {}).get("cached_tokens") or 0)
         output_tokens = int(usage.get("completion_tokens") or 0)
-        return {"content": content, "inputTokens": input_tokens, "cachedTokens": cached_tokens,
+        return {"content": _strip_think(content), "inputTokens": input_tokens, "cachedTokens": cached_tokens,
                 "outputTokens": output_tokens, "model": data.get("model") or model, "provider": "openai"}
 
     async def _chat_anthropic(self, messages, model, temperature, max_tokens) -> dict:
@@ -141,7 +147,7 @@ class AIGateway:
         input_tokens = int(usage.get("input_tokens") or 0)
         cached_tokens = int(usage.get("cache_read_input_tokens") or 0)
         output_tokens = int(usage.get("output_tokens") or 0)
-        return {"content": content, "inputTokens": input_tokens, "cachedTokens": cached_tokens,
+        return {"content": _strip_think(content), "inputTokens": input_tokens, "cachedTokens": cached_tokens,
                 "outputTokens": output_tokens, "model": data.get("model") or model, "provider": "anthropic"}
 
     async def _chat_local(self, messages, model, temperature, max_tokens, response_format) -> dict:
@@ -159,7 +165,7 @@ class AIGateway:
             raise AIError(f"本地 LLM 服务不可用（{self.config.local_llm_url}）：{e}。请先在设置中下载并启动内置模型")
         content = data["choices"][0]["message"]["content"]
         usage = data.get("usage") or {}
-        return {"content": content,
+        return {"content": _strip_think(content),
                 "inputTokens": int(usage.get("prompt_tokens") or 0),
                 "cachedTokens": 0,
                 "outputTokens": int(usage.get("completion_tokens") or 0),

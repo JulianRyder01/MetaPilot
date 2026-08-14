@@ -1,20 +1,21 @@
-"""AI 判题服务：调用 MiniMax-M3 对比用户作答与参考答案，输出准确率与评语。"""
+"""AI 判题服务：经统一 AI 网关（核心 1.1.1）调用模型，对比用户作答与参考答案，
+输出准确率与评语（走网关可统计用量与成本）。
+
+网关由调用方注入（app.state.ai_gateway）；未注入时回退到旧 MiniMax 直连配置（兼容）。
+"""
 from __future__ import annotations
 
 import json
 import re
-from typing import Any
-
-import httpx
+from typing import Any, Optional
 
 from ..config import settings
+from .ai_gateway import AIGateway
 
 
 class AIGrader:
-    def __init__(self, api_key: str = "", base_url: str = "", model: str = ""):
-        self.api_key = api_key or settings.minimax_api_key
-        self.base_url = base_url or settings.minimax_base_url
-        self.model = model or settings.minimax_model
+    def __init__(self, gateway: Optional[AIGateway] = None):
+        self.gateway = gateway
 
     def _build_prompt(self, payload: dict) -> str:
         block_type = payload.get("blockType", "short_answer")
@@ -46,7 +47,7 @@ class AIGrader:
     def _parse_response(text: str) -> dict[str, Any]:
         """解析 AI 返回文本，容错 <think> 推理块、markdown 包裹等情况。"""
         text = text.strip()
-        # 剥除 MiniMax-M3 的 <think> 推理块
+        # 剥除推理块（网关已剥，这里兜底）
         text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
         try:
             data = json.loads(text)
@@ -69,25 +70,37 @@ class AIGrader:
         return {"score": score, "feedback": feedback, "isCorrect": is_correct}
 
     async def grade(self, payload: dict) -> dict:
-        if not self.api_key:
-            raise RuntimeError("未配置 MINIMAX_API_KEY，请在 .env 中填写")
         prompt = self._build_prompt(payload)
+        if self.gateway is not None:
+            result = await self.gateway.chat(
+                [{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_tokens=1024,
+                response_format={"type": "json_object"},
+                plugin="course",
+            )
+            return self._parse_response(result["content"])
+
+        # 回退：旧 MiniMax 直连（未装配网关的旧调用方/测试）
+        if not settings.minimax_api_key:
+            raise RuntimeError("未配置 AI 服务（MINIMAX_API_KEY / AI_API_KEY），请在设置中填写")
+        import httpx
+
         body = {
-            "model": self.model,
+            "model": settings.minimax_model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.2,
             "response_format": {"type": "json_object"},
         }
         async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                f"{settings.minimax_base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {settings.minimax_api_key}"},
                 json=body,
             )
             resp.raise_for_status()
             data = resp.json()
-        content = data["choices"][0]["message"]["content"]
-        return self._parse_response(content)
+        return self._parse_response(data["choices"][0]["message"]["content"])
 
 
 grader = AIGrader()
