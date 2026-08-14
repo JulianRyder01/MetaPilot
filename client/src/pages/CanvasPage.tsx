@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, Download, FileText, Link2, Maximize, Minus, Plus, Save, StickyNote, Trash2 } from "lucide-react"
+import { ArrowLeft, Download, FileText, Link2, Maximize, Minus, Plus, Redo2, Save, StickyNote, Trash2, Undo2 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { api, type CanvasEdge, type CanvasNode, type Collection } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
 
 function genId(prefix: string) {
   return `${prefix}${Math.random().toString(36).slice(2, 9)}`
@@ -31,7 +32,6 @@ export default function CanvasPage() {
   const [nodes, setNodes] = useState<CanvasNode[]>([])
   const [edges, setEdges] = useState<CanvasEdge[]>([])
   const [dirty, setDirty] = useState(false)
-  const [dragging, setDragging] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null)
   const [linking, setLinking] = useState<{ fromId: string; fromSide: string } | null>(null)
   const [linkPos, setLinkPos] = useState<{ x: number; y: number } | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -39,6 +39,19 @@ export default function CanvasPage() {
   /** 视图变换：缩放 + 平移（Obsidian Canvas 风格）。 */
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 })
   const [panning, setPanning] = useState<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null)
+  /** 选中节点（Obsidian 风格：点击单选、Shift 多选、空白框选）。 */
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  /** 框选矩形（board 坐标）。 */
+  const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
+  /** 拖拽中的多节点移动（记录各节点起始位置，统一位移）。 */
+  const [dragState, setDragState] = useState<{ startX: number; startY: number; ids: string[]; origins: Record<string, { x: number; y: number }> } | null>(null)
+  /** 拖拽期间是否真的发生了位移（用于区分「点击选中」与「移动」）。 */
+  const dragMovedRef = useRef(false)
+  /** 撤销/重做历史栈。 */
+  const undoStack = useRef<{ nodes: CanvasNode[]; edges: CanvasEdge[] }[]>([])
+  const redoStack = useRef<{ nodes: CanvasNode[]; edges: CanvasEdge[] }[]>([])
+  /** 复制缓冲区（节点 + 关联边）。 */
+  const clipboardRef = useRef<{ nodes: CanvasNode[]; edges: CanvasEdge[] } | null>(null)
   const spaceDownRef = useRef(false)
   const boardRef = useRef<HTMLDivElement>(null)
 
@@ -48,6 +61,10 @@ export default function CanvasPage() {
     setCol(c)
     setNodes(c.canvas?.nodes ?? [])
     setEdges(c.canvas?.edges ?? [])
+    setSelectedIds([])
+    undoStack.current = []
+    redoStack.current = []
+    setDirty(false)
   }, [cid])
 
   useEffect(() => {
@@ -65,7 +82,34 @@ export default function CanvasPage() {
     }
   }
 
+  // ---- 历史（撤销/重做） ----
+
+  function pushHistory() {
+    undoStack.current.push({ nodes: structuredClone(nodes), edges: structuredClone(edges) })
+    if (undoStack.current.length > 50) undoStack.current.shift()
+    redoStack.current = []
+  }
+
+  function undo() {
+    const prev = undoStack.current.pop()
+    if (!prev) return
+    redoStack.current.push({ nodes: structuredClone(nodes), edges: structuredClone(edges) })
+    setNodes(prev.nodes)
+    setEdges(prev.edges)
+    setDirty(true)
+  }
+
+  function redo() {
+    const next = redoStack.current.pop()
+    if (!next) return
+    undoStack.current.push({ nodes: structuredClone(nodes), edges: structuredClone(edges) })
+    setNodes(next.nodes)
+    setEdges(next.edges)
+    setDirty(true)
+  }
+
   function addTextNode() {
+    pushHistory()
     const node: CanvasNode = {
       id: genId("n"),
       type: "text",
@@ -76,12 +120,55 @@ export default function CanvasPage() {
       text: "双击编辑文本",
     }
     setNodes((n) => [...n, node])
+    setSelectedIds([node.id])
+    setDirty(true)
+  }
+
+  /** 删除一组节点并清理关联边。 */
+  function removeNodes(ids: string[]) {
+    if (ids.length === 0) return
+    pushHistory()
+    const idSet = new Set(ids)
+    setNodes((n) => n.filter((x) => !idSet.has(x.id)))
+    setEdges((e) => e.filter((x) => !idSet.has(x.fromNode) && !idSet.has(x.toNode)))
+    setSelectedIds((s) => s.filter((id) => !idSet.has(id)))
     setDirty(true)
   }
 
   function removeNode(id: string) {
-    setNodes((n) => n.filter((x) => x.id !== id))
-    setEdges((e) => e.filter((x) => x.fromNode !== id && x.toNode !== id))
+    removeNodes([id])
+  }
+
+  // ---- 复制 / 粘贴 ----
+
+  function copySelection() {
+    if (selectedIds.length === 0) return
+    const idSet = new Set(selectedIds)
+    clipboardRef.current = {
+      nodes: structuredClone(nodes.filter((n) => idSet.has(n.id))),
+      edges: structuredClone(edges.filter((e) => idSet.has(e.fromNode) && idSet.has(e.toNode))),
+    }
+  }
+
+  function pasteClipboard() {
+    const clip = clipboardRef.current
+    if (!clip || clip.nodes.length === 0) return
+    pushHistory()
+    const idMap = new Map<string, string>()
+    const newNodes: CanvasNode[] = clip.nodes.map((n) => {
+      const id = genId("n")
+      idMap.set(n.id, id)
+      return { ...structuredClone(n), id, x: n.x + 24, y: n.y + 24 }
+    })
+    const newEdges: CanvasEdge[] = clip.edges.map((e) => ({
+      ...structuredClone(e),
+      id: genId("e"),
+      fromNode: idMap.get(e.fromNode) ?? e.fromNode,
+      toNode: idMap.get(e.toNode) ?? e.toNode,
+    }))
+    setNodes((ns) => [...ns, ...newNodes])
+    setEdges((es) => [...es, ...newEdges])
+    setSelectedIds(newNodes.map((n) => n.id))
     setDirty(true)
   }
 
@@ -183,7 +270,7 @@ export default function CanvasPage() {
     }
   }, [])
 
-  // ---- 拖拽移动节点 ----
+  // ---- 拖拽移动节点（支持多选整体移动） ----
   function onNodeMouseDown(e: React.MouseEvent, node: CanvasNode) {
     if (editingId) return
     // 空格或中键：平移画布
@@ -191,8 +278,27 @@ export default function CanvasPage() {
       startPan(e)
       return
     }
+    // 点击选中：未选中则单选（Shift 加选）；已选中则保持（便于整体拖动）
     const p = screenToBoard(e.clientX, e.clientY)
-    setDragging({ id: node.id, offsetX: p.x - node.x, offsetY: p.y - node.y })
+    if (!selectedIds.includes(node.id)) {
+      const next = e.shiftKey ? [...selectedIds, node.id] : [node.id]
+      setSelectedIds(next)
+      const ids = next
+      const origins: Record<string, { x: number; y: number }> = {}
+      for (const id of ids) {
+        const n = nodes.find((x) => x.id === id)
+        if (n) origins[id] = { x: n.x, y: n.y }
+      }
+      setDragState({ startX: p.x, startY: p.y, ids, origins })
+    } else {
+      // 已选中：记录本次起点（供整体位移）
+      const origins: Record<string, { x: number; y: number }> = {}
+      for (const id of selectedIds) {
+        const n = nodes.find((x) => x.id === id)
+        if (n) origins[id] = { x: n.x, y: n.y }
+      }
+      setDragState({ startX: p.x, startY: p.y, ids: selectedIds, origins })
+    }
   }
 
   function startPan(e: React.MouseEvent) {
@@ -201,8 +307,14 @@ export default function CanvasPage() {
   }
 
   function onBoardMouseDown(e: React.MouseEvent) {
-    // 空白处：空格/中键平移
-    if (spaceDownRef.current || e.button === 1) startPan(e)
+    // 空格/中键：平移；左键空白：框选（Obsidian 风格）
+    if (spaceDownRef.current || e.button === 1) {
+      startPan(e)
+    } else if (e.button === 0) {
+      const p = screenToBoard(e.clientX, e.clientY)
+      setMarquee({ x0: p.x, y0: p.y, x1: p.x, y1: p.y })
+      if (!e.shiftKey) setSelectedIds([])
+    }
   }
 
   function onBoardMouseMove(e: React.MouseEvent) {
@@ -215,14 +327,19 @@ export default function CanvasPage() {
       return
     }
     const p = screenToBoard(e.clientX, e.clientY)
-    if (dragging) {
+    if (dragState) {
+      const dx = p.x - dragState.startX
+      const dy = p.y - dragState.startY
+      if (dx !== 0 || dy !== 0) dragMovedRef.current = true
       setNodes((ns) =>
-        ns.map((n) =>
-          n.id === dragging.id
-            ? { ...n, x: Math.max(-BOARD_SIZE / 2, p.x - dragging.offsetX), y: Math.max(-BOARD_SIZE / 2, p.y - dragging.offsetY) }
-            : n,
-        ),
+        ns.map((n) => {
+          const o = dragState.origins[n.id]
+          if (!o) return n
+          return { ...n, x: Math.max(-BOARD_SIZE / 2, o.x + dx), y: Math.max(-BOARD_SIZE / 2, o.y + dy) }
+        }),
       )
+    } else if (marquee) {
+      setMarquee((m) => (m ? { ...m, x1: p.x, y1: p.y } : m))
     }
     if (linking) {
       setLinkPos(p)
@@ -230,11 +347,63 @@ export default function CanvasPage() {
   }
 
   function onBoardMouseUp() {
-    setDragging(null)
+    if (dragState) {
+      if (dragMovedRef.current) setDirty(true)
+      setDragState(null)
+      dragMovedRef.current = false
+    }
+    if (marquee) {
+      // 框选结算：与矩形相交的节点
+      const m = marquee
+      const minX = Math.min(m.x0, m.x1)
+      const maxX = Math.max(m.x0, m.x1)
+      const minY = Math.min(m.y0, m.y1)
+      const maxY = Math.max(m.y0, m.y1)
+      const hit = nodes
+        .filter((n) => n.x < maxX && n.x + n.width > minX && n.y < maxY && n.y + n.height > minY)
+        .map((n) => n.id)
+      setSelectedIds((s) => (hit.length ? (s.length ? [...new Set([...s, ...hit])] : hit) : s))
+      setMarquee(null)
+    }
     setLinking(null)
     setLinkPos(null)
     setPanning(null)
   }
+
+  // 键盘：删除选中、复制/粘贴、撤销/重做（Obsidian 风格快捷键）
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const inField = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+      if (e.code === "Space") return
+      if ((e.key === "Delete" || e.key === "Backspace") && !inField) {
+        if (selectedIds.length > 0) {
+          e.preventDefault()
+          removeNodes(selectedIds)
+        }
+        return
+      }
+      const mod = e.ctrlKey || e.metaKey
+      if (!mod || inField) return
+      const k = e.key.toLowerCase()
+      if (k === "z") {
+        e.preventDefault()
+        if (e.shiftKey) redo()
+        else undo()
+      } else if (k === "y") {
+        e.preventDefault()
+        redo()
+      } else if (k === "c") {
+        copySelection()
+      } else if (k === "v") {
+        e.preventDefault()
+        pasteClipboard()
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, edges, selectedIds])
 
   // ---- 连线：从节点连接点拖到目标节点 ----
   function startLink(nodeId: string, side: string) {
@@ -242,6 +411,7 @@ export default function CanvasPage() {
   }
   function endLinkOn(targetId: string) {
     if (linking && linking.fromId !== targetId) {
+      pushHistory()
       setEdges((es) => [
         ...es,
         { id: genId("e"), fromNode: linking.fromId, fromSide: linking.fromSide, toNode: targetId },
@@ -259,6 +429,7 @@ export default function CanvasPage() {
   }
   function commitEdit() {
     if (editingId) {
+      pushHistory()
       setNodes((ns) => ns.map((n) => (n.id === editingId ? { ...n, text: editText } : n)))
       setDirty(true)
     }
@@ -296,6 +467,12 @@ export default function CanvasPage() {
           {dirty && <Badge variant="secondary">有未保存修改</Badge>}
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={undo} title="撤销 (Ctrl+Z)" disabled={undoStack.current.length === 0}>
+            <Undo2 className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={redo} title="重做 (Ctrl+Shift+Z)" disabled={redoStack.current.length === 0}>
+            <Redo2 className="size-4" />
+          </Button>
           <Button variant="outline" size="sm" onClick={addTextNode}>
             <Plus className="size-4" />
             新建文本节点
@@ -308,7 +485,7 @@ export default function CanvasPage() {
       </div>
 
       <p className="mb-3 text-xs text-muted-foreground">
-        拖拽节点移动；双击文本节点编辑；从节点边缘连接点拖到另一节点创建连线；滚轮平移、Ctrl+滚轮缩放、按住空格拖拽平移。
+        拖拽节点移动，空白框选、Shift 多选，Delete 删除，Ctrl+C/V 复制粘贴，Ctrl+Z 撤销；双击文本编辑；从节点边缘连接点拖到另一节点创建连线；滚轮平移、Ctrl+滚轮缩放、按住空格拖拽平移。
       </p>
 
       <div
@@ -350,12 +527,16 @@ export default function CanvasPage() {
           {/* 节点层 */}
           {nodes.map((node) => {
             const isEditing = editingId === node.id
+            const isSelected = selectedIds.includes(node.id)
             return (
               <div
                 key={node.id}
                 onMouseDown={(e) => onNodeMouseDown(e, node)}
                 onMouseUp={() => endLinkOn(node.id)}
-                className="absolute cursor-grab rounded-md border bg-card p-2 shadow-sm active:cursor-grabbing"
+                className={cn(
+                  "absolute cursor-grab rounded-md border bg-card p-2 shadow-sm active:cursor-grabbing",
+                  isSelected && "ring-2 ring-primary",
+                )}
                 style={{
                   left: node.x,
                   top: node.y,
@@ -433,6 +614,19 @@ export default function CanvasPage() {
               </div>
             )
           })}
+
+          {/* 框选矩形 */}
+          {marquee && (
+            <div
+              className="pointer-events-none absolute z-20 rounded-sm border border-primary/70 bg-primary/10"
+              style={{
+                left: Math.min(marquee.x0, marquee.x1),
+                top: Math.min(marquee.y0, marquee.y1),
+                width: Math.abs(marquee.x1 - marquee.x0),
+                height: Math.abs(marquee.y1 - marquee.y0),
+              }}
+            />
+          )}
 
           {nodes.length === 0 && (
             <p className="absolute left-0 top-0 text-sm text-muted-foreground" style={{ padding: 40 }}>
