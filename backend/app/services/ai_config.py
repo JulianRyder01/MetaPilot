@@ -110,6 +110,8 @@ class AIConfig:
             "embeddingModel": embed_model,
             "localLlmUrl": self._get("AI_LOCAL_LLM_URL", "http://127.0.0.1:8761"),
             "rerankUrl": self._get("AI_RERANK_URL", "http://127.0.0.1:8762"),
+            "localLlmModel": self._get("AI_LOCAL_LLM_MODEL", "Qwen/Qwen3-4B"),
+            "rerankModel": self._get("AI_RERANK_MODEL", "Qwen/Qwen3-Reranker-0.6B"),
             "prices": prices,
             "currency": self._get("AI_CURRENCY", DEFAULT_CURRENCY),
         }
@@ -151,6 +153,14 @@ class AIConfig:
     @property
     def rerank_url(self) -> str:
         return self._cache["rerankUrl"]
+
+    @property
+    def local_llm_model(self) -> str:
+        return self._cache["localLlmModel"]
+
+    @property
+    def rerank_model(self) -> str:
+        return self._cache["rerankModel"]
 
     @property
     def prices(self) -> dict:

@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import DATA_DIR, settings
 from .services.ai_config import AIConfig
 from .services.ai_gateway import AIGateway
+from .services.local_servers import LocalServersManager
 from .storage.store import LibraryStore
 from .api import documents, folders, libraries, mpf, notes, plugin_store, plugins, stats_core
 from .plugins.base import manager
@@ -26,13 +27,12 @@ APP_VERSION = "1.1.1"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 个人知识库 embedding 服务随后端启动后台自动加载（不阻塞启动），
-    # 避免首次打开知识库页面时现场拉起 + 下载/加载模型导致久等；
+    # 本地向量服务随后端启动后台自动加载（不阻塞启动）：
     # 若服务进程已存活（如上次后端退出后遗留）则直接复用，退出重进不再重新加载。
-    if settings.embedding_auto_start and settings.embedding_provider != "none":
+    gw: AIGateway = app.state.ai_gateway
+    if settings.embedding_auto_start and gw.config.embedding_provider == "local_transformers":
         try:
-            from .services.embedding_server import embedding_server_manager
-            res = embedding_server_manager.start(wait_ready=False)
+            res = app.state.local_servers.start("embedding", wait_ready=False)
             print(f"[main] embedding 服务: {res.get('message', res)}")
         except Exception as e:
             print(f"[main] 自动启动 embedding 服务失败: {e}")
@@ -52,6 +52,8 @@ app.state.store = LibraryStore(DATA_DIR)
 
 # 统一 AI 网关（核心 1.1.1）：所有插件经此中转调用 AI，密钥与地址不出核心
 app.state.ai_gateway = AIGateway(DATA_DIR, AIConfig())
+# 统一本地模型服务管理（向量 / 对话 / 重排，下载与启停）
+app.state.local_servers = LocalServersManager(app.state.ai_gateway.config)
 
 ASSETS_DIR = Path(DATA_DIR) / "assets" / "courses"
 ASSETS_DIR.mkdir(parents=True, exist_ok=True)
