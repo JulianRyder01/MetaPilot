@@ -76,17 +76,46 @@ class StatsCoreService:
                 total += words
         return {"totalWords": total, "perCollection": per}
 
+    def _lib_tree(self) -> tuple[set[str], dict[str, str]]:
+        """遍历库树：返回 (有效集合 id 集合, docId -> 文档名 映射)。
+
+        用于过滤指向已删除课程的访问事件，并用库内最新文档名回填显示。
+        """
+        valid_cids: set[str] = set()
+        doc_names: dict[str, str] = {}
+        if self.store is None:
+            return valid_cids, doc_names
+        for it in self.store.list_libraries():
+            try:
+                lib = self.store.get_library(it["id"])
+            except KeyError:
+                continue
+            for col in lib.get("collections", []):
+                valid_cids.add(col["id"])
+                for doc in col.get("documents", []):
+                    doc_names.setdefault(doc["id"], doc.get("name") or "")
+        return valid_cids, doc_names
+
     # ---- 汇总 ----
 
     def summary(self) -> dict:
         data = self._load()
         events = data["events"]
+
+        # 过滤指向不存在课程的访问事件（如测试残留数据），并记录最新文档名
+        valid_cids, doc_names = self._lib_tree()
+        if self.store is not None:
+            events = [e for e in events if e["cid"] in valid_cids]
+
+        def resolve_name(e: dict) -> str:
+            return doc_names.get(e["docId"]) or e["docName"] or e["docId"]
+
         total_duration = sum(e["durationSec"] for e in events)
 
         # 最常访问文档
         doc_stat: dict[str, dict] = {}
         for e in events:
-            s = doc_stat.setdefault(e["docId"], {"docId": e["docId"], "name": e["docName"] or e["docId"], "visits": 0, "totalDurationSec": 0})
+            s = doc_stat.setdefault(e["docId"], {"docId": e["docId"], "name": resolve_name(e), "visits": 0, "totalDurationSec": 0})
             s["visits"] += 1
             s["totalDurationSec"] += e["durationSec"]
         top_docs = sorted(doc_stat.values(), key=lambda d: -d["visits"])[:10]
@@ -94,7 +123,7 @@ class StatsCoreService:
         # 最近访问（按写入顺序取末尾，时间戳秒级可能相同）
         recent = list(reversed(events[-10:]))
         recent_docs = [
-            {"docId": e["docId"], "name": e["docName"] or e["docId"], "at": e["at"], "durationSec": e["durationSec"]}
+            {"docId": e["docId"], "name": resolve_name(e), "at": e["at"], "durationSec": e["durationSec"]}
             for e in recent
         ]
 

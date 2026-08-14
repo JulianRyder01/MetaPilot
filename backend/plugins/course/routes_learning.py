@@ -90,7 +90,21 @@ def add_session(body: SessionIn, request: Request):
 
 @stats_router.get("/summary")
 def summary(range: str = "all", request: Request = None):
-    return _stats(request).summary(range)
+    data = _stats(request).summary(range)
+    # 补充课程名称：perCollection 原本只有 id，前端按名展示
+    store = getattr(request.app.state, "store", None)
+    if store is not None:
+        names: dict[str, str] = {}
+        for it in store.list_libraries():
+            try:
+                lib = store.get_library(it["id"])
+            except KeyError:
+                continue
+            for c in lib.get("collections", []):
+                names[c["id"]] = c.get("name") or ""
+        for p in data.get("perCollection", []):
+            p["name"] = names.get(p["collectionId"], "")
+    return data
 
 
 # ---------------- 主观题 AI 判题 ----------------

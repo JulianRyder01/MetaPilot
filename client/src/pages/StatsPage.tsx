@@ -407,7 +407,9 @@ function CourseWidget({ id, data, enabled }: { id: string; data: StatsSummary | 
           {data.perCollection.length === 0 && <p className="text-sm text-muted-foreground">暂无学习记录</p>}
           {data.perCollection.map((p) => (
             <div key={p.collectionId} className="flex items-center gap-2 text-sm">
-              <span className="w-28 truncate">{p.collectionId.slice(0, 8)}…</span>
+              <span className="w-28 truncate" title={p.name}>
+                {p.name || `${p.collectionId.slice(0, 8)}…`}
+              </span>
               <div className="h-2 flex-1 rounded bg-muted">
                 <div className="h-full rounded bg-primary/70" style={{ width: `${(p.seconds / max) * 100}%` }} />
               </div>

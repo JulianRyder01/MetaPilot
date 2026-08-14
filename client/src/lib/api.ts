@@ -239,7 +239,7 @@ export interface StatsSummary {
   totalSeconds: number
   sessionCount: number
   daily: { date: string; seconds: number }[]
-  perCollection: { collectionId: string; seconds: number }[]
+  perCollection: { collectionId: string; name: string; seconds: number }[]
 }
 
 export interface StatsWidget {
