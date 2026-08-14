@@ -10,10 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import DATA_DIR
 from .storage.store import LibraryStore
-from .api import documents, folders, libraries, notes, plugins
+from .api import documents, folders, libraries, notes, plugins, stats_core
 from .plugins.base import manager
 from .plugins.loader import load_plugins
 from .services.importer import CourseImporter
+from .services.stats_core import init_stats_core
+from .stats_widgets import register_core_widgets
 
 APP_VERSION = "1.0.0"
 
@@ -32,11 +34,16 @@ ASSETS_DIR = Path(DATA_DIR) / "assets" / "courses"
 ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 app.state.importer = CourseImporter(app.state.store, ASSETS_DIR)
 
+# 官方核心统计：访问记录 + 统计页 core 组件
+init_stats_core(DATA_DIR, app.state.store)
+register_core_widgets()
+
 app.include_router(libraries.router)
 app.include_router(documents.router)
 app.include_router(folders.router)
 app.include_router(notes.router)
 app.include_router(plugins.router)
+app.include_router(stats_core.router)
 
 # 插件系统：扫描 backend/plugins/ 物理目录加载全部插件并挂载路由。
 # 路由始终挂载；被禁用的插件由 requires_plugin 依赖在请求时返回 503 + 启用提示。
