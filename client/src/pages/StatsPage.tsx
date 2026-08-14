@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { Eye, EyeOff, GripVertical, Maximize2, Minimize2 } from "lucide-react"
+import { EyeOff, GripVertical, Maximize2, Minimize2, Settings2 } from "lucide-react"
 
 import {
   api,
@@ -16,6 +16,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Switch } from "@/components/ui/switch"
 import { SourceBadge } from "@/components/stats/SourceBadge"
 
 const SIZE_CLASS: Record<WidgetSize, string> = {
@@ -81,7 +92,6 @@ export default function StatsPage() {
       const ib = layout.order.indexOf(b.id)
       return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib)
     })
-  const hiddenWidgets = available.filter((w) => layout.visible[w.id] === false)
 
   function onDrop(targetId: string) {
     if (!dragId || dragId === targetId) return
@@ -97,11 +107,14 @@ export default function StatsPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5 px-6 py-8">
-      <div>
-        <h1 className="text-2xl font-semibold">统计</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          官方核心提供基础统计组件，课程等插件可贡献更多组件；拖动卡片调整位置，右上角调整大小，可在设置页开关「标记组件来源」。
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">统计</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            官方核心提供基础统计组件，课程等插件可贡献更多组件；拖动卡片调整位置，右上角调整大小，可在设置页开关「标记组件来源」。
+          </p>
+        </div>
+        <WidgetManagerDialog widgets={available} />
       </div>
 
       {/* 网格 */}
@@ -160,23 +173,89 @@ export default function StatsPage() {
           )
         })}
       </div>
-
-      {/* 已隐藏组件 */}
-      {hiddenWidgets.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed px-4 py-3">
-          <span className="text-sm text-muted-foreground">已隐藏组件：</span>
-          {hiddenWidgets.map((w) => (
-            <Badge key={w.id} variant="outline" className="gap-1.5">
-              {w.title}
-              <SourceBadge source={w.source} />
-              <button onClick={() => layout.setVisible(w.id, true)} className="text-muted-foreground hover:text-foreground">
-                <Eye className="size-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      )}
     </div>
+  )
+}
+
+// ---------- 组件管理 ----------
+
+/** 「管理组件」对话框：集中查看/开关组件显示，替代页面底部的隐藏恢复条。 */
+function WidgetManagerDialog({ widgets }: { widgets: StatsWidget[] }) {
+  const [open, setOpen] = useState(false)
+  const layout = useStatsLayoutStore()
+  const hiddenCount = widgets.filter((w) => layout.visible[w.id] === false).length
+  const ordered = [...widgets].sort((a, b) => {
+    const ia = layout.order.indexOf(a.id)
+    const ib = layout.order.indexOf(b.id)
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib)
+  })
+
+  function resetLayout() {
+    layout.reset()
+    layout.syncWidgets(widgets)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="shrink-0 gap-1.5">
+          <Settings2 className="size-4" />
+          管理组件
+          {hiddenCount > 0 && (
+            <Badge variant="secondary" className="px-1.5">
+              {hiddenCount} 个已隐藏
+            </Badge>
+          )}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>管理组件</DialogTitle>
+          <DialogDescription>开关控制各组件在统计页的显示；隐藏的组件可从本面板随时恢复。</DialogDescription>
+        </DialogHeader>
+        <ScrollArea className="max-h-96 pr-3">
+          {ordered.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">暂无可用的统计组件</p>
+          ) : (
+            <div className="space-y-1.5">
+              {ordered.map((w) => {
+                const visible = layout.visible[w.id] !== false
+                return (
+                  <div
+                    key={w.id}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors",
+                      !visible && "bg-muted/40",
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={cn("truncate text-sm font-medium", !visible && "text-muted-foreground")}>
+                          {w.title}
+                        </span>
+                        <SourceBadge source={w.source} />
+                      </div>
+                      {w.description && (
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">{w.description}</p>
+                      )}
+                    </div>
+                    <Switch checked={visible} onCheckedChange={(v) => layout.setVisible(w.id, v)} />
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </ScrollArea>
+        <DialogFooter className="gap-2 sm:justify-between">
+          <Button variant="ghost" size="sm" onClick={resetLayout} disabled={widgets.length === 0}>
+            恢复默认布局
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => layout.showAll()} disabled={hiddenCount === 0}>
+            全部显示
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

@@ -13,6 +13,10 @@ interface StatsLayoutState {
   setVisible: (id: string, v: boolean) => void
   setSize: (id: string, size: WidgetSize) => void
   setOrder: (order: string[]) => void
+  /** 清空全部布局偏好（可见/尺寸/顺序），配合 syncWidgets 恢复默认 */
+  reset: () => void
+  /** 将全部组件设为可见 */
+  showAll: () => void
   /** 依据当前可用组件合并默认布局（新组件默认可见、追加到末尾，移除不存在的） */
   syncWidgets: (widgets: { id: string; defaultSize?: string }[]) => void
 }
@@ -27,6 +31,19 @@ export const useStatsLayoutStore = create<StatsLayoutState>()(
       setVisible: (id, v) => set((s) => ({ visible: { ...s.visible, [id]: v } })),
       setSize: (id, size) => set((s) => ({ size: { ...s.size, [id]: size } })),
       setOrder: (order) => set({ order }),
+      reset: () => set({ visible: {}, size: {}, order: [] }),
+      showAll: () =>
+        set((s) => {
+          const visible = { ...s.visible }
+          let dirty = false
+          for (const id of Object.keys(visible)) {
+            if (visible[id] === false) {
+              visible[id] = true
+              dirty = true
+            }
+          }
+          return dirty ? { visible } : {}
+        }),
       syncWidgets: (widgets) =>
         set((s) => {
           const ids = new Set(widgets.map((w) => w.id))
