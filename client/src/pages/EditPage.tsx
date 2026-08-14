@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { BLOCK_TYPES, BlockForm } from "@/components/edit/BlockForm"
+import { useDialogs } from "@/components/ui/dialog-provider"
 
 type Selection =
   | { kind: "collection" }
@@ -45,6 +46,7 @@ const BLOCK_TYPE_LABEL: Record<string, string> = Object.fromEntries(
 )
 
 export default function EditPage() {
+  const { confirm, prompt } = useDialogs()
   const { cid } = useParams()
   const navigate = useNavigate()
   const [col, setCol] = useState<Collection | null>(null)
@@ -116,7 +118,13 @@ export default function EditPage() {
   }
 
   async function removeDoc(docId: string) {
-    if (!window.confirm("删除该章节？其下所有小节与内容将被删除。")) return
+    const ok = await confirm({
+      title: "删除章节",
+      description: "删除该章节？其下所有小节与内容将被删除，不可恢复。",
+      confirmText: "删除",
+      destructive: true,
+    })
+    if (!ok) return
     await api.deleteDocument(docId)
     setCol((c) => (c ? { ...c, documents: c.documents.filter((d) => d.id !== docId) } : c))
     setSel({ kind: "collection" })
@@ -124,7 +132,13 @@ export default function EditPage() {
   }
 
   async function removeSection(sectionId: string) {
-    if (!window.confirm("删除该小节？")) return
+    const ok = await confirm({
+      title: "删除小节",
+      description: "删除该小节？",
+      confirmText: "删除",
+      destructive: true,
+    })
+    if (!ok) return
     await api.deleteSection(sectionId)
     setCol((c) =>
       c
@@ -142,7 +156,13 @@ export default function EditPage() {
   }
 
   async function removeBlock(blockId: string) {
-    if (!window.confirm("删除该组件？")) return
+    const ok = await confirm({
+      title: "删除组件",
+      description: "删除该组件？",
+      confirmText: "删除",
+      destructive: true,
+    })
+    if (!ok) return
     await api.deleteBlock(blockId)
     setCol((c) =>
       c
@@ -186,7 +206,12 @@ export default function EditPage() {
 
   async function createFolderIn(parentId: string) {
     if (!col) return
-    const name = window.prompt("新建文件夹名称：")
+    const name = await prompt({
+      title: "新建文件夹",
+      description: "输入新文件夹的名称。",
+      placeholder: "例如：章节笔记",
+      confirmText: "创建",
+    })
     if (!name?.trim()) return
     try {
       await api.createFolder(col.id, { name: name.trim(), parentId: parentId || undefined })
@@ -200,7 +225,11 @@ export default function EditPage() {
   async function renameFolder(fid: string) {
     const folder = col?.folders.find((f) => f.id === fid)
     if (!folder) return
-    const name = window.prompt("重命名文件夹：", folder.name)
+    const name = await prompt({
+      title: "重命名文件夹",
+      initialValue: folder.name,
+      confirmText: "重命名",
+    })
     if (!name?.trim() || name.trim() === folder.name) return
     try {
       await api.updateFolder(fid, { name: name.trim() })
@@ -212,7 +241,13 @@ export default function EditPage() {
   }
 
   async function removeFolder(fid: string) {
-    if (!window.confirm("删除该文件夹？其下所有子文件夹与文档将被一并删除。")) return
+    const ok = await confirm({
+      title: "删除文件夹",
+      description: "删除该文件夹？其下所有子文件夹与文档将被一并删除，不可恢复。",
+      confirmText: "删除",
+      destructive: true,
+    })
+    if (!ok) return
     try {
       await api.deleteFolder(fid)
       await load()

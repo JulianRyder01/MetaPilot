@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { StorePanel } from "@/components/plugins/StorePanel"
+import { useDialogs } from "@/components/ui/dialog-provider"
 
 const PLUGIN_ICONS: Record<string, typeof Puzzle> = {
   course: GraduationCap,
@@ -47,6 +48,7 @@ const SOURCE_META: { source: PluginSource; label: string; desc: string }[] = [
 type PluginSource = "core" | "official" | "user"
 
 export default function PluginsPage() {
+  const { confirm } = useDialogs()
   const { plugins, loaded, refresh, setEnabled } = usePluginsStore()
   const [tagFilter, setTagFilter] = useState<string | null>(null)
 
@@ -70,7 +72,13 @@ export default function PluginsPage() {
   }
 
   async function remove(id: string, name: string) {
-    if (!window.confirm(`删除插件「${name}」？将物理删除 backend/plugins/${id} 目录，不可恢复。`)) return
+    const ok = await confirm({
+      title: "删除插件",
+      description: `删除插件「${name}」？将物理删除 backend/plugins/${id} 目录，不可恢复。`,
+      confirmText: "删除",
+      destructive: true,
+    })
+    if (!ok) return
     try {
       await api.deletePlugin(id)
       toast.success(`已删除插件「${name}」`)
