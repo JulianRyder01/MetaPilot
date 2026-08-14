@@ -3,7 +3,9 @@
 挂载本机目录作为可浏览/读写的文件空间。安全约束：
 - 所有路径解析后必须位于挂载根目录内（防路径穿越与符号链接逃逸）；
 - 文件读写仅允许文本类扩展名（白名单），拒绝二进制；
-- 写入内容限制大小，防止异常大文件。
+- 写入内容限制大小，防止异常大文件；
+- 媒体文件（图片/PDF/视频/音频）经独立二进制端点读取，供前端内联预览；
+- 本地打开/定位文件仅限挂载根内路径，经系统命令在用户机器上执行。
 """
 from __future__ import annotations
 
@@ -11,6 +13,8 @@ import json
 import os
 import shutil
 import string
+import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -24,7 +28,17 @@ TEXT_EXTENSIONS = {
     ".csv", ".tsv", ".log", ".xml", ".html", ".css", ".js", ".ts",
     ".py", ".toml", ".ini", ".conf", ".cfg",
 }
+# 可内联预览的媒体扩展名 → MIME（前端据此选择 <img>/<iframe>/<video>/<audio> 渲染）
+MEDIA_TYPES = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
+    ".webp": "image/webp", ".svg": "image/svg+xml", ".bmp": "image/bmp", ".ico": "image/x-icon",
+    ".pdf": "application/pdf",
+    ".mp4": "video/mp4", ".webm": "video/webm", ".ogg": "video/ogg", ".mov": "video/quicktime",
+    ".mp3": "audio/mpeg", ".wav": "audio/wav", ".flac": "audio/flac", ".m4a": "audio/mp4",
+}
 MAX_WRITE_BYTES = 10 * 1024 * 1024  # 10MB
+# 本地打开/定位文件的最大体积约束（仅限制读取到响应，系统打开不受此限）
+MAX_MEDIA_BYTES = 50 * 1024 * 1024  # 50MB
 
 
 class MountError(ValueError):
@@ -200,6 +214,76 @@ class SymlinkService:
         root = Path(mount["root"]).resolve()
         rel_path = "" if target == root else str(target.relative_to(root))
         return {"path": rel_path, "content": content}
+
+    # ---- 媒体预览与本地打开 ----
+
+    def media_info(self, mount_id: str, rel: str) -> dict:
+        """校验媒体文件并返回 {path, mime, size, name}（供二进制端点读取）。"""
+        mount = self.get_mount(mount_id)
+        target = self._resolve(mount, rel)
+        if not target.is_file():
+            raise MountError(f"不是文件: {rel or '/'}")
+        ext = target.suffix.lower()
+        if ext not in MEDIA_TYPES:
+            raise MountError(f"不支持预览该文件类型（{ext or '无扩展名'}）")
+        try:
+            size = target.stat().st_size
+        except OSError as e:
+            raise MountError(f"读取失败: {e}")
+        if size > MAX_MEDIA_BYTES:
+            raise MountError(f"文件过大（>{MAX_MEDIA_BYTES // (1024 * 1024)}MB），无法内联预览")
+        root = Path(mount["root"]).resolve()
+        rel_path = "" if target == root else str(target.relative_to(root))
+        return {"path": rel_path, "mime": MEDIA_TYPES[ext], "size": size, "name": target.name}
+
+    def read_media(self, mount_id: str, rel: str) -> tuple[bytes, str]:
+        """读取媒体文件字节与 MIME（路径已由 media_info 同源校验）。"""
+        info = self.media_info(mount_id, rel)
+        target = self._resolve(self.get_mount(mount_id), rel)
+        try:
+            return target.read_bytes(), info["mime"]
+        except OSError as e:
+            raise MountError(f"读取失败: {e}")
+
+    @staticmethod
+    def _system_open(path: Path, mode: str) -> None:
+        """在本机打开/定位文件（非阻塞）。
+
+        mode: reveal=在文件管理器中定位显示；open=用系统默认方式打开。
+        仅接受已通过 _resolve 约束在挂载根内的绝对路径。
+        """
+        norm = os.path.normpath(str(path))
+        if os.name == "nt":
+            if mode == "reveal":
+                # 参数列表方式避免 shell 注入；explorer 识别 /select,<path>
+                subprocess.Popen(["explorer", f"/select,{norm}"])
+            else:
+                os.startfile(norm)  # 默认程序打开（立即返回）
+            return
+        if sys.platform == "darwin":
+            cmd = ["open", "-R" if mode == "reveal" else "", norm]
+            subprocess.Popen([c for c in cmd if c])
+            return
+        # Linux / 其它 Unix
+        if mode == "reveal":
+            # 无标准「在文件管理器中显示」命令，退化为打开所在目录
+            subprocess.Popen(["xdg-open", os.path.normpath(str(path.parent))])
+        else:
+            subprocess.Popen(["xdg-open", norm])
+
+    def open_file(self, mount_id: str, rel: str, mode: str = "open") -> dict:
+        """在用户本机打开/定位挂载内的文件（mode: open | reveal）。"""
+        if mode not in ("open", "reveal"):
+            raise MountError("mode 仅支持 open（默认方式打开）或 reveal（在文件管理器中显示）")
+        mount = self.get_mount(mount_id)
+        target = self._resolve(mount, rel)
+        if not target.exists():
+            raise MountError(f"路径不存在: {rel or '/'}")
+        try:
+            self._system_open(target, mode)
+        except OSError as e:
+            raise MountError(f"打开失败: {e}")
+        return {"ok": True, "mode": mode, "path": rel}
 
     def write_file(self, mount_id: str, rel: str, content: str) -> dict:
         mount = self.get_mount(mount_id)

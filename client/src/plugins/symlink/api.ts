@@ -2,7 +2,7 @@
  *
  * 端点全部位于 /api/plugins/symlink/*（规范 §4 统一前缀）。
  */
-import { request, type SymlinkFsList, type SymlinkMount, type SymlinkTree } from "@/lib/api"
+import { BASE, request, type SymlinkFsList, type SymlinkMount, type SymlinkTree } from "@/lib/api"
 
 export const symlinkMounts = () => request<SymlinkMount[]>("/plugins/symlink/mounts")
 
@@ -27,6 +27,17 @@ export const symlinkReadFile = (mid: string, path: string) =>
   request<{ path: string; content: string }>(
     `/plugins/symlink/mounts/${mid}/file?path=${encodeURIComponent(path)}`,
   )
+
+/** 媒体文件（图片/PDF/视频/音频）二进制预览 URL（供 <img>/<iframe>/<video>/<audio> 直接引用）。 */
+export const symlinkMediaUrl = (mid: string, path: string) =>
+  `${BASE}/plugins/symlink/mounts/${mid}/media?path=${encodeURIComponent(path)}`
+
+/** 在用户本机打开/定位挂载内文件：mode = open（默认方式打开）| reveal（文件管理器中显示）。 */
+export const symlinkOpen = (mid: string, path: string, mode: "open" | "reveal") =>
+  request<{ ok: boolean; mode: string; path: string }>(`/plugins/symlink/mounts/${mid}/open`, {
+    method: "POST",
+    body: JSON.stringify({ path, mode }),
+  })
 
 export const symlinkWriteFile = (mid: string, path: string, content: string) =>
   request<{ ok: boolean; path: string; bytes: number }>(

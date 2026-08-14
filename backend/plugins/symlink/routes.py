@@ -29,6 +29,11 @@ class PathIn(BaseModel):
     path: str = ""
 
 
+class OpenIn(BaseModel):
+    path: str = ""
+    mode: str = "open"
+
+
 def _svc(request: Request):
     return request.app.state.symlink
 
@@ -98,6 +103,33 @@ def list_dir(mid: str, path: str = "", request: Request = None):
 def read_file(mid: str, path: str = "", request: Request = None):
     try:
         return _svc(request).read_file(mid, path)
+    except Exception as e:
+        _err(e)
+
+
+@router.get("/mounts/{mid}/media")
+def read_media(mid: str, path: str = "", request: Request = None):
+    """读取挂载内媒体文件（图片/PDF/视频/音频）的二进制内容，供前端内联预览。"""
+    from fastapi.responses import FileResponse
+
+    svc = _svc(request)
+    try:
+        info = svc.media_info(mid, path)
+        target = svc._resolve(svc.get_mount(mid), path)
+    except Exception as e:
+        _err(e)
+    return FileResponse(
+        target,
+        media_type=info["mime"],
+        headers={"Content-Disposition": f'inline; filename="{info["name"]}"'},
+    )
+
+
+@router.post("/mounts/{mid}/open")
+def open_path(mid: str, body: OpenIn, request: Request):
+    """在用户本机打开/定位挂载内文件（mode: open 默认方式打开 | reveal 文件管理器中显示）。"""
+    try:
+        return _svc(request).open_file(mid, body.path.strip("/\\"), body.mode)
     except Exception as e:
         _err(e)
 

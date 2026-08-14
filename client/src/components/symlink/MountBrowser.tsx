@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import {
   ChevronRight,
+  ExternalLink,
+  FileAudio,
+  FileImage,
   FileText,
+  FileVideo,
   Folder,
   FolderOpen,
   Grid3X3,
@@ -23,9 +28,11 @@ import type { SymlinkItem, SymlinkMount, SymlinkTree } from "@/lib/api"
 import {
   symlinkDelete,
   symlinkMkdir,
+  symlinkOpen,
   symlinkReadFile,
   symlinkTree,
   symlinkWriteFile,
+  symlinkMediaUrl,
 } from "@/plugins/symlink/api"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -40,11 +47,38 @@ function joinPath(base: string, name: string) {
   return base ? `${base}/${name}` : name
 }
 
-/** 软链接来源的文档图标：文件图标带 Link2 角标，标识来自软链接插件。 */
-function SoftLinkFileIcon() {
+/** 文件分类：文本（内联编辑）/ 媒体（内联预览）/ 其它（仅本地打开） */
+type FileKind = "text" | "image" | "pdf" | "video" | "audio" | "other"
+
+const TEXT_EXT = new Set([
+  ".md", ".markdown", ".txt", ".text", ".json", ".yaml", ".yml",
+  ".csv", ".tsv", ".log", ".xml", ".html", ".css", ".js", ".ts",
+  ".py", ".toml", ".ini", ".conf", ".cfg",
+])
+
+const MEDIA_EXT: Record<string, FileKind> = {
+  ".png": "image", ".jpg": "image", ".jpeg": "image", ".gif": "image", ".webp": "image",
+  ".svg": "image", ".bmp": "image", ".ico": "image",
+  ".pdf": "pdf",
+  ".mp4": "video", ".webm": "video", ".ogg": "video", ".mov": "video",
+  ".mp3": "audio", ".wav": "audio", ".flac": "audio", ".m4a": "audio",
+}
+
+function kindOf(name: string): FileKind {
+  const i = name.lastIndexOf(".")
+  const ext = (i >= 0 ? name.slice(i) : "").toLowerCase()
+  if (TEXT_EXT.has(ext)) return "text"
+  return MEDIA_EXT[ext] ?? "other"
+}
+
+/** 软链接来源的文件图标：按类型区分，统一带 Link2 角标，标识来自软链接插件。 */
+function FileTypeIcon({ name }: { name: string }) {
+  const kind = kindOf(name)
+  const Icon =
+    kind === "image" ? FileImage : kind === "video" ? FileVideo : kind === "audio" ? FileAudio : FileText
   return (
     <span className="relative inline-flex shrink-0">
-      <FileText className="size-4 text-muted-foreground" />
+      <Icon className="size-4 text-muted-foreground" />
       <Link2 className="absolute -bottom-1 -right-1.5 size-2.5 rounded-full bg-background text-primary" />
     </span>
   )
@@ -68,12 +102,28 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
   const { confirm, prompt } = useDialogs()
   const [path, setPath] = useState("")
   const [tree, setTree] = useState<SymlinkTree | null>(null)
-  const [file, setFile] = useState<{ path: string; content: string } | null>(null)
+  const [file, setFile] = useState<{ path: string; name: string; kind: FileKind; content?: string } | null>(null)
   const [editing, setEditing] = useState(false)
   const [editContent, setEditContent] = useState("")
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"grid" | "list">("grid")
   const [collapsed, setCollapsed] = useState(false)
+  /** 右键菜单：在哪个文件上、出现在哪个屏幕坐标 */
+  const [ctxMenu, setCtxMenu] = useState<{ item: SymlinkItem; x: number; y: number } | null>(null)
+
+  // 点击/滚轮/键盘/再次右键时关闭右键菜单
+  useEffect(() => {
+    if (!ctxMenu) return
+    const close = () => setCtxMenu(null)
+    window.addEventListener("click", close)
+    window.addEventListener("blur", close)
+    window.addEventListener("keydown", close)
+    return () => {
+      window.removeEventListener("click", close)
+      window.removeEventListener("blur", close)
+      window.removeEventListener("keydown", close)
+    }
+  }, [ctxMenu])
 
   const loadTree = useCallback(
     async (p: string) => {
@@ -90,10 +140,18 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
     loadTree("")
   }, [loadTree])
 
-  // 单文件挂载：根即文件，直接打开
+  // 单文件挂载：根即文件，按类型直接打开
   useEffect(() => {
     if (mount?.type === "file") {
-      symlinkReadFile(mount.id, "").then(setFile).catch(() => {})
+      const name = baseName(mount.root)
+      const kind = kindOf(name)
+      if (kind === "text") {
+        symlinkReadFile(mount.id, "")
+          .then((f) => setFile({ path: f.path, name, kind, content: f.content }))
+          .catch(() => {})
+      } else if (kind !== "other") {
+        setFile({ path: "", name, kind })
+      }
     }
   }, [mount])
 
@@ -101,15 +159,39 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
     const p = mount.type === "file" ? "" : joinPath(path, item.name)
     if (item.type === "dir" && mount.type !== "file") {
       await loadTree(p)
-    } else {
+      return
+    }
+    const kind = kindOf(item.name)
+    if (kind === "text") {
       try {
         const f = await symlinkReadFile(mount.id, p)
-        setFile(f)
+        setFile({ path: f.path, name: item.name, kind, content: f.content })
         setEditing(false)
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "读取失败")
       }
+    } else if (kind !== "other") {
+      // 媒体文件：走二进制预览端点渲染
+      setFile({ path: p, name: item.name, kind })
+      setEditing(false)
+    } else {
+      toast.error("该文件类型不支持内联预览，可右键选择「用默认方式打开」")
     }
+  }
+
+  /** 在用户本机打开/定位挂载内文件 */
+  async function openLocal(p: string, mode: "open" | "reveal") {
+    try {
+      await symlinkOpen(mount.id, p, mode)
+      toast.success(mode === "open" ? "已调用系统默认方式打开" : "已在文件管理器中定位")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "打开失败")
+    }
+  }
+
+  function openContextItem(item: SymlinkItem, mode: "open" | "reveal") {
+    setCtxMenu(null)
+    void openLocal(mount.type === "file" ? "" : joinPath(path, item.name), mode)
   }
 
   async function saveFile() {
@@ -141,6 +223,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
   }
 
   async function removeItem(item: SymlinkItem) {
+    setCtxMenu(null)
     const target = joinPath(path, item.name)
     const ok = await confirm({
       title: "删除文件",
@@ -244,6 +327,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
 
   // ---- 右侧主区 ----
   return (
+    <>
     <div className="flex min-h-[calc(100vh-240px)] overflow-hidden rounded-lg border">
       {sidePanel}
 
@@ -322,7 +406,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
           {file && !editing && (
             <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 px-3 py-1.5">
               <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-                <SoftLinkFileIcon />
+                <FileTypeIcon name={file.name} />
                 <span className="truncate">{file.path || baseName(mount.root)}</span>
               </span>
               <div className="flex shrink-0 items-center gap-1">
@@ -335,27 +419,51 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                 )}
                 <Button
                   size="sm"
+                  variant="outline"
                   className="h-7"
-                  onClick={() => {
-                    setEditContent(file.content)
-                    setEditing(true)
-                  }}
+                  onClick={() => openLocal(file.path, "reveal")}
+                  title="在文件管理器中显示"
                 >
-                  <Pencil className="size-3.5" />
-                  编辑
+                  <FolderOpen className="size-3.5" />
+                  定位
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  onClick={() => openLocal(file.path, "open")}
+                  title="用系统默认方式打开"
+                >
+                  <ExternalLink className="size-3.5" />
+                  打开
+                </Button>
+                {file.kind === "text" && (
+                  <Button
+                    size="sm"
+                    className="h-7"
+                    onClick={() => {
+                      setEditContent(file.content ?? "")
+                      setEditing(true)
+                    }}
+                  >
+                    <Pencil className="size-3.5" />
+                    编辑
+                  </Button>
+                )}
               </div>
             </div>
           )}
 
-          {file && !editing ? (
+          {file && !editing && file.kind === "text" ? (
             <div className="p-4">
-              {file.path.endsWith(".md") || file.path.endsWith(".markdown") ? (
+              {(file.path.endsWith(".md") || file.path.endsWith(".markdown")) && file.content ? (
                 <MarkdownBlock content={file.content} />
               ) : (
                 <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-4 text-xs">{file.content}</pre>
               )}
             </div>
+          ) : file && !editing && file.kind !== "text" ? (
+            <MediaViewer mount={mount} file={file} />
           ) : editing ? (
             <div className="flex h-full flex-col">
               <div className="flex items-center justify-between border-b bg-muted/40 px-3 py-1.5">
@@ -389,13 +497,17 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                   {filteredItems.map((item) => (
                     <div
                       key={item.name}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        setCtxMenu({ item, x: e.clientX, y: e.clientY })
+                      }}
                       className="group relative rounded-lg border p-3 transition-colors hover:bg-accent/40"
                     >
                       <button onClick={() => openItem(item)} className="flex w-full flex-col items-center gap-2 text-center">
                         {item.type === "dir" ? (
                           <FolderOpen className="size-8 text-primary" />
                         ) : (
-                          <SoftLinkFileIcon />
+                          <FileTypeIcon name={item.name} />
                         )}
                         <span className="line-clamp-2 w-full break-all text-xs">{item.name}</span>
                         {item.type === "file" && (
@@ -419,13 +531,17 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                   {filteredItems.map((item) => (
                     <div
                       key={item.name}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        setCtxMenu({ item, x: e.clientX, y: e.clientY })
+                      }}
                       className="group flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-accent/40"
                     >
                       <button onClick={() => openItem(item)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
                         {item.type === "dir" ? (
                           <Folder className="size-4 shrink-0 text-primary" />
                         ) : (
-                          <SoftLinkFileIcon />
+                          <FileTypeIcon name={item.name} />
                         )}
                         <span className="truncate">{item.name}</span>
                         {item.type === "file" && (
@@ -450,5 +566,90 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
         </div>
       </div>
     </div>
+    {ctxMenu &&
+      createPortal(
+        <div
+          className="bg-popover text-popover-foreground z-50 min-w-[12rem] rounded-md border p-1 shadow-md"
+          style={{
+            position: "fixed",
+            left: Math.min(ctxMenu.x, window.innerWidth - 200),
+            top: Math.min(ctxMenu.y, window.innerHeight - 160),
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <p className="px-2 py-1.5 text-xs text-muted-foreground">{ctxMenu.item.name}</p>
+          <button
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+            onClick={() => openContextItem(ctxMenu.item, "open")}
+          >
+            <ExternalLink className="size-3.5" />
+            用默认方式打开
+          </button>
+          <button
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+            onClick={() => openContextItem(ctxMenu.item, "reveal")}
+          >
+            <FolderOpen className="size-3.5" />
+            在文件管理器中显示
+          </button>
+          {mount.type !== "file" && ctxMenu.item.type === "file" && (
+            <>
+              <div className="bg-border -mx-1 my-1 h-px" />
+              <button
+                className="text-destructive flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-destructive/10"
+                onClick={() => removeItem(ctxMenu.item)}
+              >
+                <Trash2 className="size-3.5" />
+                删除
+              </button>
+            </>
+          )}
+        </div>,
+        document.body,
+      )}
+    </>
   )
+}
+
+/** 媒体文件内联预览：图片 / PDF / 视频 / 音频（数据来自后端二进制端点）。 */
+function MediaViewer({
+  mount,
+  file,
+}: {
+  mount: SymlinkMount
+  file: { path: string; name: string; kind: FileKind }
+}) {
+  const url = symlinkMediaUrl(mount.id, file.path)
+  switch (file.kind) {
+    case "image":
+      return (
+        <div className="flex justify-center p-4">
+          <img
+            src={url}
+            alt={file.name}
+            className="max-h-[70vh] max-w-full rounded-md border object-contain"
+          />
+        </div>
+      )
+    case "pdf":
+      return (
+        <div className="p-4">
+          <iframe src={url} title={file.name} className="h-[70vh] w-full rounded-md border" />
+        </div>
+      )
+    case "video":
+      return (
+        <div className="flex justify-center p-4">
+          <video src={url} controls className="max-h-[70vh] w-full max-w-3xl rounded-md" />
+        </div>
+      )
+    case "audio":
+      return (
+        <div className="flex justify-center p-6">
+          <audio src={url} controls className="w-full max-w-xl" />
+        </div>
+      )
+    default:
+      return <p className="p-4 text-sm text-muted-foreground">该文件类型不支持内联预览</p>
+  }
 }

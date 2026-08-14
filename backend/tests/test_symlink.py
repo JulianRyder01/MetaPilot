@@ -222,3 +222,112 @@ def test_disable_symlink_blocks_api():
     assert client.get("/api/plugins/symlink/mounts").status_code == 503
     client.post("/api/plugins/symlink/enable")
     assert client.get("/api/plugins/symlink/mounts").status_code == 200
+
+
+def test_media_preview():
+    """媒体文件经二进制端点预览：正确 MIME、内容一致；非媒体/缺失/穿越被拒。"""
+    root = Path(_make_mount_tree())
+    png = root / "pic.png"
+    png_bytes = b"\x89PNG\r\n\x1a\nfake-image-data"
+    png.write_bytes(png_bytes)
+    pdf = root / "doc.pdf"
+    pdf.write_bytes(b"%PDF-1.4 fake-pdf")
+    m = client.post("/api/plugins/symlink/mounts", json={"name": "m", "root": str(root)}).json()
+    mid = m["id"]
+
+    r = client.get(f"/api/plugins/symlink/mounts/{mid}/media", params={"path": "pic.png"})
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("image/png")
+    assert r.content == png_bytes
+
+    r = client.get(f"/api/plugins/symlink/mounts/{mid}/media", params={"path": "doc.pdf"})
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/pdf")
+
+    # 非媒体扩展名 → 400
+    assert client.get(f"/api/plugins/symlink/mounts/{mid}/media", params={"path": "notes.txt"}).status_code == 400
+    # 不存在 → 400
+    assert client.get(f"/api/plugins/symlink/mounts/{mid}/media", params={"path": "nope.png"}).status_code == 400
+    # 路径穿越被拒
+    outside = _root_tmp / "outside.png"
+    outside.write_bytes(b"\x89PNG")
+    r = client.get(f"/api/plugins/symlink/mounts/{mid}/media", params={"path": "../outside.png"})
+    assert r.status_code == 400
+
+
+def test_media_single_file_mount():
+    """单文件挂载的媒体文件：路径为空也可预览。"""
+    f = _root_tmp / "photo.png"
+    f.write_bytes(b"\x89PNG\r\n\x1a\nsingle")
+    m = client.post("/api/plugins/symlink/mounts", json={"name": "图", "root": str(f)}).json()
+    r = client.get(f"/api/plugins/symlink/mounts/{m['id']}/media", params={"path": ""})
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("image/png")
+    assert r.content == f.read_bytes()
+
+
+def test_open_file_local(monkeypatch):
+    """本地打开/定位：open 与 reveal 两种模式正确解析路径；非法 mode 与穿越被拒。"""
+    root = Path(_make_mount_tree())
+    m = client.post("/api/plugins/symlink/mounts", json={"name": "m", "root": str(root)}).json()
+    mid = m["id"]
+    from plugins.symlink.service import SymlinkService
+
+    calls: list[tuple] = []
+    monkeypatch.setattr(
+        SymlinkService, "_system_open", staticmethod(lambda path, mode: calls.append((str(path), mode)))
+    )
+
+    r = client.post(f"/api/plugins/symlink/mounts/{mid}/open", json={"path": "notes.txt", "mode": "open"})
+    assert r.status_code == 200 and r.json()["mode"] == "open"
+    r = client.post(f"/api/plugins/symlink/mounts/{mid}/open", json={"path": "docs", "mode": "reveal"})
+    assert r.status_code == 200 and r.json()["mode"] == "reveal"
+    assert calls[0][0] == str(Path(root) / "notes.txt")
+    assert calls[1][0] == str(Path(root) / "docs")
+
+    # 非法 mode → 400
+    assert client.post(
+        f"/api/plugins/symlink/mounts/{mid}/open", json={"path": "notes.txt", "mode": "explode"}
+    ).status_code == 400
+    # 路径穿越 → 400，不触发系统调用
+    n = len(calls)
+    outside = _root_tmp / "outside.txt"
+    outside.write_text("secret", encoding="utf-8")
+    assert client.post(f"/api/plugins/symlink/mounts/{mid}/open", json={"path": "../outside.txt"}).status_code == 400
+    assert len(calls) == n
+
+
+def test_system_open_command(monkeypatch):
+    """_system_open 按平台选择系统命令（Windows explorer/startfile、macOS open、Linux xdg-open）。"""
+    from plugins.symlink.service import SymlinkService
+
+    import subprocess as sp
+
+    popen_calls: list[list[str]] = []
+
+    class _FakePopen:
+        def __init__(self, args, **kw):
+            popen_calls.append(list(args))
+
+    monkeypatch.setattr(sp, "Popen", _FakePopen)
+    fake = Path("/tmp/demo.txt")
+
+    if os.name == "nt":
+        started: list[str] = []
+        monkeypatch.setattr(os, "startfile", lambda p: started.append(p))
+        SymlinkService._system_open(fake, "reveal")
+        assert popen_calls and popen_calls[0][0] == "explorer"
+        SymlinkService._system_open(fake, "open")
+        assert started == [os.path.normpath(str(fake))]
+    elif sys.platform == "darwin":
+        SymlinkService._system_open(fake, "reveal")
+        assert popen_calls and popen_calls[0] == ["open", "-R", str(fake)]
+        SymlinkService._system_open(fake, "open")
+        assert popen_calls[1] == ["open", str(fake)]
+    else:
+        SymlinkService._system_open(fake, "reveal")
+        assert popen_calls and popen_calls[0][0] == "xdg-open"
+        assert popen_calls[0][1] == os.path.normpath(str(fake.parent))
+        SymlinkService._system_open(fake, "open")
+        assert popen_calls[1][0] == "xdg-open"
+        assert popen_calls[1][1] == os.path.normpath(str(fake))
