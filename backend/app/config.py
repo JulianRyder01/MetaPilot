@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     embedding_url: str = "http://127.0.0.1:8760"
     embedding_model: str = "Qwen/Qwen3-Embedding-0.6B"
     conda_env: str = "Jyun"
+    # 知识库插件首次访问时自动启动本地 embedding 服务（含首次模型下载）
+    embedding_auto_start: bool = True
 
     # 后端
     backend_host: str = "127.0.0.1"

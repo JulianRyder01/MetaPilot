@@ -6,15 +6,22 @@ import httpx
 from ..config import settings
 
 
+# Qwen3 系列两个 embedding 模型（模型 id → 展示名；与 scripts/kb_embedding_server.py 保持一致）
+EMBEDDING_MODELS: dict[str, str] = {
+    "Qwen/Qwen3-Embedding-0.6B": "Qwen3-Embedding-0.6B（轻量，默认）",
+    "Qwen/Qwen3-Embedding-4B": "Qwen3-Embedding-4B（更强，需更多显存）",
+}
+
+
 class EmbeddingError(RuntimeError):
     pass
 
 
 class EmbeddingProvider:
-    def __init__(self, url: str = "", provider: str = ""):
+    def __init__(self, url: str = "", provider: str = "", model: str = ""):
         self.url = url or settings.embedding_url
         self.provider = provider or settings.embedding_provider
-        self.model = settings.embedding_model
+        self.model = model or settings.embedding_model
 
     def available(self) -> bool:
         return self.provider != "none"

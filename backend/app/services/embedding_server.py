@@ -22,18 +22,20 @@ class EmbeddingServerManager:
     def is_running(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
 
-    def start(self) -> dict:
+    def start(self, model: str = "") -> dict:
+        """启动本地 embedding 服务进程；model 可指定 Qwen3 模型 id（默认 settings.embedding_model）。"""
         if self.is_running():
             return {"started": True, "pid": self.proc.pid, "message": "服务已在运行"}
 
+        model = model or settings.embedding_model
         conda = shutil.which("conda")
         if not conda:
             # 当前环境直接跑（需已安装 torch/transformers）
-            cmd = [sys.executable, str(self.script), "--port", str(self.port)]
+            cmd = [sys.executable, str(self.script), "--port", str(self.port), "--model", model]
             launcher = "当前 Python"
         else:
             cmd = [conda, "run", "-n", self.conda_env, "python",
-                   str(self.script), "--port", str(self.port)]
+                   str(self.script), "--port", str(self.port), "--model", model]
             launcher = f"conda 环境 {self.conda_env}"
 
         try:
