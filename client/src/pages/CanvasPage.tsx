@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom"
 import { ArrowLeft, Download, FileText, Link2, Maximize, Minus, Plus, Redo2, Save, StickyNote, Trash2, Undo2 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
+import { useT } from "@/i18n"
 import { api, type CanvasEdge, type CanvasNode, type Collection } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -26,8 +27,33 @@ const BOARD_SIZE = 8000
 const MIN_ZOOM = 0.2
 const MAX_ZOOM = 3
 
+/** JSON Canvas 预设色（"1"~"6"，Obsidian 红橙黄绿青紫），渲染时映射为实际色值。 */
+const PRESET_COLORS: Record<string, string> = {
+  "1": "#e03131",
+  "2": "#e8590c",
+  "3": "#f08c00",
+  "4": "#2f9e44",
+  "5": "#0c8599",
+  "6": "#9c36b5",
+}
+
+/** 解析节点/边的颜色：支持 hex 与 JSON Canvas 预设数字串。 */
+function resolveColor(c?: string): string | undefined {
+  if (!c) return undefined
+  if (c in PRESET_COLORS) return PRESET_COLORS[c]
+  return c
+}
+
+/** 箭头三角形顶点：以 (px,py) 为尖，指向 angle 方向。 */
+function arrowPoints(px: number, py: number, angle: number, size = 8) {
+  const a1 = angle + Math.PI / 6
+  const a2 = angle - Math.PI / 6
+  return `${px},${py} ${px - size * Math.cos(a1)},${py - size * Math.sin(a1)} ${px - size * Math.cos(a2)},${py - size * Math.sin(a2)}`
+}
+
 export default function CanvasPage() {
   const { cid } = useParams()
+  const t = useT()
   const [col, setCol] = useState<Collection | null>(null)
   const [nodes, setNodes] = useState<CanvasNode[]>([])
   const [edges, setEdges] = useState<CanvasEdge[]>([])
@@ -41,6 +67,10 @@ export default function CanvasPage() {
   const [panning, setPanning] = useState<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null)
   /** 选中节点（Obsidian 风格：点击单选、Shift 多选、空白框选）。 */
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  /** 选中的边（点击边选中，Delete 删除）。 */
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
+  /** 边 label 编辑草稿（选中边时顶栏输入框）。 */
+  const [edgeLabelDraft, setEdgeLabelDraft] = useState("")
   /** 框选矩形（board 坐标）。 */
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
   /** 拖拽中的多节点移动（记录各节点起始位置，统一位移）。 */
@@ -62,6 +92,7 @@ export default function CanvasPage() {
     setNodes(c.canvas?.nodes ?? [])
     setEdges(c.canvas?.edges ?? [])
     setSelectedIds([])
+    setSelectedEdgeId(null)
     undoStack.current = []
     redoStack.current = []
     setDirty(false)
@@ -76,9 +107,9 @@ export default function CanvasPage() {
     try {
       await api.updateCollectionCanvas(cid, nodes, edges)
       setDirty(false)
-      toast.success("画布已保存")
+      toast.success(t("core.canvas.saved"))
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "保存失败")
+      toast.error(e instanceof Error ? e.message : t("core.canvas.saveFailed"))
     }
   }
 
@@ -117,7 +148,7 @@ export default function CanvasPage() {
       y: 40 + Math.random() * 120,
       width: 200,
       height: 80,
-      text: "双击编辑文本",
+      text: t("core.canvas.doubleClickEdit"),
     }
     setNodes((n) => [...n, node])
     setSelectedIds([node.id])
@@ -137,6 +168,40 @@ export default function CanvasPage() {
 
   function removeNode(id: string) {
     removeNodes([id])
+  }
+
+  // ---- 边操作 ----
+
+  function selectEdge(e: CanvasEdge) {
+    setSelectedEdgeId(e.id)
+    setSelectedIds([])
+    setEdgeLabelDraft(e.label ?? "")
+  }
+
+  function removeEdge(id: string) {
+    pushHistory()
+    setEdges((es) => es.filter((x) => x.id !== id))
+    setSelectedEdgeId(null)
+    setDirty(true)
+  }
+
+  function updateEdge(id: string, patch: Partial<CanvasEdge>) {
+    setEdges((es) => es.map((x) => (x.id === id ? { ...x, ...patch } : x)))
+    setDirty(true)
+  }
+
+  /** 切换边端点箭头（fromEnd/toEnd，JSON Canvas 默认 none/arrow）。 */
+  function toggleEdgeEnd(id: string, end: "fromEnd" | "toEnd") {
+    pushHistory()
+    setEdges((es) =>
+      es.map((x) => (x.id === id ? { ...x, [end]: x[end] === "arrow" ? "none" : "arrow" } : x)),
+    )
+    setDirty(true)
+  }
+
+  /** 编辑边 label（聚焦时入历史，输入中实时更新）。 */
+  function startEdgeLabelEdit() {
+    pushHistory()
   }
 
   // ---- 复制 / 粘贴 ----
@@ -280,6 +345,7 @@ export default function CanvasPage() {
     }
     // 点击选中：未选中则单选（Shift 加选）；已选中则保持（便于整体拖动）
     const p = screenToBoard(e.clientX, e.clientY)
+    setSelectedEdgeId(null)
     if (!selectedIds.includes(node.id)) {
       const next = e.shiftKey ? [...selectedIds, node.id] : [node.id]
       setSelectedIds(next)
@@ -313,6 +379,7 @@ export default function CanvasPage() {
     } else if (e.button === 0) {
       const p = screenToBoard(e.clientX, e.clientY)
       setMarquee({ x0: p.x, y0: p.y, x1: p.x, y1: p.y })
+      setSelectedEdgeId(null)
       if (!e.shiftKey) setSelectedIds([])
     }
   }
@@ -377,7 +444,10 @@ export default function CanvasPage() {
       const inField = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
       if (e.code === "Space") return
       if ((e.key === "Delete" || e.key === "Backspace") && !inField) {
-        if (selectedIds.length > 0) {
+        if (selectedEdgeId) {
+          e.preventDefault()
+          removeEdge(selectedEdgeId)
+        } else if (selectedIds.length > 0) {
           e.preventDefault()
           removeNodes(selectedIds)
         }
@@ -437,6 +507,7 @@ export default function CanvasPage() {
   }
 
   const nodeById = (id: string) => nodes.find((n) => n.id === id)
+  const selectedEdge = selectedEdgeId ? edges.find((e) => e.id === selectedEdgeId) ?? null : null
   const centerOf = (node: CanvasNode, side?: string) => {
     const s = side ? SIDES.find((x) => x.key === side) : undefined
     return { x: node.x + node.width * (s?.dx ?? 0.5), y: node.y + node.height * (s?.dy ?? 0.5) }
@@ -451,7 +522,7 @@ export default function CanvasPage() {
     )
   }
   if (col.kind !== "canvas") {
-    return <p className="px-6 py-10 text-sm text-muted-foreground">该文档集不是图表。</p>
+    return <p className="px-6 py-10 text-sm text-muted-foreground">{t("core.canvas.notCanvas")}</p>
   }
 
   return (
@@ -460,32 +531,32 @@ export default function CanvasPage() {
         <div className="flex items-center gap-2">
           <Link to="/" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-4" />
-            返回库
+            {t("core.canvas.backToLibrary")}
           </Link>
           <h1 className="text-xl font-semibold">{col.name}</h1>
-          <Badge variant="outline">图表画布</Badge>
-          {dirty && <Badge variant="secondary">有未保存修改</Badge>}
+          <Badge variant="outline">{t("core.canvas.badge")}</Badge>
+          {dirty && <Badge variant="secondary">{t("core.canvas.dirty")}</Badge>}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={undo} title="撤销 (Ctrl+Z)" disabled={undoStack.current.length === 0}>
+          <Button variant="ghost" size="icon" onClick={undo} title={t("core.canvas.undo")} disabled={undoStack.current.length === 0}>
             <Undo2 className="size-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={redo} title="重做 (Ctrl+Shift+Z)" disabled={redoStack.current.length === 0}>
+          <Button variant="ghost" size="icon" onClick={redo} title={t("core.canvas.redo")} disabled={redoStack.current.length === 0}>
             <Redo2 className="size-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={addTextNode}>
             <Plus className="size-4" />
-            新建文本节点
+            {t("core.canvas.newTextNode")}
           </Button>
           <Button size="sm" onClick={save}>
             <Save className="size-4" />
-            保存
+            {t("common.save")}
           </Button>
         </div>
       </div>
 
       <p className="mb-3 text-xs text-muted-foreground">
-        拖拽节点移动，空白框选、Shift 多选，Delete 删除，Ctrl+C/V 复制粘贴，Ctrl+Z 撤销；双击文本编辑；从节点边缘连接点拖到另一节点创建连线；滚轮平移、Ctrl+滚轮缩放、按住空格拖拽平移。
+        {t("core.canvas.help")}
       </p>
 
       <div
@@ -514,7 +585,31 @@ export default function CanvasPage() {
               if (!a || !b) return null
               const p1 = centerOf(a, e.fromSide)
               const p2 = centerOf(b, e.toSide)
-              return <line key={e.id} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#94a3b8" strokeWidth={1.5} />
+              const color = resolveColor(e.color) ?? "#94a3b8"
+              const selected = selectedEdgeId === e.id
+              const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x)
+              // JSON Canvas 默认：fromEnd=none、toEnd=arrow
+              const fromEnd = e.fromEnd === "arrow"
+              const toEnd = e.toEnd === "arrow" || e.toEnd == null
+              return (
+                <g key={e.id}>
+                  <line
+                    x1={p1.x}
+                    y1={p1.y}
+                    x2={p2.x}
+                    y2={p2.y}
+                    stroke={color}
+                    strokeWidth={selected ? 3 : 1.5}
+                    style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                    onMouseDown={(ev) => {
+                      ev.stopPropagation()
+                      selectEdge(e)
+                    }}
+                  />
+                  {toEnd && <polygon points={arrowPoints(p2.x, p2.y, angle)} fill={color} className="pointer-events-none" />}
+                  {fromEnd && <polygon points={arrowPoints(p1.x, p1.y, angle + Math.PI)} fill={color} className="pointer-events-none" />}
+                </g>
+              )
             })}
             {linking && linkPos && (() => {
               const a = nodeById(linking.fromId)
@@ -523,6 +618,24 @@ export default function CanvasPage() {
               return <line x1={p1.x} y1={p1.y} x2={linkPos.x} y2={linkPos.y} stroke="#6366f1" strokeWidth={1.5} strokeDasharray="4 3" />
             })()}
           </svg>
+
+          {/* 边 label（显示在连线中点上方） */}
+          {edges.map((e) => {
+            const a = nodeById(e.fromNode)
+            const b = nodeById(e.toNode)
+            if (!a || !b || !e.label) return null
+            const p1 = centerOf(a, e.fromSide)
+            const p2 = centerOf(b, e.toSide)
+            return (
+              <div
+                key={`${e.id}-label`}
+                className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                style={{ left: (p1.x + p2.x) / 2, top: (p1.y + p2.y) / 2 }}
+              >
+                {e.label}
+              </div>
+            )
+          })}
 
           {/* 节点层 */}
           {nodes.map((node) => {
@@ -551,7 +664,7 @@ export default function CanvasPage() {
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={() => removeNode(node.id)}
                   className="absolute -right-2 -top-2 z-10 rounded-full bg-background p-0.5 text-muted-foreground opacity-0 shadow hover:text-destructive group-hover:opacity-100 hover:opacity-100"
-                  title="删除节点"
+                  title={t("core.canvas.deleteNode")}
                 >
                   <Trash2 className="size-3" />
                 </button>
@@ -568,7 +681,7 @@ export default function CanvasPage() {
                     />
                   ) : (
                     <div onDoubleClick={() => startEdit(node)} className="h-full w-full overflow-auto whitespace-pre-wrap text-xs">
-                      {node.text || "（空）"}
+                      {node.text || t("core.canvas.empty")}
                     </div>
                   )
                 ) : node.type === "file" ? (
@@ -590,7 +703,7 @@ export default function CanvasPage() {
                 ) : (
                   <div className="flex h-full w-full items-center gap-1 text-xs font-medium">
                     <StickyNote className="size-3.5" />
-                    {node.label || "分组"}
+                    {node.label || t("core.canvas.group")}
                   </div>
                 )}
 
@@ -606,7 +719,7 @@ export default function CanvasPage() {
                         }}
                         className="absolute z-10 size-2.5 rounded-full border border-primary bg-background opacity-0 hover:opacity-100"
                         style={{ left: `calc(${s.dx * 100}% - 5px)`, top: `calc(${s.dy * 100}% - 5px)` }}
-                        title="拖拽连线"
+                        title={t("core.canvas.dragLink")}
                       />
                     ))}
                   </>
@@ -630,34 +743,111 @@ export default function CanvasPage() {
 
           {nodes.length === 0 && (
             <p className="absolute left-0 top-0 text-sm text-muted-foreground" style={{ padding: 40 }}>
-              空画布，点击右上角「新建文本节点」开始
+              {t("core.canvas.emptyBoard")}
             </p>
           )}
         </div>
 
+        {/* 选中边的工具条（Obsidian 风格：端点箭头/标签/颜色/删除） */}
+        {selectedEdge && (
+          <div
+            className="absolute top-2 left-1/2 z-30 flex max-w-[95%] -translate-x-1/2 flex-wrap items-center gap-1 rounded-lg border bg-background/95 p-1.5 text-xs shadow-sm"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <span className="pl-1 text-muted-foreground">起点</span>
+            <Button
+              variant={selectedEdge.fromEnd === "arrow" ? "default" : "ghost"}
+              size="sm"
+              className="h-6 px-1.5"
+              onClick={() => toggleEdgeEnd(selectedEdge.id, "fromEnd")}
+              title="切换起点箭头"
+            >
+              箭头
+            </Button>
+            <span className="pl-1 text-muted-foreground">终点</span>
+            <Button
+              variant={selectedEdge.toEnd === "arrow" || selectedEdge.toEnd == null ? "default" : "ghost"}
+              size="sm"
+              className="h-6 px-1.5"
+              onClick={() => toggleEdgeEnd(selectedEdge.id, "toEnd")}
+              title="切换终点箭头"
+            >
+              箭头
+            </Button>
+            <span className="mx-1 h-4 w-px bg-border" />
+            <input
+              value={edgeLabelDraft}
+              onFocus={startEdgeLabelEdit}
+              onChange={(e) => {
+                setEdgeLabelDraft(e.target.value)
+                updateEdge(selectedEdge.id, { label: e.target.value })
+              }}
+              placeholder="标签"
+              className="h-6 w-24 rounded border bg-transparent px-1.5 outline-none placeholder:text-muted-foreground"
+            />
+            <span className="mx-1 h-4 w-px bg-border" />
+            {Object.entries(PRESET_COLORS).map(([k, v]) => (
+              <button
+                key={k}
+                onClick={() => {
+                  pushHistory()
+                  updateEdge(selectedEdge.id, { color: k })
+                }}
+                className={cn(
+                  "size-4 rounded-full border border-black/15 transition-transform hover:scale-110",
+                  selectedEdge.color === k && "ring-2 ring-primary ring-offset-1",
+                )}
+                style={{ background: v }}
+                title={`颜色 ${k}`}
+              />
+            ))}
+            <button
+              onClick={() => {
+                pushHistory()
+                updateEdge(selectedEdge.id, { color: undefined })
+              }}
+              className={cn(
+                "size-4 rounded-full border border-dashed border-muted-foreground/60",
+                !selectedEdge.color && "ring-2 ring-primary ring-offset-1",
+              )}
+              title="清除颜色"
+            />
+            <span className="mx-1 h-4 w-px bg-border" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6 text-destructive"
+              onClick={() => removeEdge(selectedEdge.id)}
+              title="删除连线"
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        )}
+
         {/* 缩放控件 */}
         <div className="absolute right-3 bottom-3 z-20 flex items-center gap-0.5 rounded-lg border bg-background/95 p-1 shadow-sm">
-          <Button variant="ghost" size="icon" className="size-6" onClick={() => zoomCenter(1 / 1.2)} title="缩小">
+          <Button variant="ghost" size="icon" className="size-6" onClick={() => zoomCenter(1 / 1.2)} title={t("core.canvas.zoomOut")}>
             <Minus className="size-3.5" />
           </Button>
           <span className="w-11 text-center text-xs tabular-nums text-muted-foreground">
             {Math.round(view.zoom * 100)}%
           </span>
-          <Button variant="ghost" size="icon" className="size-6" onClick={() => zoomCenter(1.2)} title="放大">
+          <Button variant="ghost" size="icon" className="size-6" onClick={() => zoomCenter(1.2)} title={t("core.canvas.zoomIn")}>
             <Plus className="size-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="size-6" onClick={fitView} title="适应画布">
+          <Button variant="ghost" size="icon" className="size-6" onClick={fitView} title={t("core.canvas.fitView")}>
             <Maximize className="size-3.5" />
           </Button>
         </div>
       </div>
 
       <div className="mt-3 flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">{nodes.length} 个节点 · {edges.length} 条连线</p>
+        <p className="text-xs text-muted-foreground">{t("core.canvas.stats", { nodes: nodes.length, edges: edges.length })}</p>
         <Button variant="outline" size="sm" asChild>
           <a href={cid ? api.exportMpfUrl(cid, "collection") : "#"}>
             <Download className="size-4" />
-            导出 .mpf
+            {t("core.canvas.exportMpf")}
           </a>
         </Button>
       </div>

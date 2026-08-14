@@ -206,6 +206,9 @@ export interface CanvasEdge {
   toSide?: string
   label?: string
   color?: string
+  /** JSON Canvas：起点端点（none 默认 / arrow），与 toEnd 默认相反。 */
+  fromEnd?: "none" | "arrow"
+  toEnd?: "none" | "arrow"
 }
 
 export interface Collection {
