@@ -1,2 +1,20 @@
 /** 域词典覆盖层：course。缺失回退 zh-CN。 */
-export const courseEn: Record<string, string> = {}
+export const courseEn: Record<string, string> = {
+  "course.exportFailed": "Export failed",
+  "course.pluginDisabledWarning": "This document depends on the Course plugin. Learning progress and quiz interactions are unavailable. Enable it on the Plugins page.",
+  "course.backToLibrary": "Back to Library",
+  "course.noDescription": "No description",
+  "course.authorLabel": "Author: {author}",
+  "course.export": "Export",
+  "course.continueLearning": "Continue learning",
+  "course.learningProgress": "Learning progress",
+  "course.progressCount": "{completed} / {total} knowledge points",
+  "course.lastLearned": "Last seen: {name}",
+  "course.progressRequiresPlugin": "Learning progress relies on the Course plugin. Enable it to mark sections as completed and track your last learning position.",
+  "course.quiz": "Quiz",
+  "course.noSectionsInChapter": "No sections in this chapter",
+  "course.noChapters": "This course has no chapters yet. Click Edit at the top right to start creating.",
+  "course.insightHint": "AI insight with document traceability",
+  "course.insightIntro": "After indexing this course with AI Insight, ask the AI to analyze connections, answer questions, or generate a canvas/course.",
+  "course.openInsight": "Open AI Insight",
+}

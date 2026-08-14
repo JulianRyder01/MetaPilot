@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react"
 
+import { useT } from "@/i18n"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -15,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 /**
  * 官方核心弹窗库（MetaPilot core v1.0.1）
  *
- * 统一提供三款美观弹窗，所有插件（course / symlink / knowledge_base / themes …）
+ * 统一提供三款美观弹窗，所有插件（course / symlink / ai_insight / themes …）
  * 均可通过 `useDialogs()` 一行调用，无需各自拼 Dialog：
  *
  *   const { confirm, prompt, select } = useDialogs()
@@ -83,6 +84,7 @@ export function useDialogs(): Dialogs {
 }
 
 function ConfirmBody({ options, onDone }: { options: ConfirmOptions; onDone: (v: boolean) => void }) {
+  const t = useT()
   return (
     <>
       <DialogHeader>
@@ -94,10 +96,10 @@ function ConfirmBody({ options, onDone }: { options: ConfirmOptions; onDone: (v:
       </DialogHeader>
       <DialogFooter>
         <Button variant="outline" onClick={() => onDone(false)}>
-          {options.cancelText ?? "取消"}
+          {options.cancelText ?? t("common.cancel")}
         </Button>
         <Button variant={options.destructive ? "destructive" : "default"} onClick={() => onDone(true)}>
-          {options.confirmText ?? "确定"}
+          {options.confirmText ?? t("common.confirm")}
         </Button>
       </DialogFooter>
     </>
@@ -105,6 +107,7 @@ function ConfirmBody({ options, onDone }: { options: ConfirmOptions; onDone: (v:
 }
 
 function PromptBody({ options, onDone }: { options: PromptOptions; onDone: (v: string | null) => void }) {
+  const t = useT()
   const [value, setValue] = useState(options.initialValue ?? "")
   return (
     <form
@@ -126,15 +129,16 @@ function PromptBody({ options, onDone }: { options: PromptOptions; onDone: (v: s
       />
       <DialogFooter>
         <Button type="button" variant="outline" onClick={() => onDone(null)}>
-          {options.cancelText ?? "取消"}
+          {options.cancelText ?? t("common.cancel")}
         </Button>
-        <Button type="submit">{options.confirmText ?? "确定"}</Button>
+        <Button type="submit">{options.confirmText ?? t("common.confirm")}</Button>
       </DialogFooter>
     </form>
   )
 }
 
 function SelectBody({ options, onDone }: { options: SelectOptions; onDone: (v: string | null) => void }) {
+  const t = useT()
   const [value, setValue] = useState<string>(options.initialValue ?? options.items[0]?.value ?? "")
   return (
     <div className="space-y-3">
@@ -144,7 +148,7 @@ function SelectBody({ options, onDone }: { options: SelectOptions; onDone: (v: s
       </DialogHeader>
       <Select value={value} onValueChange={setValue}>
         <SelectTrigger>
-          <SelectValue placeholder="请选择…" />
+          <SelectValue placeholder={t("core.dialog.selectPlaceholder")} />
         </SelectTrigger>
         <SelectContent>
           {options.items.map((it) => (
@@ -156,10 +160,10 @@ function SelectBody({ options, onDone }: { options: SelectOptions; onDone: (v: s
       </Select>
       <DialogFooter>
         <Button variant="outline" onClick={() => onDone(null)}>
-          {options.cancelText ?? "取消"}
+          {options.cancelText ?? t("common.cancel")}
         </Button>
         <Button disabled={!value} onClick={() => onDone(value)}>
-          {options.confirmText ?? "确定"}
+          {options.confirmText ?? t("common.confirm")}
         </Button>
       </DialogFooter>
     </div>

@@ -5,7 +5,6 @@ export const coreZhCN: Record<string, string> = {
   "nav.plugins": "插件",
   "nav.settings": "设置",
   "nav.stats": "统计",
-  "nav.kb": "AI 知识库",
 
   // ---- 统计组件（后端 widget id → 标题） ----
   "core.widget.topDocs": "最常访问的文档",

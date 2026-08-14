@@ -4,15 +4,13 @@
  * 本文件汇总后供 App.tsx（路由）与 AppLayout.tsx（导航）自动读取。
  */
 import { coursePlugin } from "./course"
-import { knowledgeBasePlugin } from "./knowledge_base"
 import { themesPlugin } from "./themes"
 import { symlinkPlugin } from "./symlink"
 import type { PluginFrontend, PluginNavItem } from "./types"
 
-/** 全部前端插件（顺序即展示顺序：course → knowledge_base → themes → symlink） */
+/** 全部前端插件（顺序即展示顺序：course → themes → symlink） */
 export const pluginFrontends: PluginFrontend[] = [
   coursePlugin,
-  knowledgeBasePlugin,
   themesPlugin,
   symlinkPlugin,
 ]

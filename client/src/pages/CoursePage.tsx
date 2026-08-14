@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
+import { useT } from "@/i18n"
 import { api, type Collection, type Progress } from "@/lib/api"
 import { exportCourseUrl, getProgress } from "@/plugins/course/api"
 import { usePluginEnabled } from "@/stores/plugins"
@@ -25,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { PluginGate } from "@/components/plugins/PluginGate"
 
 export default function CoursePage() {
+  const t = useT()
   const { cid } = useParams()
   const navigate = useNavigate()
   const [col, setCol] = useState<Collection | null>(null)
@@ -68,7 +70,7 @@ export default function CoursePage() {
       a.download = "course.zip"
       a.click()
     } catch {
-      toast.error("导出失败")
+      toast.error(t("course.exportFailed"))
     }
   }
 
@@ -91,13 +93,10 @@ export default function CoursePage() {
     if (isCourse && !courseEnabled && !warnedRef.current) {
       warnedRef.current = true
       if (useSettingsStore.getState().showPluginWarnings) {
-        toast.warning(
-          "此文档依赖「课程」插件，学习进度与题目交互不可用，可前往「插件」页启用。",
-          { duration: 6000 },
-        )
+        toast.warning(t("course.pluginDisabledWarning"), { duration: 6000 })
       }
     }
-  }, [isCourse, courseEnabled])
+  }, [t, isCourse, courseEnabled])
 
   if (!col) {
     return (
@@ -113,7 +112,7 @@ export default function CoursePage() {
     <div className="mx-auto max-w-4xl px-6 py-8">
       <Link to="/" className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" />
-        返回库
+        {t("course.backToLibrary")}
       </Link>
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
@@ -124,8 +123,8 @@ export default function CoursePage() {
             {col.packageId && <Badge variant="outline">{col.packageId}</Badge>}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            {col.description || "暂无简介"}
-            {col.author && <span className="ml-2">作者：{col.author}</span>}
+            {col.description || t("course.noDescription")}
+            {col.author && <span className="ml-2">{t("course.authorLabel", { author: col.author })}</span>}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -133,17 +132,17 @@ export default function CoursePage() {
             <>
               <Button variant="outline" size="sm" onClick={exportCourse}>
                 <Download className="size-4" />
-                导出
+                {t("course.export")}
               </Button>
               <Button size="sm" onClick={continueLearning}>
                 <Play className="size-4" />
-                继续学习
+                {t("course.continueLearning")}
               </Button>
             </>
           )}
           <Button variant="outline" size="sm" onClick={() => navigate(`/edit/${cid}`)}>
             <Pencil className="size-4" />
-            编辑
+            {t("common.edit")}
           </Button>
         </div>
       </div>
@@ -152,21 +151,21 @@ export default function CoursePage() {
       {canTrack ? (
         <div className="mb-6 rounded-lg border p-4">
           <div className="mb-2 flex items-center justify-between text-sm">
-            <span className="font-medium">学习进度</span>
+            <span className="font-medium">{t("course.learningProgress")}</span>
             <span className="text-muted-foreground">
-              {completedCount} / {total} 个知识点
+              {t("course.progressCount", { completed: completedCount, total })}
             </span>
           </div>
           <ProgressBar value={percent} />
           {progress?.lastPosition && (
             <p className="mt-2 text-xs text-muted-foreground">
-              上次学到：{allSections.find(({ section }) => section.id === progress.lastPosition!.sectionId)?.section.name ?? ""}
+              {t("course.lastLearned", { name: allSections.find(({ section }) => section.id === progress.lastPosition!.sectionId)?.section.name ?? "" })}
             </p>
           )}
         </div>
       ) : (
         <div className="mb-6 rounded-lg border border-dashed border-amber-300 bg-amber-50/40 px-4 py-3 text-sm dark:border-amber-700/50 dark:bg-amber-950/20">
-          学习进度依赖「课程」插件，启用后可标记学完并跟踪上次学习位置。
+          {t("course.progressRequiresPlugin")}
         </div>
       )}
 
@@ -179,7 +178,7 @@ export default function CoursePage() {
               <span className="font-medium">
                 {di + 1}. {doc.name}
               </span>
-              {doc.docType === "quiz" && <Badge variant="outline">测验</Badge>}
+              {doc.docType === "quiz" && <Badge variant="outline">{t("course.quiz")}</Badge>}
             </div>
             <div className="divide-y">
               {doc.sections.map((sec) => {
@@ -206,29 +205,29 @@ export default function CoursePage() {
                 )
               })}
               {doc.sections.length === 0 && (
-                <p className="px-4 py-3 text-sm text-muted-foreground">本章暂无小节</p>
+                <p className="px-4 py-3 text-sm text-muted-foreground">{t("course.noSectionsInChapter")}</p>
               )}
             </div>
           </div>
         ))}
         {col.documents.length === 0 && (
           <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground">
-            该课程还没有章节，点击右上角「编辑」开始创建。
+            {t("course.noChapters")}
           </div>
         )}
       </div>
 
-      {/* 知识库入口 */}
-      <PluginGate pluginId="knowledge_base" hint="AI 问答与文档溯源" compact>
+      {/* AI 洞察入口 */}
+      <PluginGate pluginId="ai_insight" hint={t("course.insightHint")} compact>
         <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-4">
           <div className="flex items-center gap-2 text-sm">
             <Rocket className="size-4 text-primary" />
             <span>
-              个人知识库插件：对该课程建立向量索引后，可用 AI 提问并溯源到具体知识点。
+              {t("course.insightIntro")}
             </span>
           </div>
-          <Button variant="outline" size="sm" onClick={() => navigate(`/kb?cid=${cid}`)}>
-            打开知识库
+          <Button variant="outline" size="sm" onClick={() => navigate(`/insight?cid=${cid}`)}>
+            {t("course.openInsight")}
           </Button>
         </div>
       </PluginGate>

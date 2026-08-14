@@ -1,2 +1,20 @@
 /** 域词典覆盖层：course。缺失回退 zh-CN。 */
-export const courseZhTW: Record<string, string> = {}
+export const courseZhTW: Record<string, string> = {
+  "course.exportFailed": "匯出失敗",
+  "course.pluginDisabledWarning": "此文件依賴「課程」外掛，學習進度與題目互動不可用，可前往「外掛」頁面啟用。",
+  "course.backToLibrary": "返回庫",
+  "course.noDescription": "暫無簡介",
+  "course.authorLabel": "作者：{author}",
+  "course.export": "匯出",
+  "course.continueLearning": "繼續學習",
+  "course.learningProgress": "學習進度",
+  "course.progressCount": "{completed} / {total} 個知識點",
+  "course.lastLearned": "上次學到：{name}",
+  "course.progressRequiresPlugin": "學習進度依賴「課程」外掛，啟用後可標記學完並追蹤上次學習位置。",
+  "course.quiz": "測驗",
+  "course.noSectionsInChapter": "本章暫無小節",
+  "course.noChapters": "該課程還沒有章節，點擊右上角「編輯」開始建立。",
+  "course.insightHint": "AI 洞察與文件溯源",
+  "course.insightIntro": "用「AI 洞察」對該課程建立索引後，可讓 AI 查閱課程內容、回答提問，並生成圖表或課程。",
+  "course.openInsight": "開啟 AI 洞察",
+}

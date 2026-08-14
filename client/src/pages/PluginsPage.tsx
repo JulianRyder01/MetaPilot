@@ -14,40 +14,46 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { StorePanel } from "@/components/plugins/StorePanel"
 import { useDialogs } from "@/components/ui/dialog-provider"
+import { useT } from "@/i18n"
 
 const PLUGIN_ICONS: Record<string, typeof Puzzle> = {
   course: GraduationCap,
-  knowledge_base: Rocket,
   themes: Palette,
 }
 
 const PLUGIN_FEATURES: Record<string, string[]> = {
-  course: ["课程包导入 / 导出", "章节知识点学习（组件流）", "学习进度与时长统计", "主观题 AI 判分", "动态交互块渲染"],
-  knowledge_base: ["向量索引建立", "AI 问答与文档溯源（[来源N] 点击跳转）"],
+  course: [
+    "sys.plugins.featureCourseImport",
+    "sys.plugins.featureCourseFlow",
+    "sys.plugins.featureCourseProgress",
+    "sys.plugins.featureCourseGrading",
+    "sys.plugins.featureCourseInteractive",
+  ],
 }
 
 // 分组展示顺序：用户自定义 → 官方插件 → 官方核心（与后端 /api/plugins 清单顺序一致）
-const SOURCE_META: { source: PluginSource; label: string; desc: string }[] = [
+const SOURCE_META: { source: PluginSource; labelKey: string; descKey: string }[] = [
   {
     source: "user",
-    label: "用户自定义插件",
-    desc: "可自行开发、从插件商店安装，或上传 zip 安装；可禁用或删除。",
+    labelKey: "sys.plugins.sourceUser",
+    descKey: "sys.plugins.sourceUserDesc",
   },
   {
     source: "official",
-    label: "官方插件",
-    desc: "MetaPilot 官方开发的实用插件，可选用、禁用，不可删除。",
+    labelKey: "sys.plugins.sourceOfficial",
+    descKey: "sys.plugins.sourceOfficialDesc",
   },
   {
     source: "core",
-    label: "官方核心",
-    desc: "MetaPilot 本身：文档库浏览与 Markdown 阅读。不允许禁用或删除。",
+    labelKey: "sys.plugins.sourceCore",
+    descKey: "sys.plugins.sourceCoreDesc",
   },
 ]
 
 type PluginSource = "core" | "official" | "user"
 
 export default function PluginsPage() {
+  const t = useT()
   const { confirm } = useDialogs()
   const { plugins, loaded, refresh, setEnabled } = usePluginsStore()
   const [tagFilter, setTagFilter] = useState<string | null>(null)
@@ -65,26 +71,26 @@ export default function PluginsPage() {
   async function toggle(id: string, enabled: boolean) {
     try {
       await setEnabled(id, enabled)
-      toast.success(enabled ? "插件已启用" : "插件已禁用")
+      toast.success(enabled ? t("sys.plugins.enabledToast") : t("sys.plugins.disabledToast"))
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "操作失败")
+      toast.error(e instanceof Error ? e.message : t("sys.plugins.opFailed"))
     }
   }
 
   async function remove(id: string, name: string) {
     const ok = await confirm({
-      title: "删除插件",
-      description: `删除插件「${name}」？将物理删除 backend/plugins/${id} 目录，不可恢复。`,
-      confirmText: "删除",
+      title: t("sys.plugins.deleteTitle"),
+      description: t("sys.plugins.deleteDesc", { name, id }),
+      confirmText: t("common.delete"),
       destructive: true,
     })
     if (!ok) return
     try {
       await api.deletePlugin(id)
-      toast.success(`已删除插件「${name}」`)
+      toast.success(t("sys.plugins.deletedToast", { name }))
       refresh()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "删除失败")
+      toast.error(e instanceof Error ? e.message : t("sys.plugins.deleteFailed"))
     }
   }
 
@@ -93,32 +99,31 @@ export default function PluginsPage() {
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-semibold">
           <Puzzle className="size-6 text-primary" />
-          插件管理
+          {t("sys.plugins.title")}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          插件分为用户自定义、官方插件与官方核心三类。插件是后端
-          <code className="rounded bg-muted px-1">backend/plugins/</code> 目录下的独立功能包，
-          可在「插件商店」浏览安装或上传自制插件。
+          {t("sys.plugins.headerPrefix")}
+          <code className="rounded bg-muted px-1">backend/plugins/</code> {t("sys.plugins.headerSuffix")}
         </p>
       </div>
 
       <Tabs defaultValue="local">
         <TabsList>
-          <TabsTrigger value="local">本地插件</TabsTrigger>
-          <TabsTrigger value="store">插件商店</TabsTrigger>
+          <TabsTrigger value="local">{t("sys.plugins.tabLocal")}</TabsTrigger>
+          <TabsTrigger value="store">{t("sys.plugins.tabStore")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="local" className="space-y-6">
           {/* tag 筛选栏 */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-xs text-muted-foreground">按标签筛选：</span>
+            <span className="mr-1 text-xs text-muted-foreground">{t("sys.plugins.filterByTag")}</span>
             <Button
               variant={tagFilter === null ? "secondary" : "outline"}
               size="sm"
               className="h-7 px-2.5 text-xs"
               onClick={() => setTagFilter(null)}
             >
-              全部
+              {t("common.all")}
             </Button>
             {PLUGIN_TAGS.map((t) => (
               <Button
@@ -147,9 +152,9 @@ export default function PluginsPage() {
                   <div>
                     <h2 className="flex items-center gap-2 text-base font-semibold">
                       {group.source === "core" && <Lock className="size-4 text-muted-foreground" />}
-                      {group.label}
+                      {t(group.labelKey)}
                     </h2>
-                    <p className="text-xs text-muted-foreground">{group.desc}</p>
+                    <p className="text-xs text-muted-foreground">{t(group.descKey)}</p>
                   </div>
                   <div className="space-y-3">
                     {groupPlugins.map((p) => {
@@ -170,7 +175,7 @@ export default function PluginsPage() {
                                     <span className="text-xs font-normal text-muted-foreground">{p.author}</span>
                                   )}
                                 </CardTitle>
-                                <p className="text-xs text-muted-foreground">id: {p.id}</p>
+                                <p className="text-xs text-muted-foreground">{t("sys.plugins.idLabel")} {p.id}</p>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -182,11 +187,11 @@ export default function PluginsPage() {
                                   onClick={() => remove(p.id, p.name)}
                                 >
                                   <Trash2 className="size-4" />
-                                  删除
+                                  {t("common.delete")}
                                 </Button>
                               )}
                               <Badge variant={p.enabled ? "success" : "secondary"}>
-                                {p.enabled ? "已启用" : "已禁用"}
+                                {p.enabled ? t("common.enabled") : t("common.disabled")}
                               </Badge>
                               <Switch
                                 checked={p.enabled}
@@ -219,17 +224,17 @@ export default function PluginsPage() {
                               <div className="flex flex-wrap gap-1.5">
                                 {features.map((f) => (
                                   <Badge key={f} variant="outline" className="text-muted-foreground">
-                                    {f}
+                                    {t(f)}
                                   </Badge>
                                 ))}
                               </div>
                             )}
                             {p.dependsOn.length > 0 && (
-                              <p className="text-xs text-muted-foreground">依赖插件：{p.dependsOn.join("、")}</p>
+                              <p className="text-xs text-muted-foreground">{t("sys.plugins.dependsOn")}{p.dependsOn.join("、")}</p>
                             )}
                             {p.missingDependencies.length > 0 && (
                               <p className="text-xs text-amber-600">
-                                缺少依赖（需先启用）：{p.missingDependencies.join("、")}
+                                {t("sys.plugins.missingDeps")}{p.missingDependencies.join("、")}
                               </p>
                             )}
                           </CardContent>
