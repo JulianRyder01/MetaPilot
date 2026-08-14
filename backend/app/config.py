@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     backend_port: int = 8000
     data_dir: str = ""
 
+    # 插件商店（独立部署的 plugins-store 服务；留空 = 关闭商店功能）
+    plugin_store_url: str = ""
+
 
 settings = Settings()
 DATA_DIR = Path(settings.data_dir) if settings.data_dir else (BACKEND_DIR / "data")

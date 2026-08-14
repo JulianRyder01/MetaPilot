@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import DATA_DIR
 from .storage.store import LibraryStore
-from .api import documents, folders, libraries, notes, plugins, stats_core
+from .api import documents, folders, libraries, notes, plugin_store, plugins, stats_core
 from .plugins.base import manager
 from .plugins.loader import load_plugins
 from .services.importer import CourseImporter
@@ -43,6 +43,7 @@ app.include_router(documents.router)
 app.include_router(folders.router)
 app.include_router(notes.router)
 app.include_router(plugins.router)
+app.include_router(plugin_store.router)
 app.include_router(stats_core.router)
 
 # 插件系统：扫描 backend/plugins/ 物理目录加载全部插件并挂载路由。
