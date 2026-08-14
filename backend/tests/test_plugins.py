@@ -62,7 +62,7 @@ def test_plugin_list_contains_loaded_plugins():
     ids = [p["id"] for p in plugins]
     assert "core" in ids
     assert "course" in ids
-    assert "knowledge_base" in ids
+    assert "ai_insight" in ids
     for p in plugins:
         assert "enabled" in p
         assert "description" in p
@@ -147,22 +147,22 @@ def test_disable_course_blocks_import_and_notes():
     assert resp.status_code == 200
 
 
-def test_disable_kb_blocks_ask():
-    r = client.post("/api/plugins/knowledge_base/disable").json()
+def test_disable_ai_insight_blocks_ask():
+    r = client.post("/api/plugins/ai_insight/disable").json()
     assert r["enabled"] is False
 
-    resp = client.get("/api/plugins/knowledge_base/embedding-status")
+    resp = client.get("/api/plugins/ai_insight/embedding-status")
     assert resp.status_code == 503
-    assert "个人知识库" in resp.json()["detail"]
+    assert "AI 洞察" in resp.json()["detail"]
 
-    # 新路由（多数据源）：禁用后 /ask 与 /sources 均返回 503
-    resp = client.post("/api/plugins/knowledge_base/ask",
-                       json={"sources": [{"type": "library", "id": "demo"}], "question": "q"})
+    # 禁用后 /ask 与 /resources 均返回 503
+    resp = client.post("/api/plugins/ai_insight/ask",
+                       json={"sources": [{"type": "library", "id": "demo"}], "mode": "assist", "question": "q"})
     assert resp.status_code == 503
-    assert client.get("/api/plugins/knowledge_base/sources").status_code == 503
+    assert client.get("/api/plugins/ai_insight/resources").status_code == 503
 
-    client.post("/api/plugins/knowledge_base/enable")
-    resp = client.get("/api/plugins/knowledge_base/embedding-status")
+    client.post("/api/plugins/ai_insight/enable")
+    resp = client.get("/api/plugins/ai_insight/embedding-status")
     assert resp.status_code in (200, 503)  # 200（健康查询）或 embedding 服务未就绪的 503
 
 
@@ -184,7 +184,7 @@ def test_state_persisted_across_manager_reload():
 def test_plugin_list_includes_spec_version():
     plugins = client.get("/api/plugins").json()
     ids = [p["id"] for p in plugins]
-    assert "core" in ids and "course" in ids and "knowledge_base" in ids
+    assert "core" in ids and "course" in ids and "ai_insight" in ids
     for p in plugins:
         assert "specVersion" in p
     core = next(p for p in plugins if p["id"] == "core")
@@ -283,7 +283,7 @@ def test_plugin_list_includes_tags():
             assert t in PLUGIN_TAGS, f"插件 {p['id']} 的 tag {t} 不在预定义集合 {PLUGIN_TAGS}"
     by_id = {p["id"]: p for p in plugins}
     assert by_id["course"]["tags"] == ["学习"]
-    assert by_id["knowledge_base"]["tags"] == ["学习", "AI"]
+    assert by_id["ai_insight"]["tags"] == ["学习", "AI"]
     assert by_id["themes"]["tags"] == ["主题"]
     assert by_id["symlink"]["tags"] == ["工具", "存储"]
     assert by_id["core"]["tags"] == []

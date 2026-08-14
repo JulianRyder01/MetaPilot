@@ -1,0 +1,11 @@
+{
+  "specVersion": "1.0",
+  "id": "ai_insight",
+  "name": "AI 洞察",
+  "version": "1.0.0",
+  "description": "对库文档与软链接本机目录建立向量索引，用 AI 查阅资料间的联系：辅助思考、思维漫游、反思归纳，并支持多轮推理生成图表或课程。",
+  "author": "MetaPilot",
+  "depends_on": [],
+  "source": "official",
+  "tags": ["学习", "AI"]
+}
