@@ -103,9 +103,9 @@ class PluginManager:
         return {
             "id": "core",
             "name": "MetaPilot 文档库",
-            "version": "1.1.0",
+            "version": "1.1.1",
             "specVersion": "1.0",
-            "description": "MetaPilot 本身：库-文档集-文档-小节 的浏览与 Markdown 阅读、笔记导入、插件管理。官方核心，不允许禁用或删除。",
+            "description": "MetaPilot 本身：库-文档集-文档-小节 的浏览与 Markdown 阅读、笔记导入、插件管理，并提供统一 AI 网关（API 配置/中转/用量统计）与本地模型管理。官方核心，不允许禁用或删除。",
             "author": "MetaPilot",
             "source": "core",
             "tags": [],
@@ -115,6 +115,7 @@ class PluginManager:
             "dependsOn": [],
             "missingDependencies": [],
             "changelog": [
+                {"version": "1.1.1", "date": "", "summary": "统一 AI 网关：设置页配置 openai/anthropic 兼容 API 入口（key/地址/模型/价格，全部存 .env），插件经 MetaPilot 中转调用（拿不到密钥）；统计页新增 AI 用量（调用次数/token/成本，按模型分组）；内置本地模型（Qwen3-Embedding 0.6B/4B、Qwen3-4B、Qwen3-Reranker）一键下载与启动"},
                 {"version": "1.1.0", "date": "", "summary": "内置 i18n：界面支持简体中文/繁体中文/English 三语（useT/translate + 域拆分词典），顶栏与设置页可随时切换；插件开发规范升级 1.2.0（新增 §12 i18n 约定）"},
                 {"version": "1.0.1", "date": "", "summary": "统一弹窗组件库 DialogProvider + useDialogs（confirm/prompt/select），全应用零原生弹窗；.mpf 解析支持 doc/canvas 类型与未解析项检测"},
                 {"version": "1.0.0", "date": "", "summary": "MetaPilot 首个正式版本：库-文档集-文档-小节浏览与 Markdown 阅读、笔记导入、插件机制与插件管理、基础统计（访问/热力图/停留/字数）"},

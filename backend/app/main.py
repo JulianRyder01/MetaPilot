@@ -10,6 +10,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import DATA_DIR, settings
+from .services.ai_config import AIConfig
+from .services.ai_gateway import AIGateway
 from .storage.store import LibraryStore
 from .api import documents, folders, libraries, mpf, notes, plugin_store, plugins, stats_core
 from .plugins.base import manager
@@ -19,7 +21,7 @@ from .services.mpf import register_core_mpf_types
 from .services.stats_core import init_stats_core
 from .stats_widgets import register_core_widgets
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 
 
 @asynccontextmanager
@@ -47,6 +49,9 @@ app.add_middleware(
 )
 
 app.state.store = LibraryStore(DATA_DIR)
+
+# 统一 AI 网关（核心 1.1.1）：所有插件经此中转调用 AI，密钥与地址不出核心
+app.state.ai_gateway = AIGateway(DATA_DIR, AIConfig())
 
 ASSETS_DIR = Path(DATA_DIR) / "assets" / "courses"
 ASSETS_DIR.mkdir(parents=True, exist_ok=True)
