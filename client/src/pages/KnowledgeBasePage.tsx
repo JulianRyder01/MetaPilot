@@ -4,6 +4,7 @@ import { Database, Loader2, Play, Rocket, Send, Sparkles } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { api, type Collection, type KbEmbeddingStatus, type KbSource, type KbStatus } from "@/lib/api"
+import { kbAsk, kbEmbeddingStart, kbEmbeddingStatus, kbIndex, kbStatus as kbStatusApi } from "@/plugins/knowledge_base/api"
 import { PluginGate } from "@/components/plugins/PluginGate"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -79,30 +80,30 @@ export default function KnowledgeBasePage() {
 
   useEffect(() => {
     loadCollections()
-    api.kbEmbeddingStatus().then(setEmbedStatus).catch(() => {})
+    kbEmbeddingStatus().then(setEmbedStatus).catch(() => {})
   }, [loadCollections])
 
   useEffect(() => {
-    if (cid) api.kbStatus(cid).then(setKbStatus).catch(() => {})
+    if (cid) kbStatusApi(cid).then(setKbStatus).catch(() => {})
   }, [cid])
 
   async function startEmbedding() {
-    const r = await api.kbEmbeddingStart()
+    const r = await kbEmbeddingStart()
     if (r.started) {
       toast.success(r.message ?? "服务启动中")
     } else {
       toast.error(r.error ?? "启动失败")
     }
-    api.kbEmbeddingStatus().then(setEmbedStatus).catch(() => {})
+    kbEmbeddingStatus().then(setEmbedStatus).catch(() => {})
   }
 
   async function doIndex() {
     if (!cid) return
     setIndexing(true)
     try {
-      const r = await api.kbIndex(cid)
+      const r = await kbIndex(cid)
       toast.success(`索引完成：${r.sectionCount} 个小节（向量维度 ${r.vectorDim}）`)
-      api.kbStatus(cid).then(setKbStatus)
+      kbStatusApi(cid).then(setKbStatus)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "索引失败")
     } finally {
@@ -115,7 +116,7 @@ export default function KnowledgeBasePage() {
     setMessages((m) => [...m, { role: "user", content: question }])
     setAsking(true)
     try {
-      const r = await api.kbAsk(cid, question.trim())
+      const r = await kbAsk(cid, question.trim())
       setMessages((m) => [...m, { role: "assistant", content: r.answer, sources: r.sources }])
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "问答失败")

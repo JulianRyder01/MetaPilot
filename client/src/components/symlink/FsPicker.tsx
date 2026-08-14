@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react"
 import { ArrowUp, FileText, Folder, Loader2 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
-import { api, type SymlinkFsItem } from "@/lib/api"
+import { type SymlinkFsItem } from "@/lib/api"
+import { symlinkFsList, symlinkFsRoots } from "@/plugins/symlink/api"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -29,12 +30,12 @@ export function FsPicker({ onPick }: { onPick: (path: string) => void }) {
     setSelected(null)
     try {
       if (path === null) {
-        const roots = await api.symlinkFsRoots()
+        const roots = await symlinkFsRoots()
         setItems(roots.map((r) => ({ name: r, type: "dir", size: 0, mtime: 0, path: r })))
         setParentPath(null)
         setCurrent(null)
       } else {
-        const lst = await api.symlinkFsList(path)
+        const lst = await symlinkFsList(path)
         setItems(lst.items)
         setParentPath(lst.parent)
         setCurrent(lst.path)

@@ -3,6 +3,7 @@ import { FileUp, FolderUp, Upload } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { api } from "@/lib/api"
+import { importCourse as importCourseApi } from "@/plugins/course/api"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -32,7 +33,7 @@ export function ImportDialog({ libraryId, onImported }: Props) {
     if (!courseFile) return
     setBusy(true)
     try {
-      const res = await api.importCourse(courseFile, libraryId || "")
+      const res = await importCourseApi(courseFile, libraryId || "")
       toast.success(`已导入课程「${res.imported.map((c) => c.name).join("、")}」`)
       setCourseFile(null)
       onImported?.()

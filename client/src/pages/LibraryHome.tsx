@@ -4,6 +4,7 @@ import { BookOpen, FileText, GraduationCap, HardDrive, Link2, Plus, Trash2 } fro
 import { toast } from "@/lib/toast"
 
 import { api, type LibraryMeta, type SymlinkMount } from "@/lib/api"
+import { symlinkMounts, symlinkRemoveMount } from "@/plugins/symlink/api"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/stores/app"
 import { usePluginEnabled } from "@/stores/plugins"
@@ -51,7 +52,7 @@ export default function LibraryHome() {
       return
     }
     try {
-      setMounts(await api.symlinkMounts())
+      setMounts(await symlinkMounts())
     } catch {
       setMounts([])
     }
@@ -74,7 +75,7 @@ export default function LibraryHome() {
 
   async function removeMount(id: string) {
     if (!window.confirm("卸载该软链接？不会删除磁盘上的文件。")) return
-    await api.symlinkRemoveMount(id)
+    await symlinkRemoveMount(id)
     toast.success("已卸载")
     loadMounts()
   }

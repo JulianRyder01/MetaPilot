@@ -1,7 +1,8 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
-import { api, type ThemeDef } from "@/lib/api"
+import { type ThemeDef } from "@/lib/api"
+import { listThemes } from "@/plugins/themes/api"
 
 /**
  * 主题状态：黑夜/白天模式（核心功能，不依赖插件）+ 主题插件提供的特色主题。
@@ -65,7 +66,7 @@ export const useThemeStore = create<ThemeState>()(
       fetchThemes: async (force = false) => {
         if (!force && get().themesLoaded) return
         try {
-          const themes = await api.listThemes()
+          const themes = await listThemes()
           set({ themes, themesLoaded: true })
         } catch {
           // 插件未启用（503）：request 层会按 showPluginErrors 设置弹提示；

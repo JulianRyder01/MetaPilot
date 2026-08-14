@@ -3,7 +3,7 @@ import { toast } from "@/lib/toast"
 
 import { useSettingsStore } from "@/stores/settings"
 
-const BASE = "/api"
+export const BASE = "/api"
 
 export class ApiError extends Error {
   status: number
@@ -13,7 +13,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: init?.body instanceof FormData ? undefined : { "Content-Type": "application/json" },
     ...init,
@@ -84,45 +84,17 @@ export const api = {
     request<Block>(`/blocks/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteBlock: (id: string) => request<{ ok: boolean }>(`/blocks/${id}`, { method: "DELETE" }),
 
-  // 进度
-  getProgress: (cid: string) => request<Progress>(`/plugins/course/progress/${cid}`),
-  toggleCompleted: (cid: string, sid: string) =>
-    request<{ completed: boolean }>(`/plugins/course/progress/${cid}/toggle/${sid}`, { method: "PUT" }),
-  setPosition: (cid: string, documentId: string, sectionId: string) =>
-    request<{ ok: boolean }>(`/plugins/course/progress/${cid}/position`, {
-      method: "PUT",
-      body: JSON.stringify({ documentId, sectionId }),
-    }),
-
-  // 统计
-  addSession: (data: Record<string, unknown>) =>
-    request<Record<string, unknown>>("/plugins/course/stats/sessions", { method: "POST", body: JSON.stringify(data) }),
-  statsSummary: (range: string) => request<StatsSummary>(`/plugins/course/stats/summary?range=${range}`),
-
   // 官方核心统计（统计页组件）
   statsCoreVisit: (data: { collectionId: string; documentId: string; documentName?: string; durationSec?: number }) =>
     request<Record<string, unknown>>("/stats/core/visit", { method: "POST", body: JSON.stringify(data) }),
   statsCoreSummary: () => request<StatsCoreSummary>("/stats/core/summary"),
   statsWidgets: () => request<StatsWidget[]>(`/stats/widgets`),
 
-  // AI 判题
-  grade: (data: Record<string, unknown>) =>
-    request<GradeResult>("/plugins/course/ai/grade", { method: "POST", body: JSON.stringify(data) }),
-
   // 插件
   listPlugins: () => request<PluginInfo[]>("/plugins"),
   setPluginEnabled: (id: string, enabled: boolean) =>
     request<PluginInfo>(`/plugins/${id}/${enabled ? "enable" : "disable"}`, { method: "POST" }),
   deletePlugin: (id: string) => request<{ ok: boolean }>(`/plugins/${id}`, { method: "DELETE" }),
-  importCourse: (file: File, libraryId = "") => {
-    const fd = new FormData()
-    fd.append("file", file)
-    if (libraryId) fd.append("libraryId", libraryId)
-    return request<{ libraryId: string; imported: { collectionId: string; name: string }[]; packageId: string }>(
-      "/plugins/course/import",
-      { method: "POST", body: fd },
-    )
-  },
   importNote: (file: File) => {
     const fd = new FormData()
     fd.append("file", file)
@@ -131,60 +103,6 @@ export const api = {
       { method: "POST", body: fd },
     )
   },
-  exportCourseUrl: (cid: string) => `${BASE}/plugins/course/${cid}/export`,
-
-  // 知识库插件
-  kbStatus: (cid: string) => request<KbStatus>(`/plugins/knowledge_base/${cid}/status`),
-  kbIndex: (cid: string) =>
-    request<{ indexed: boolean; sectionCount: number; vectorDim: number }>(`/plugins/knowledge_base/${cid}/index`, {
-      method: "POST",
-    }),
-  kbAsk: (cid: string, question: string, topK = 5) =>
-    request<{ answer: string; sources: KbSource[] }>(`/plugins/knowledge_base/${cid}/ask`, {
-      method: "POST",
-      body: JSON.stringify({ question, topK }),
-    }),
-  kbEmbeddingStatus: () => request<KbEmbeddingStatus>("/plugins/knowledge_base/embedding-status"),
-  kbEmbeddingStart: () =>
-    request<{ started: boolean; pid?: number; message?: string; error?: string }>("/plugins/knowledge_base/embedding/start", {
-      method: "POST",
-    }),
-
-  // 主题插件
-  listThemes: () => request<ThemeDef[]>("/plugins/themes"),
-
-  // 软链接插件（文件浏览器）
-  symlinkMounts: () => request<SymlinkMount[]>("/plugins/symlink/mounts"),
-  symlinkFsRoots: () => request<string[]>("/plugins/symlink/fs/roots"),
-  symlinkFsList: (path: string) =>
-    request<SymlinkFsList>(`/plugins/symlink/fs/list?path=${encodeURIComponent(path)}`),
-  symlinkAddMount: (name: string, root: string) =>
-    request<SymlinkMount>("/plugins/symlink/mounts", { method: "POST", body: JSON.stringify({ name, root }) }),
-  symlinkRenameMount: (id: string, name: string) =>
-    request<SymlinkMount>(`/plugins/symlink/mounts/${id}`, { method: "PUT", body: JSON.stringify({ name }) }),
-  symlinkRemoveMount: (id: string) =>
-    request<{ ok: boolean }>(`/plugins/symlink/mounts/${id}`, { method: "DELETE" }),
-  symlinkTree: (mid: string, path = "") =>
-    request<SymlinkTree>(`/plugins/symlink/mounts/${mid}/tree?path=${encodeURIComponent(path)}`),
-  symlinkReadFile: (mid: string, path: string) =>
-    request<{ path: string; content: string }>(
-      `/plugins/symlink/mounts/${mid}/file?path=${encodeURIComponent(path)}`,
-    ),
-  symlinkWriteFile: (mid: string, path: string, content: string) =>
-    request<{ ok: boolean; path: string; bytes: number }>(
-      `/plugins/symlink/mounts/${mid}/file?path=${encodeURIComponent(path)}`,
-      { method: "PUT", body: JSON.stringify({ content }) },
-    ),
-  symlinkMkdir: (mid: string, path: string) =>
-    request<{ ok: boolean; path: string }>(`/plugins/symlink/mounts/${mid}/mkdir`, {
-      method: "POST",
-      body: JSON.stringify({ path }),
-    }),
-  symlinkDelete: (mid: string, path: string) =>
-    request<{ ok: boolean; path: string }>(
-      `/plugins/symlink/mounts/${mid}/path?path=${encodeURIComponent(path)}`,
-      { method: "DELETE" },
-    ),
 }
 
 // ---------- 类型 ----------

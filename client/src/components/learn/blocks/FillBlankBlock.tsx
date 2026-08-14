@@ -2,7 +2,8 @@ import { useState } from "react"
 import { Loader2, Sparkles } from "lucide-react"
 import { toast } from "@/lib/toast"
 
-import { api, type GradeResult } from "@/lib/api"
+import { type GradeResult } from "@/lib/api"
+import { grade } from "@/plugins/course/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -28,7 +29,7 @@ export function FillBlankBlock({ block }: Props) {
     if (aiGraded) {
       setGrading(true)
       try {
-        const r = await api.grade({
+        const r = await grade({
           blockType: "fill_blank",
           question: block.question ?? "",
           blanks,

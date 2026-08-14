@@ -15,6 +15,7 @@ import {
 import { toast } from "@/lib/toast"
 
 import { api, type Collection, type Progress } from "@/lib/api"
+import { exportCourseUrl, getProgress } from "@/plugins/course/api"
 import { usePluginEnabled } from "@/stores/plugins"
 import { useSettingsStore } from "@/stores/settings"
 import { Button } from "@/components/ui/button"
@@ -36,7 +37,7 @@ export default function CoursePage() {
     setCol(c)
     // 学习进度是课程插件能力：仅课程类型加载
     if (c.kind === "course" && courseEnabled) {
-      api.getProgress(cid).then(setProgress).catch(() => {})
+      getProgress(cid).then(setProgress).catch(() => {})
     } else {
       setProgress(null)
     }
@@ -63,7 +64,7 @@ export default function CoursePage() {
     if (!cid) return
     try {
       const a = document.createElement("a")
-      a.href = api.exportCourseUrl(cid)
+      a.href = exportCourseUrl(cid)
       a.download = "course.zip"
       a.click()
     } catch {

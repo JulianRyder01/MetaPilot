@@ -12,6 +12,7 @@ import {
 import { toast } from "@/lib/toast"
 
 import { api, type Collection, type Progress } from "@/lib/api"
+import { addSession, getProgress, setPosition, toggleCompleted } from "@/plugins/course/api"
 import { cn } from "@/lib/utils"
 import { resolveRefTarget } from "@/lib/tree"
 import { usePluginEnabled } from "@/stores/plugins"
@@ -38,7 +39,7 @@ export default function LearnPage() {
     setCol(c)
     // 学习进度是课程插件能力：课程类型才加载
     if (c.kind === "course" && courseEnabled) {
-      api.getProgress(cid).then(setProgress).catch(() => {})
+      getProgress(cid).then(setProgress).catch(() => {})
     } else {
       setProgress(null)
     }
@@ -54,7 +55,7 @@ export default function LearnPage() {
     return () => {
       const dur = Math.round((Date.now() - startRef.current) / 1000)
       if (dur >= 2 && cid && sid && col?.kind === "course" && courseEnabled) {
-        api.addSession({ collectionId: cid, sectionId: sid, durationSec: dur }).catch(() => {})
+        addSession({ collectionId: cid, sectionId: sid, durationSec: dur }).catch(() => {})
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -77,7 +78,7 @@ export default function LearnPage() {
   // 记录上次学习位置（课程插件能力）
   useEffect(() => {
     if (cid && sid && col?.kind === "course" && courseEnabled) {
-      api.setPosition(cid, currentDocId(sid) ?? "", sid).catch(() => {})
+      setPosition(cid, currentDocId(sid) ?? "", sid).catch(() => {})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cid, sid, col?.kind, courseEnabled])
@@ -114,7 +115,7 @@ export default function LearnPage() {
 
   async function toggleDone() {
     if (!cid || !sid) return
-    const r = await api.toggleCompleted(cid, sid)
+    const r = await toggleCompleted(cid, sid)
     setProgress((p) =>
       p
         ? {

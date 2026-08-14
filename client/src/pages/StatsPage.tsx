@@ -8,6 +8,7 @@ import {
   type StatsSummary,
   type StatsWidget,
 } from "@/lib/api"
+import { statsSummary } from "@/plugins/course/api"
 import { cn } from "@/lib/utils"
 import { usePluginEnabled, usePluginsStore } from "@/stores/plugins"
 import { useStatsLayoutStore, type WidgetSize } from "@/stores/statsLayout"
@@ -53,7 +54,7 @@ export default function StatsPage() {
   useEffect(() => {
     api.statsWidgets().then(setWidgets).catch(() => {})
     api.statsCoreSummary().then(setCore).catch(() => {})
-    if (courseEnabled) api.statsSummary("all").then(setCourse).catch(() => {})
+    if (courseEnabled) statsSummary("all").then(setCourse).catch(() => {})
   }, [courseEnabled])
 
   // 可用组件 = core（恒可用）+ 来源插件已启用的

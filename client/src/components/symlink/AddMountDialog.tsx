@@ -2,7 +2,7 @@ import { useState } from "react"
 import { FolderOpen, HardDrive, Link2, Plus } from "lucide-react"
 import { toast } from "@/lib/toast"
 
-import { api } from "@/lib/api"
+import { symlinkAddMount } from "@/plugins/symlink/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -30,7 +30,7 @@ export function AddMountDialog({ onAdded }: { onAdded: () => void }) {
   async function add() {
     if (!name.trim() || !root.trim()) return
     try {
-      await api.symlinkAddMount(name.trim(), root.trim())
+      await symlinkAddMount(name.trim(), root.trim())
       toast.success("挂载成功")
       setName("")
       setRoot("")

@@ -16,7 +16,16 @@ import {
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
-import { api, type SymlinkItem, type SymlinkMount, type SymlinkTree } from "@/lib/api"
+import { type SymlinkItem, type SymlinkMount, type SymlinkTree } from "@/lib/api"
+import {
+  symlinkDelete,
+  symlinkMkdir,
+  symlinkMounts,
+  symlinkReadFile,
+  symlinkRemoveMount,
+  symlinkTree,
+  symlinkWriteFile,
+} from "@/plugins/symlink/api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
@@ -60,7 +69,7 @@ export default function FilesPage() {
   const [editContent, setEditContent] = useState("")
 
   const loadMounts = useCallback(async () => {
-    const ms = await api.symlinkMounts()
+    const ms = await symlinkMounts()
     setMounts(ms)
     if (!mid && ms.length > 0) setMid(ms[0].id)
   }, [mid])
@@ -74,7 +83,7 @@ export default function FilesPage() {
     setFile(null)
     setEditing(false)
     setPath(p)
-    setTree(await api.symlinkTree(mid, p))
+    setTree(await symlinkTree(mid, p))
   }, [mid])
 
   useEffect(() => {
@@ -89,7 +98,7 @@ export default function FilesPage() {
       await loadTree(p)
     } else {
       try {
-        const f = await api.symlinkReadFile(mid, p)
+        const f = await symlinkReadFile(mid, p)
         setFile(f)
         setEditing(false)
       } catch (e) {
@@ -101,7 +110,7 @@ export default function FilesPage() {
   async function saveFile() {
     if (!file) return
     try {
-      await api.symlinkWriteFile(mid, file.path, editContent)
+      await symlinkWriteFile(mid, file.path, editContent)
       setFile({ ...file, content: editContent })
       setEditing(false)
       toast.success("已保存")
@@ -114,7 +123,7 @@ export default function FilesPage() {
     const name = window.prompt("新建文件夹名称：")
     if (!name?.trim()) return
     try {
-      await api.symlinkMkdir(mid, joinPath(path, name.trim()))
+      await symlinkMkdir(mid, joinPath(path, name.trim()))
       await loadTree(path)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "创建失败")
@@ -125,7 +134,7 @@ export default function FilesPage() {
     const target = joinPath(path, item.name)
     if (!window.confirm(`删除「${target}」？${item.type === "dir" ? "文件夹将递归删除，不可恢复。" : ""}`)) return
     try {
-      await api.symlinkDelete(mid, target)
+      await symlinkDelete(mid, target)
       await loadTree(path)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "删除失败")
@@ -134,7 +143,7 @@ export default function FilesPage() {
 
   async function removeMount(id: string) {
     if (!window.confirm("卸载该挂载？不会删除磁盘上的文件。")) return
-    await api.symlinkRemoveMount(id)
+    await symlinkRemoveMount(id)
     setMid("")
     setTree(null)
     setFile(null)
