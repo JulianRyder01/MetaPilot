@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, Download, FileText, Link2, Maximize, Minus, Plus, Redo2, Save, StickyNote, Trash2, Undo2 } from "lucide-react"
+import { ArrowLeft, Box, Download, FileText, Link2, Maximize, Minus, Plus, Redo2, Save, StickyNote, Trash2, Undo2 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { useDialogs } from "@/components/ui/dialog-provider"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 function genId(prefix: string) {
   return `${prefix}${Math.random().toString(36).slice(2, 9)}`
@@ -54,6 +61,7 @@ function arrowPoints(px: number, py: number, angle: number, size = 8) {
 export default function CanvasPage() {
   const { cid } = useParams()
   const t = useT()
+  const dialogs = useDialogs()
   const [col, setCol] = useState<Collection | null>(null)
   const [nodes, setNodes] = useState<CanvasNode[]>([])
   const [edges, setEdges] = useState<CanvasEdge[]>([])
@@ -139,19 +147,63 @@ export default function CanvasPage() {
     setDirty(true)
   }
 
-  function addTextNode() {
-    pushHistory()
-    const node: CanvasNode = {
+  /** 新建节点（text/file/link/group），文件/链接/分组需弹窗输入（Obsidian 兼容字段）。 */
+  async function addNode(type: CanvasNode["type"]) {
+    const base = {
       id: genId("n"),
-      type: "text",
+      type,
       x: 40 + Math.random() * 200,
       y: 40 + Math.random() * 120,
       width: 200,
       height: 80,
-      text: t("core.canvas.doubleClickEdit"),
     }
+    let node: CanvasNode
+    if (type === "file") {
+      const file = await dialogs.prompt({
+        title: t("core.canvas.addFileTitle"),
+        description: t("core.canvas.addFileDesc"),
+        placeholder: "path/to/file.md",
+      })
+      if (file == null) return
+      if (!file.trim()) return
+      node = { ...base, file: file.trim() }
+    } else if (type === "link") {
+      const url = await dialogs.prompt({
+        title: t("core.canvas.addLinkTitle"),
+        initialValue: "https://",
+      })
+      if (url == null) return
+      if (!url.trim()) return
+      node = { ...base, url: url.trim() }
+    } else if (type === "group") {
+      const label = await dialogs.prompt({
+        title: t("core.canvas.addGroupTitle"),
+        placeholder: t("core.canvas.groupName"),
+      })
+      if (label == null) return
+      node = { ...base, width: 320, height: 200, label: label.trim() || undefined }
+    } else {
+      node = { ...base, text: t("core.canvas.doubleClickEdit") }
+    }
+    pushHistory()
     setNodes((n) => [...n, node])
     setSelectedIds([node.id])
+    setSelectedEdgeId(null)
+    setDirty(true)
+  }
+
+  /** 更新节点字段（不进入历史，由调用方决定）。 */
+  function updateNode(id: string, patch: Partial<CanvasNode>) {
+    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, ...patch } : n)))
+    setDirty(true)
+  }
+
+  /** 给所有选中节点应用颜色（hex 或 JSON Canvas 预设串）。 */
+  function applyNodeColor(color?: string) {
+    if (selectedIds.length === 0) return
+    pushHistory()
+    const idSet = new Set(selectedIds)
+    setNodes((ns) => ns.map((n) => (idSet.has(n.id) ? { ...n, color } : n)))
     setDirty(true)
   }
 
@@ -492,10 +544,43 @@ export default function CanvasPage() {
     setLinkPos(null)
   }
 
-  function startEdit(node: CanvasNode) {
-    if (node.type !== "text") return
-    setEditingId(node.id)
-    setEditText(node.text ?? "")
+  async function startEdit(node: CanvasNode) {
+    if (node.type === "text") {
+      setEditingId(node.id)
+      setEditText(node.text ?? "")
+      return
+    }
+    if (node.type === "file") {
+      const file = await dialogs.prompt({
+        title: t("core.canvas.addFileTitle"),
+        initialValue: node.file ?? "",
+      })
+      if (file != null && file.trim()) {
+        pushHistory()
+        updateNode(node.id, { file: file.trim() })
+      }
+      return
+    }
+    if (node.type === "link") {
+      const url = await dialogs.prompt({
+        title: t("core.canvas.addLinkTitle"),
+        initialValue: node.url ?? "",
+      })
+      if (url != null && url.trim()) {
+        pushHistory()
+        updateNode(node.id, { url: url.trim() })
+      }
+      return
+    }
+    // group：编辑标签
+    const label = await dialogs.prompt({
+      title: t("core.canvas.addGroupTitle"),
+      initialValue: node.label ?? "",
+    })
+    if (label != null) {
+      pushHistory()
+      updateNode(node.id, { label: label.trim() || undefined })
+    }
   }
   function commitEdit() {
     if (editingId) {
@@ -544,10 +629,32 @@ export default function CanvasPage() {
           <Button variant="ghost" size="icon" onClick={redo} title={t("core.canvas.redo")} disabled={redoStack.current.length === 0}>
             <Redo2 className="size-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={addTextNode}>
-            <Plus className="size-4" />
-            {t("core.canvas.newTextNode")}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Plus className="size-4" />
+                {t("core.canvas.addNode")}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => addNode("text")}>
+                <StickyNote className="size-4" />
+                {t("core.canvas.addNodeText")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => addNode("file")}>
+                <FileText className="size-4" />
+                {t("core.canvas.addNodeFile")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => addNode("link")}>
+                <Link2 className="size-4" />
+                {t("core.canvas.addNodeLink")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => addNode("group")}>
+                <Box className="size-4" />
+                {t("core.canvas.addNodeGroup")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="sm" onClick={save}>
             <Save className="size-4" />
             {t("common.save")}
@@ -685,9 +792,9 @@ export default function CanvasPage() {
                     </div>
                   )
                 ) : node.type === "file" ? (
-                  <div className="flex h-full w-full items-center gap-1.5 text-xs text-muted-foreground">
+                  <div className="flex h-full w-full items-center gap-1.5 text-xs text-muted-foreground" title={node.file}>
                     <FileText className="size-3.5 shrink-0 text-primary" />
-                    <span className="truncate">{node.file}</span>
+                    <span className="truncate">{node.file?.split("/").pop() || node.file}</span>
                   </div>
                 ) : node.type === "link" ? (
                   <a
@@ -748,31 +855,90 @@ export default function CanvasPage() {
           )}
         </div>
 
+        {/* 选中节点的工具条（Obsidian 风格：色板 / 分组标签 / 删除） */}
+        {!selectedEdge && selectedIds.length > 0 && (
+          <div
+            className="absolute top-2 left-1/2 z-30 flex max-w-[95%] -translate-x-1/2 flex-wrap items-center gap-1 rounded-lg border bg-background/95 p-1.5 text-xs shadow-sm"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {Object.entries(PRESET_COLORS).map(([k, v]) => {
+              const active = selectedIds.length === 1 && nodes.find((n) => n.id === selectedIds[0])?.color === k
+              return (
+                <button
+                  key={k}
+                  onClick={() => applyNodeColor(k)}
+                  className={cn(
+                    "size-4 rounded-full border border-black/15 transition-transform hover:scale-110",
+                    active && "ring-2 ring-primary ring-offset-1",
+                  )}
+                  style={{ background: v }}
+                  title={t("core.canvas.colorTitle", { color: k })}
+                />
+              )
+            })}
+            <button
+              onClick={() => applyNodeColor(undefined)}
+              className={cn(
+                "size-4 rounded-full border border-dashed border-muted-foreground/60",
+                selectedIds.length === 1 && !nodes.find((n) => n.id === selectedIds[0])?.color && "ring-2 ring-primary ring-offset-1",
+              )}
+              title={t("core.canvas.clearColor")}
+            />
+            {selectedIds.length === 1 &&
+              nodes.find((n) => n.id === selectedIds[0])?.type === "group" &&
+              (() => {
+                const g = nodes.find((n) => n.id === selectedIds[0])!
+                return (
+                  <>
+                    <span className="mx-1 h-4 w-px bg-border" />
+                    <input
+                      defaultValue={g.label ?? ""}
+                      onFocus={pushHistory}
+                      onChange={(e) => updateNode(g.id, { label: e.target.value || undefined })}
+                      placeholder={t("core.canvas.groupName")}
+                      className="h-6 w-28 rounded border bg-transparent px-1.5 outline-none placeholder:text-muted-foreground"
+                    />
+                  </>
+                )
+              })()}
+            <span className="mx-1 h-4 w-px bg-border" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6 text-destructive"
+              onClick={() => removeNodes(selectedIds)}
+              title={t("core.canvas.deleteNode")}
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        )}
+
         {/* 选中边的工具条（Obsidian 风格：端点箭头/标签/颜色/删除） */}
         {selectedEdge && (
           <div
             className="absolute top-2 left-1/2 z-30 flex max-w-[95%] -translate-x-1/2 flex-wrap items-center gap-1 rounded-lg border bg-background/95 p-1.5 text-xs shadow-sm"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <span className="pl-1 text-muted-foreground">起点</span>
+            <span className="pl-1 text-muted-foreground">{t("core.canvas.edgeStart")}</span>
             <Button
               variant={selectedEdge.fromEnd === "arrow" ? "default" : "ghost"}
               size="sm"
               className="h-6 px-1.5"
               onClick={() => toggleEdgeEnd(selectedEdge.id, "fromEnd")}
-              title="切换起点箭头"
+              title={t("core.canvas.toggleStartArrow")}
             >
-              箭头
+              {t("core.canvas.arrow")}
             </Button>
-            <span className="pl-1 text-muted-foreground">终点</span>
+            <span className="pl-1 text-muted-foreground">{t("core.canvas.edgeEnd")}</span>
             <Button
               variant={selectedEdge.toEnd === "arrow" || selectedEdge.toEnd == null ? "default" : "ghost"}
               size="sm"
               className="h-6 px-1.5"
               onClick={() => toggleEdgeEnd(selectedEdge.id, "toEnd")}
-              title="切换终点箭头"
+              title={t("core.canvas.toggleEndArrow")}
             >
-              箭头
+              {t("core.canvas.arrow")}
             </Button>
             <span className="mx-1 h-4 w-px bg-border" />
             <input
@@ -782,7 +948,7 @@ export default function CanvasPage() {
                 setEdgeLabelDraft(e.target.value)
                 updateEdge(selectedEdge.id, { label: e.target.value })
               }}
-              placeholder="标签"
+              placeholder={t("core.canvas.edgeLabel")}
               className="h-6 w-24 rounded border bg-transparent px-1.5 outline-none placeholder:text-muted-foreground"
             />
             <span className="mx-1 h-4 w-px bg-border" />
@@ -798,7 +964,7 @@ export default function CanvasPage() {
                   selectedEdge.color === k && "ring-2 ring-primary ring-offset-1",
                 )}
                 style={{ background: v }}
-                title={`颜色 ${k}`}
+                title={t("core.canvas.colorTitle", { color: k })}
               />
             ))}
             <button
@@ -810,7 +976,7 @@ export default function CanvasPage() {
                 "size-4 rounded-full border border-dashed border-muted-foreground/60",
                 !selectedEdge.color && "ring-2 ring-primary ring-offset-1",
               )}
-              title="清除颜色"
+              title={t("core.canvas.clearColor")}
             />
             <span className="mx-1 h-4 w-px bg-border" />
             <Button
@@ -818,7 +984,7 @@ export default function CanvasPage() {
               size="icon"
               className="size-6 text-destructive"
               onClick={() => removeEdge(selectedEdge.id)}
-              title="删除连线"
+              title={t("core.canvas.deleteEdge")}
             >
               <Trash2 className="size-3.5" />
             </Button>
