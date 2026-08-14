@@ -95,6 +95,24 @@ export const api = {
   setPluginEnabled: (id: string, enabled: boolean) =>
     request<PluginInfo>(`/plugins/${id}/${enabled ? "enable" : "disable"}`, { method: "POST" }),
   deletePlugin: (id: string) => request<{ ok: boolean }>(`/plugins/${id}`, { method: "DELETE" }),
+
+  // 插件商店（PLUGIN_STORE_URL 配置后可用）
+  storeCatalog: () => request<StorePluginItem[]>("/plugins/store/plugins"),
+  storeInstall: (id: string) =>
+    request<PluginInfo & { installed: boolean }>(`/plugins/store/plugins/${id}/install`, { method: "POST" }),
+  storePublish: (file: File) => {
+    const fd = new FormData()
+    fd.append("file", file)
+    return request<{ id: string; name: string; version: string }>("/plugins/store/publish", {
+      method: "POST",
+      body: fd,
+    })
+  },
+  uploadPlugin: (file: File) => {
+    const fd = new FormData()
+    fd.append("file", file)
+    return request<PluginInfo>("/plugins/upload", { method: "POST", body: fd })
+  },
   importNote: (file: File) => {
     const fd = new FormData()
     fd.append("file", file)
@@ -214,6 +232,20 @@ export interface PluginInfo {
   removable: boolean
   dependsOn: string[]
   missingDependencies: string[]
+}
+
+/** 插件商店清单项（GET /api/plugins/store/plugins） */
+export interface StorePluginItem {
+  id: string
+  name: string
+  version: string
+  description: string
+  author: string
+  source: string
+  specVersion: string
+  tags: string[]
+  size: number
+  downloadUrl: string
 }
 
 export interface KbStatus {

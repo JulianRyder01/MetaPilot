@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
-import { BookOpen, FileText, GraduationCap, HardDrive, Link2, Plus, Trash2 } from "lucide-react"
+import { Link } from "react-router-dom"
+import {
+  BookOpen,
+  FileText,
+  GraduationCap,
+  Grid3X3,
+  HardDrive,
+  Link2,
+  List,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { api, type LibraryMeta, type SymlinkMount } from "@/lib/api"
@@ -24,6 +35,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ImportDialog } from "@/components/library/ImportDialog"
 import { AddMountDialog } from "@/components/symlink/AddMountDialog"
+import { MountBrowser } from "@/components/symlink/MountBrowser"
 
 const KIND_META: Record<string, { label: string; icon: typeof BookOpen }> = {
   course: { label: "课程", icon: GraduationCap },
@@ -32,10 +44,12 @@ const KIND_META: Record<string, { label: string; icon: typeof BookOpen }> = {
 }
 
 export default function LibraryHome() {
-  const navigate = useNavigate()
   const [libraries, setLibraries] = useState<LibraryMeta[]>([])
   const [loading, setLoading] = useState(true)
   const [mounts, setMounts] = useState<SymlinkMount[]>([])
+  const [selectedMountId, setSelectedMountId] = useState<string | null>(null)
+  const [search, setSearch] = useState("")
+  const [view, setView] = useState<"grid" | "list">("grid")
   const { currentLibraryId, setCurrentLibraryId } = useAppStore()
   const symlinkEnabled = usePluginEnabled("symlink")
 
@@ -76,15 +90,27 @@ export default function LibraryHome() {
   async function removeMount(id: string) {
     if (!window.confirm("卸载该软链接？不会删除磁盘上的文件。")) return
     await symlinkRemoveMount(id)
+    if (selectedMountId === id) setSelectedMountId(null)
     toast.success("已卸载")
     loadMounts()
   }
 
   const current = libraries.find((l) => l.id === currentLibraryId)
+  const activeMount = mounts.find((m) => m.id === selectedMountId)
+
+  // 搜索过滤（仅库内文档集）
+  const filteredCollections = current
+    ? current.collections.filter((c) => c.name.toLowerCase().includes(search.trim().toLowerCase()))
+    : []
+
+  function selectLibrary(id: string) {
+    setCurrentLibraryId(id)
+    setSelectedMountId(null)
+  }
 
   return (
     <div className="mx-auto flex max-w-6xl gap-6 px-4 py-6 sm:px-6">
-      {/* 左侧：库列表 */}
+      {/* 左侧：库列表 + 软链接 */}
       <aside className="w-56 shrink-0">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-muted-foreground">库</h2>
@@ -103,10 +129,10 @@ export default function LibraryHome() {
             {libraries.map((lib) => (
               <button
                 key={lib.id}
-                onClick={() => setCurrentLibraryId(lib.id)}
+                onClick={() => selectLibrary(lib.id)}
                 className={cn(
                   "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors",
-                  lib.id === currentLibraryId
+                  lib.id === currentLibraryId && !activeMount
                     ? "bg-accent font-medium text-accent-foreground"
                     : "hover:bg-accent/60",
                 )}
@@ -136,9 +162,18 @@ export default function LibraryHome() {
             </div>
             <div className="space-y-1">
               {mounts.map((m) => (
-                <div key={m.id} className="group flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-accent/60">
+                <div
+                  key={m.id}
+                  className={cn(
+                    "group flex items-center gap-1.5 rounded-md px-2 py-1.5",
+                    activeMount?.id === m.id ? "bg-accent" : "hover:bg-accent/60",
+                  )}
+                >
                   <button
-                    onClick={() => navigate(`/files?mount=${m.id}`)}
+                    onClick={() => {
+                      setSelectedMountId(m.id)
+                      setCurrentLibraryId(null)
+                    }}
                     className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm"
                     title={`${m.name} → ${m.root}${m.type === "file" ? "（单文件）" : ""}`}
                   >
@@ -165,58 +200,136 @@ export default function LibraryHome() {
         )}
       </aside>
 
-      {/* 右侧：文档集列表 */}
+      {/* 右侧：软链接浏览 或 库内容 */}
       <section className="min-w-0 flex-1">
-        <div className="mb-4 flex items-baseline justify-between">
-          <div>
-            <h1 className="text-xl font-semibold">{current?.name ?? "我的库"}</h1>
-            <p className="text-sm text-muted-foreground">{current?.description}</p>
-          </div>
-          {current && (
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">{current.collectionCount} 个文档集</Badge>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleDelete(current.id)}
-                className="text-muted-foreground"
-              >
-                <Trash2 className="size-4" />
-              </Button>
+        {activeMount ? (
+          <>
+            <div className="mb-4 flex items-center gap-2">
+              <h1 className="text-xl font-semibold">{activeMount.name}</h1>
+              <Badge variant="outline" className="gap-1">
+                <Link2 className="size-3" />
+                软链接
+              </Badge>
+              <p className="truncate text-xs text-muted-foreground">{activeMount.root}</p>
             </div>
-          )}
-        </div>
-
-        {current ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {current.collections.map((col) => {
-              const meta = KIND_META[col.kind] ?? KIND_META.course
-              const Icon = meta.icon
-              return (
-                <Link key={col.id} to={`/course/${col.id}`}>
-                  <Card className="h-full transition-shadow hover:shadow-md">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <Icon className="size-4 text-primary" />
-                        <span className="truncate">{col.name}</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
-                      <Badge variant="secondary">{meta.label}</Badge>
-                      <span>{col.kind === "course" ? "章节" : "文档"}</span>
-                    </CardContent>
-                  </Card>
-                </Link>
-              )
-            })}
-            {current.collections.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                此库还没有文档集，可以导入课程包或新建。
-              </p>
-            )}
-          </div>
+            <MountBrowser mount={activeMount} />
+          </>
         ) : (
-          <p className="text-sm text-muted-foreground">选择一个库查看内容。</p>
+          <>
+            {/* 库头：搜索 + 视图切换 */}
+            <div className="mb-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h1 className="text-xl font-semibold">{current?.name ?? "我的库"}</h1>
+                  <p className="text-sm text-muted-foreground">{current?.description}</p>
+                </div>
+                {current && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{current.collectionCount} 个文档集</Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(current.id)}
+                      className="text-muted-foreground"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {current && (
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="搜索文档集..."
+                      className="pl-8"
+                    />
+                  </div>
+                  <div className="flex items-center rounded-md border">
+                    <button
+                      onClick={() => setView("grid")}
+                      className={cn(
+                        "rounded-l-md p-1.5",
+                        view === "grid" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+                      )}
+                      title="网格视图"
+                    >
+                      <Grid3X3 className="size-4" />
+                    </button>
+                    <button
+                      onClick={() => setView("list")}
+                      className={cn(
+                        "rounded-r-md p-1.5",
+                        view === "list" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+                      )}
+                      title="列表视图"
+                    >
+                      <List className="size-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {current ? (
+              filteredCollections.length > 0 ? (
+                view === "grid" ? (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {filteredCollections.map((col) => {
+                      const meta = KIND_META[col.kind] ?? KIND_META.course
+                      const Icon = meta.icon
+                      return (
+                        <Link key={col.id} to={`/course/${col.id}`}>
+                          <Card className="h-full transition-shadow hover:shadow-md">
+                            <CardHeader>
+                              <CardTitle className="flex items-center gap-2 text-base">
+                                <Icon className="size-4 text-primary" />
+                                <span className="truncate">{col.name}</span>
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
+                              <Badge variant="secondary">{meta.label}</Badge>
+                              <span>{col.kind === "course" ? "章节" : "文档"}</span>
+                            </CardContent>
+                          </Card>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredCollections.map((col) => {
+                      const meta = KIND_META[col.kind] ?? KIND_META.course
+                      const Icon = meta.icon
+                      return (
+                        <Link
+                          key={col.id}
+                          to={`/course/${col.id}`}
+                          className="flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors hover:bg-accent/40"
+                        >
+                          <Icon className="size-4 shrink-0 text-primary" />
+                          <span className="min-w-0 flex-1 truncate font-medium">{col.name}</span>
+                          <Badge variant="secondary">{meta.label}</Badge>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {col.kind === "course" ? "章节" : "文档"}
+                          </span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {search ? "没有匹配的文档集。" : "此库还没有文档集，可以导入课程包或新建。"}
+                </p>
+              )
+            ) : (
+              <p className="text-sm text-muted-foreground">选择一个库或软链接查看内容。</p>
+            )}
+          </>
         )}
       </section>
     </div>

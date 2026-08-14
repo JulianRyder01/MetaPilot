@@ -10,7 +10,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import { StorePanel } from "@/components/plugins/StorePanel"
 
 const PLUGIN_ICONS: Record<string, typeof Puzzle> = {
   course: GraduationCap,
@@ -79,7 +81,7 @@ export default function PluginsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 px-6 py-8">
+    <div className="mx-auto max-w-3xl space-y-6 px-6 py-8">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-semibold">
           <Puzzle className="size-6 text-primary" />
@@ -87,142 +89,156 @@ export default function PluginsPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           插件分为用户自定义、官方插件与官方核心三类。插件是后端
-          <code className="rounded bg-muted px-1">backend/plugins/</code> 目录下的独立功能包。
+          <code className="rounded bg-muted px-1">backend/plugins/</code> 目录下的独立功能包，
+          可在「插件商店」浏览安装或上传自制插件。
         </p>
       </div>
 
-      {/* tag 筛选栏 */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-xs text-muted-foreground">按标签筛选：</span>
-        <Button
-          variant={tagFilter === null ? "secondary" : "outline"}
-          size="sm"
-          className="h-7 px-2.5 text-xs"
-          onClick={() => setTagFilter(null)}
-        >
-          全部
-        </Button>
-        {PLUGIN_TAGS.map((t) => (
-          <Button
-            key={t}
-            variant={tagFilter === t ? "secondary" : "outline"}
-            size="sm"
-            className="h-7 px-2.5 text-xs"
-            onClick={() => setTagFilter(tagFilter === t ? null : t)}
-          >
-            {t}
-          </Button>
-        ))}
-      </div>
+      <Tabs defaultValue="local">
+        <TabsList>
+          <TabsTrigger value="local">本地插件</TabsTrigger>
+          <TabsTrigger value="store">插件商店</TabsTrigger>
+        </TabsList>
 
-      {!loaded ? (
-        <div className="space-y-3">
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-28 w-full" />
-        </div>
-      ) : (
-        SOURCE_META.map((group) => {
-          const groupPlugins = filtered.filter((p) => p.source === group.source)
-          if (groupPlugins.length === 0) return null
-          return (
-            <section key={group.source} className="space-y-3">
-              <div>
-                <h2 className="flex items-center gap-2 text-base font-semibold">
-                  {group.source === "core" && <Lock className="size-4 text-muted-foreground" />}
-                  {group.label}
-                </h2>
-                <p className="text-xs text-muted-foreground">{group.desc}</p>
-              </div>
-              <div className="space-y-3">
-                {groupPlugins.map((p) => {
-                  const Icon = PLUGIN_ICONS[p.id] ?? Puzzle
-                  const features = PLUGIN_FEATURES[p.id] ?? []
-                  return (
-                    <Card key={p.id}>
-                      <CardHeader className="flex-row items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                          <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                            <Icon className="size-5" />
-                          </span>
-                          <div>
-                            <CardTitle className="flex items-center gap-2 text-base">
-                              {p.name}
-                              <Badge variant="outline">v{p.version}</Badge>
-                              {p.author && (
-                                <span className="text-xs font-normal text-muted-foreground">{p.author}</span>
+        <TabsContent value="local" className="space-y-6">
+          {/* tag 筛选栏 */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-xs text-muted-foreground">按标签筛选：</span>
+            <Button
+              variant={tagFilter === null ? "secondary" : "outline"}
+              size="sm"
+              className="h-7 px-2.5 text-xs"
+              onClick={() => setTagFilter(null)}
+            >
+              全部
+            </Button>
+            {PLUGIN_TAGS.map((t) => (
+              <Button
+                key={t}
+                variant={tagFilter === t ? "secondary" : "outline"}
+                size="sm"
+                className="h-7 px-2.5 text-xs"
+                onClick={() => setTagFilter(tagFilter === t ? null : t)}
+              >
+                {t}
+              </Button>
+            ))}
+          </div>
+
+          {!loaded ? (
+            <div className="space-y-3">
+              <Skeleton className="h-28 w-full" />
+              <Skeleton className="h-28 w-full" />
+            </div>
+          ) : (
+            SOURCE_META.map((group) => {
+              const groupPlugins = filtered.filter((p) => p.source === group.source)
+              if (groupPlugins.length === 0) return null
+              return (
+                <section key={group.source} className="space-y-3">
+                  <div>
+                    <h2 className="flex items-center gap-2 text-base font-semibold">
+                      {group.source === "core" && <Lock className="size-4 text-muted-foreground" />}
+                      {group.label}
+                    </h2>
+                    <p className="text-xs text-muted-foreground">{group.desc}</p>
+                  </div>
+                  <div className="space-y-3">
+                    {groupPlugins.map((p) => {
+                      const Icon = PLUGIN_ICONS[p.id] ?? Puzzle
+                      const features = PLUGIN_FEATURES[p.id] ?? []
+                      return (
+                        <Card key={p.id}>
+                          <CardHeader className="flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                <Icon className="size-5" />
+                              </span>
+                              <div>
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                  {p.name}
+                                  <Badge variant="outline">v{p.version}</Badge>
+                                  {p.author && (
+                                    <span className="text-xs font-normal text-muted-foreground">{p.author}</span>
+                                  )}
+                                </CardTitle>
+                                <p className="text-xs text-muted-foreground">id: {p.id}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {p.removable && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-muted-foreground hover:text-destructive"
+                                  onClick={() => remove(p.id, p.name)}
+                                >
+                                  <Trash2 className="size-4" />
+                                  删除
+                                </Button>
                               )}
-                            </CardTitle>
-                            <p className="text-xs text-muted-foreground">id: {p.id}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {p.removable && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-muted-foreground hover:text-destructive"
-                              onClick={() => remove(p.id, p.name)}
-                            >
-                              <Trash2 className="size-4" />
-                              删除
-                            </Button>
-                          )}
-                          <Badge variant={p.enabled ? "success" : "secondary"}>
-                            {p.enabled ? "已启用" : "已禁用"}
-                          </Badge>
-                          <Switch
-                            checked={p.enabled}
-                            disabled={p.locked}
-                            onCheckedChange={(v) => toggle(p.id, v)}
-                          />
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        <p className="text-sm text-muted-foreground">{p.description}</p>
-                        {p.tags && p.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5">
-                            {p.tags.map((t) => (
-                              <button
-                                key={t}
-                                className={cn(
-                                  "rounded-full border px-2 py-0.5 text-xs transition-colors",
-                                  tagFilter === t
-                                    ? "border-primary bg-primary/10 text-primary"
-                                    : "border-border text-muted-foreground hover:border-primary/50 hover:text-primary",
-                                )}
-                                onClick={() => setTagFilter(tagFilter === t ? null : t)}
-                              >
-                                {t}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        {features.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5">
-                            {features.map((f) => (
-                              <Badge key={f} variant="outline" className="text-muted-foreground">
-                                {f}
+                              <Badge variant={p.enabled ? "success" : "secondary"}>
+                                {p.enabled ? "已启用" : "已禁用"}
                               </Badge>
-                            ))}
-                          </div>
-                        )}
-                        {p.dependsOn.length > 0 && (
-                          <p className="text-xs text-muted-foreground">依赖插件：{p.dependsOn.join("、")}</p>
-                        )}
-                        {p.missingDependencies.length > 0 && (
-                          <p className="text-xs text-amber-600">
-                            缺少依赖（需先启用）：{p.missingDependencies.join("、")}
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
-            </section>
-          )
-        })
-      )}
+                              <Switch
+                                checked={p.enabled}
+                                disabled={p.locked}
+                                onCheckedChange={(v) => toggle(p.id, v)}
+                              />
+                            </div>
+                          </CardHeader>
+                          <CardContent className="space-y-2">
+                            <p className="text-sm text-muted-foreground">{p.description}</p>
+                            {p.tags && p.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {p.tags.map((t) => (
+                                  <button
+                                    key={t}
+                                    className={cn(
+                                      "rounded-full border px-2 py-0.5 text-xs transition-colors",
+                                      tagFilter === t
+                                        ? "border-primary bg-primary/10 text-primary"
+                                        : "border-border text-muted-foreground hover:border-primary/50 hover:text-primary",
+                                    )}
+                                    onClick={() => setTagFilter(tagFilter === t ? null : t)}
+                                  >
+                                    {t}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {features.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {features.map((f) => (
+                                  <Badge key={f} variant="outline" className="text-muted-foreground">
+                                    {f}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                            {p.dependsOn.length > 0 && (
+                              <p className="text-xs text-muted-foreground">依赖插件：{p.dependsOn.join("、")}</p>
+                            )}
+                            {p.missingDependencies.length > 0 && (
+                              <p className="text-xs text-amber-600">
+                                缺少依赖（需先启用）：{p.missingDependencies.join("、")}
+                              </p>
+                            )}
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  </div>
+                </section>
+              )
+            })
+          )}
+        </TabsContent>
+
+        <TabsContent value="store">
+          <StorePanel installedIds={plugins.map((p) => p.id)} onChanged={refresh} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
