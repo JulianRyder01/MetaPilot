@@ -17,7 +17,7 @@ from .services.importer import CourseImporter
 from .services.stats_core import init_stats_core
 from .stats_widgets import register_core_widgets
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 
 app = FastAPI(title="MetaPilot", version=APP_VERSION)
 

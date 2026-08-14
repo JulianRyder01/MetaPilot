@@ -101,7 +101,7 @@ class PluginManager:
         return {
             "id": "core",
             "name": "MetaPilot 文档库",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "specVersion": "1.0",
             "description": "MetaPilot 本身：库-文档集-文档-小节 的浏览与 Markdown 阅读、笔记导入、插件管理。官方核心，不允许禁用或删除。",
             "author": "MetaPilot",
