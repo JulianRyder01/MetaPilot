@@ -220,6 +220,7 @@ class LibraryStore:
                 "updatedAt": now_iso(),
                 "documents": [],
                 "folders": [],
+                "canvas": {"nodes": [], "edges": []} if data.get("kind") == "canvas" else None,
             }
             lib.setdefault("collections", []).append(col)
             lib["updatedAt"] = now_iso()
@@ -232,7 +233,7 @@ class LibraryStore:
                 col = find_collection(lib, cid)
                 if col is None:
                     continue
-                for key in ("name", "kind", "description", "author", "version", "packageId", "formatVersion"):
+                for key in ("name", "kind", "description", "author", "version", "packageId", "formatVersion", "canvas"):
                     if key in data and data[key] is not None:
                         col[key] = data[key]
                 col["updatedAt"] = now_iso()

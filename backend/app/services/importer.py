@@ -16,6 +16,7 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
+from ..services import mpf as mpf_service
 from ..storage.store import LibraryStore, find_collection, gen_id, now_iso
 
 FORMAT_VERSION = 1
@@ -136,8 +137,100 @@ class CourseImporter:
             }
         return self.import_package(manifest, assets, library_id)
 
-    # ---------------- Markdown / Obsidian 笔记导入 ----------------
+    # ---------------- MetaPilot 文件（.mpf）导入 / 导出 ----------------
 
+    def import_mpf(self, text: str, library_id: str = "") -> dict:
+        """导入 .mpf 文本：doc → 课程/库；canvas → 图表集合。返回含 unresolved 未解析项。"""
+        parsed = mpf_service.parse_mpf(text)
+        if not parsed["ok"]:
+            raise ValueError("; ".join(parsed["errors"]))
+        if parsed["type"] == "doc":
+            content = parsed["content"]
+            manifest = {
+                "formatVersion": parsed["meta"]["formatVersion"] or 1,
+                "id": f"mpf-{gen_id()}",
+                "name": parsed["meta"]["name"] or "导入的内容",
+                "author": parsed["meta"]["author"] or "",
+                "version": parsed["meta"]["version"] or "1.0.0",
+                "description": parsed["meta"]["description"] or "",
+                "library": content["library"] or {"name": parsed["meta"]["name"] or "导入的库", "description": ""},
+                "collections": content["collections"],
+            }
+            result = self.import_package(manifest, {}, library_id=library_id)
+            result["type"] = "doc"
+            result["unresolved"] = parsed["unresolved"]
+            return result
+
+        if parsed["type"] == "canvas":
+            content = parsed["content"]
+            if library_id:
+                lib = self.store.get_library(library_id)
+            else:
+                lib = self.store.create_library("图表", "导入的 .canvas / .mpf 图表")
+            col = self.store.create_collection(lib["id"], {
+                "name": parsed["meta"]["name"] or "未命名图表",
+                "kind": "canvas",
+                "description": "由 .mpf/.canvas 导入的图表",
+            })
+            self.store.update_collection(col["id"], {"canvas": content})
+            return {
+                "type": "canvas",
+                "libraryId": lib["id"],
+                "collectionId": col["id"],
+                "name": col["name"],
+                "unresolved": [],
+            }
+        raise ValueError(f"不支持的 .mpf 类型: {parsed['type']}")
+
+    @staticmethod
+    def canvas_json_to_mpf(data: dict, name: str = "") -> str:
+        """把 JSON Canvas（.canvas 文件）内容转换为 .mpf canvas 文本（宽容解析）。"""
+        canvas = {
+            "nodes": [dict(n) for n in data.get("nodes", []) if isinstance(n, dict)],
+            "edges": [dict(e) for e in data.get("edges", []) if isinstance(e, dict)],
+        }
+        return mpf_service.serialize_mpf({
+            "type": "canvas",
+            "name": name or "导入的图表",
+            "canvas": canvas,
+        })
+
+    def export_collection_mpf(self, collection_id: str) -> str:
+        """导出文档集为 .mpf：canvas → canvas 类型；其它 → doc 类型。"""
+        for it in self.store.list_libraries():
+            lib = self.store.get_library(it["id"])
+            col = find_collection(lib, collection_id)
+            if col is None:
+                continue
+            if col.get("kind") == "canvas":
+                return mpf_service.serialize_mpf({
+                    "type": "canvas",
+                    "name": col["name"],
+                    "description": col.get("description", ""),
+                    "canvas": col.get("canvas", {"nodes": [], "edges": []}),
+                })
+            return mpf_service.serialize_mpf({
+                "type": "doc",
+                "name": col["name"],
+                "description": col.get("description", ""),
+                "author": col.get("author", ""),
+                "version": col.get("version", "1.0.0"),
+                "collections": [col],
+            })
+        raise KeyError(f"文档集不存在: {collection_id}")
+
+    def export_library_mpf(self, library_id: str) -> str:
+        """导出整个库为 .mpf（doc 类型）。"""
+        lib = self.store.get_library(library_id)
+        return mpf_service.serialize_mpf({
+            "type": "doc",
+            "id": lib["id"],
+            "name": lib["name"],
+            "description": lib.get("description", ""),
+            "collections": lib.get("collections", []),
+        })
+
+    # ---------------- Markdown / Obsidian 笔记导入 ----------------
     def import_markdown(self, text: str, filename: str, library_id: str = "", collection_id: str = "") -> dict:
         """将 markdown 文件导入为 文档（章节），二级及以上标题为 小节（知识点）。
 

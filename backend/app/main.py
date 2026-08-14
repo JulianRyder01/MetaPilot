@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import DATA_DIR
 from .storage.store import LibraryStore
-from .api import documents, folders, libraries, notes, plugin_store, plugins, stats_core
+from .api import documents, folders, libraries, mpf, notes, plugin_store, plugins, stats_core
 from .plugins.base import manager
 from .plugins.loader import load_plugins
 from .services.importer import CourseImporter
@@ -48,6 +48,7 @@ app.include_router(notes.router)
 app.include_router(plugins.router)
 app.include_router(plugin_store.router)
 app.include_router(stats_core.router)
+app.include_router(mpf.router)
 
 # 插件系统：扫描 backend/plugins/ 物理目录加载全部插件并挂载路由。
 # 路由始终挂载；被禁用的插件由 requires_plugin 依赖在请求时返回 503 + 启用提示。
