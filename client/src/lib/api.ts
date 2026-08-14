@@ -85,19 +85,19 @@ export const api = {
   deleteBlock: (id: string) => request<{ ok: boolean }>(`/blocks/${id}`, { method: "DELETE" }),
 
   // 进度
-  getProgress: (cid: string) => request<Progress>(`/progress/${cid}`),
+  getProgress: (cid: string) => request<Progress>(`/plugins/course/progress/${cid}`),
   toggleCompleted: (cid: string, sid: string) =>
-    request<{ completed: boolean }>(`/progress/${cid}/toggle/${sid}`, { method: "PUT" }),
+    request<{ completed: boolean }>(`/plugins/course/progress/${cid}/toggle/${sid}`, { method: "PUT" }),
   setPosition: (cid: string, documentId: string, sectionId: string) =>
-    request<{ ok: boolean }>(`/progress/${cid}/position`, {
+    request<{ ok: boolean }>(`/plugins/course/progress/${cid}/position`, {
       method: "PUT",
       body: JSON.stringify({ documentId, sectionId }),
     }),
 
   // 统计
   addSession: (data: Record<string, unknown>) =>
-    request<Record<string, unknown>>("/stats/sessions", { method: "POST", body: JSON.stringify(data) }),
-  statsSummary: (range: string) => request<StatsSummary>(`/stats/summary?range=${range}`),
+    request<Record<string, unknown>>("/plugins/course/stats/sessions", { method: "POST", body: JSON.stringify(data) }),
+  statsSummary: (range: string) => request<StatsSummary>(`/plugins/course/stats/summary?range=${range}`),
 
   // 官方核心统计（统计页组件）
   statsCoreVisit: (data: { collectionId: string; documentId: string; documentName?: string; durationSec?: number }) =>
@@ -107,7 +107,7 @@ export const api = {
 
   // AI 判题
   grade: (data: Record<string, unknown>) =>
-    request<GradeResult>("/ai/grade", { method: "POST", body: JSON.stringify(data) }),
+    request<GradeResult>("/plugins/course/ai/grade", { method: "POST", body: JSON.stringify(data) }),
 
   // 插件
   listPlugins: () => request<PluginInfo[]>("/plugins"),

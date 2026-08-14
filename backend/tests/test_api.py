@@ -119,8 +119,8 @@ def test_blocks_all_types():
 def test_delete_collection_cleanup():
     t = _make_tree()
     cid = t["col"]["id"]
-    client.put(f"/api/progress/{cid}/toggle/{t['sec']['id']}")
-    client.post("/api/stats/sessions", json={"collectionId": cid, "durationSec": 30})
+    client.put(f"/api/plugins/course/progress/{cid}/toggle/{t['sec']['id']}")
+    client.post("/api/plugins/course/stats/sessions", json={"collectionId": cid, "durationSec": 30})
     client.delete(f"/api/collections/{cid}")
     assert client.get(f"/api/libraries/{t['lib']['id']}").json()["collections"] == []
 
@@ -128,32 +128,32 @@ def test_delete_collection_cleanup():
 def test_progress_flow():
     t = _make_tree()
     cid, sid = t["col"]["id"], t["sec"]["id"]
-    r = client.get(f"/api/progress/{cid}").json()
+    r = client.get(f"/api/plugins/course/progress/{cid}").json()
     assert r["completedSections"] == []
     # toggle on
-    r = client.put(f"/api/progress/{cid}/toggle/{sid}").json()
+    r = client.put(f"/api/plugins/course/progress/{cid}/toggle/{sid}").json()
     assert r["completed"] is True
-    r = client.get(f"/api/progress/{cid}").json()
+    r = client.get(f"/api/plugins/course/progress/{cid}").json()
     assert sid in r["completedSections"]
     # toggle off
-    r = client.put(f"/api/progress/{cid}/toggle/{sid}").json()
+    r = client.put(f"/api/plugins/course/progress/{cid}/toggle/{sid}").json()
     assert r["completed"] is False
     # position
-    client.put(f"/api/progress/{cid}/position",
+    client.put(f"/api/plugins/course/progress/{cid}/position",
                json={"documentId": t["doc"]["id"], "sectionId": sid})
-    r = client.get(f"/api/progress/{cid}").json()
+    r = client.get(f"/api/plugins/course/progress/{cid}").json()
     assert r["lastPosition"]["sectionId"] == sid
     # set_completed 显式
-    client.put(f"/api/progress/{cid}/completed/{sid}?completed=true")
-    assert sid in client.get(f"/api/progress/{cid}").json()["completedSections"]
+    client.put(f"/api/plugins/course/progress/{cid}/completed/{sid}?completed=true")
+    assert sid in client.get(f"/api/plugins/course/progress/{cid}").json()["completedSections"]
 
 
 def test_stats_flow():
     t = _make_tree()
     cid = t["col"]["id"]
-    client.post("/api/stats/sessions", json={"collectionId": cid, "durationSec": 60})
-    client.post("/api/stats/sessions", json={"collectionId": cid, "durationSec": 40})
-    s = client.get("/api/stats/summary?range=all").json()
+    client.post("/api/plugins/course/stats/sessions", json={"collectionId": cid, "durationSec": 60})
+    client.post("/api/plugins/course/stats/sessions", json={"collectionId": cid, "durationSec": 40})
+    s = client.get("/api/plugins/course/stats/summary?range=all").json()
     assert s["totalSeconds"] == 100
     assert s["sessionCount"] == 2
     per = {p["collectionId"]: p["seconds"] for p in s["perCollection"]}

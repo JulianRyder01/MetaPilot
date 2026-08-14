@@ -41,7 +41,7 @@ export function InteractiveBlock({ collectionId, block }: Props) {
         </button>
       </div>
       <iframe
-        src={`/api/assets/courses/${collectionId}/${file}`}
+        src={`/api/plugins/course/assets/${collectionId}/${file}`}
         title={block.title ?? "交互演示"}
         className={cn("w-full", expanded ? "flex-1" : "")}
         style={{ height: expanded ? undefined : baseHeight }}

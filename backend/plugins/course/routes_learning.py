@@ -18,7 +18,7 @@ from app.storage.stats import StatsStore
 # ---------------- 学习进度 ----------------
 
 progress_router = APIRouter(
-    prefix="/api/progress",
+    prefix="/api/plugins/course/progress",
     tags=["course-progress"],
     dependencies=[Depends(requires_plugin("course"))],
 )
@@ -64,7 +64,7 @@ def all_progress(request: Request):
 # ---------------- 学习时长统计 ----------------
 
 stats_router = APIRouter(
-    prefix="/api/stats",
+    prefix="/api/plugins/course/stats",
     tags=["course-stats"],
     dependencies=[Depends(requires_plugin("course"))],
 )
@@ -96,7 +96,7 @@ def summary(range: str = "all", request: Request = None):
 # ---------------- 主观题 AI 判题 ----------------
 
 ai_router = APIRouter(
-    prefix="/api/ai",
+    prefix="/api/plugins/course/ai",
     tags=["course-ai"],
     dependencies=[Depends(requires_plugin("course"))],
 )
@@ -125,7 +125,7 @@ async def grade(body: GradeIn):
 # ---------------- 动态交互块资产 ----------------
 
 assets_router = APIRouter(
-    prefix="/api/assets/courses",
+    prefix="/api/plugins/course/assets",
     tags=["course-assets"],
     dependencies=[Depends(requires_plugin("course"))],
 )

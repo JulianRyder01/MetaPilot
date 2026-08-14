@@ -123,12 +123,12 @@ def test_disable_course_blocks_import_and_notes():
     assert "课程" in resp.json()["detail"]
     assert "启用" in resp.json()["detail"]
 
-    assert client.get("/api/progress/demo").status_code == 503
-    assert client.get("/api/stats/summary").status_code == 503
-    assert client.post("/api/ai/grade", json={
+    assert client.get("/api/plugins/course/progress/demo").status_code == 503
+    assert client.get("/api/plugins/course/stats/summary").status_code == 503
+    assert client.post("/api/plugins/course/ai/grade", json={
         "blockType": "short_answer", "question": "q", "userAnswer": "a",
     }).status_code == 503
-    assert client.get("/api/assets/courses/demo/interactives/x.html").status_code == 503
+    assert client.get("/api/plugins/course/assets/demo/interactives/x.html").status_code == 503
 
     # Markdown 笔记导入是文档库阅读器的核心能力，不随课程插件禁用
     resp = client.post("/api/plugins/notes/import",
