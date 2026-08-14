@@ -288,4 +288,16 @@ export const coreZhCN: Record<string, string> = {
   // ---- 通用弹窗 / toast ----
   "core.dialog.selectPlaceholder": "请选择…",
   "core.toast.copied": "已复制到剪贴板",
+  "core.widget.aiUsage": "AI 用量",
+  "core.stats.rangeToday": "今日",
+  "core.stats.rangeWeek": "本周",
+  "core.stats.rangeMonth": "本月",
+  "core.stats.rangeAll": "全部",
+  "core.stats.aiCalls": "调用次数",
+  "core.stats.aiTokens": "Token 用量",
+  "core.stats.aiCost": "成本",
+  "core.stats.aiTokensDetail": "输入 {in} / 缓存 {cached} / 输出 {out}",
+  "core.stats.aiCallsShort": "{n} 次调用",
+  "core.stats.aiTokensShort": "{n} tokens",
+  "core.stats.aiUsageEmpty": "暂无 AI 用量记录（各插件经统一网关的调用会记录在此）。",
 }

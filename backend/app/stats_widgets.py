@@ -34,3 +34,5 @@ def register_core_widgets() -> None:
                      "description": "库内全部文档的总字数与分布（核心提供）"})
     register_widget({"id": "recentDocs", "title": "最近访问", "source": "core", "defaultSize": "md",
                      "description": "最近打开的文档列表（核心提供）"})
+    register_widget({"id": "aiUsage", "title": "AI 用量", "source": "core", "defaultSize": "md",
+                     "description": "AI 调用次数 / token 使用量 / 成本（按模型分组，核心提供）"})

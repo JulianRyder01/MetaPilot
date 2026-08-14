@@ -282,4 +282,16 @@ export const coreZhTW: Record<string, string> = {
   // ---- 通用弹窗 / toast ----
   "core.dialog.selectPlaceholder": "請選擇…",
   "core.toast.copied": "已複製到剪貼簿",
+  "core.widget.aiUsage": "AI 用量",
+  "core.stats.rangeToday": "今日",
+  "core.stats.rangeWeek": "本週",
+  "core.stats.rangeMonth": "本月",
+  "core.stats.rangeAll": "全部",
+  "core.stats.aiCalls": "呼叫次數",
+  "core.stats.aiTokens": "Token 用量",
+  "core.stats.aiCost": "成本",
+  "core.stats.aiTokensDetail": "輸入 {in} / 快取 {cached} / 輸出 {out}",
+  "core.stats.aiCallsShort": "{n} 次呼叫",
+  "core.stats.aiTokensShort": "{n} tokens",
+  "core.stats.aiUsageEmpty": "暫無 AI 用量紀錄（各外掛經統一閘道的呼叫會記錄於此）。",
 }

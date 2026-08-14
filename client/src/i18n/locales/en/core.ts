@@ -302,4 +302,16 @@ export const coreEn: Record<string, string> = {
   // ---- Shared dialogs / toasts ----
   "core.dialog.selectPlaceholder": "Select…",
   "core.toast.copied": "Copied to clipboard",
+  "core.widget.aiUsage": "AI Usage",
+  "core.stats.rangeToday": "Today",
+  "core.stats.rangeWeek": "Week",
+  "core.stats.rangeMonth": "Month",
+  "core.stats.rangeAll": "All",
+  "core.stats.aiCalls": "Calls",
+  "core.stats.aiTokens": "Tokens",
+  "core.stats.aiCost": "Cost",
+  "core.stats.aiTokensDetail": "in {in} / cached {cached} / out {out}",
+  "core.stats.aiCallsShort": "{n} calls",
+  "core.stats.aiTokensShort": "{n} tokens",
+  "core.stats.aiUsageEmpty": "No AI usage yet (calls through the unified gateway are recorded here).",
 }

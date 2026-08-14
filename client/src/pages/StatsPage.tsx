@@ -31,6 +31,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SourceBadge } from "@/components/stats/SourceBadge"
+import { AiUsageWidget } from "@/components/stats/AiUsageWidget"
 
 const SIZE_CLASS: Record<WidgetSize, string> = {
   sm: "col-span-2",
@@ -166,6 +167,8 @@ export default function StatsPage() {
                 <CardContent>
                   {w.source === "course" ? (
                     <CourseWidget id={w.id} data={course} enabled={courseEnabled} />
+                  ) : w.id === "aiUsage" ? (
+                    <AiUsageWidget />
                   ) : (
                     <CoreWidget id={w.id} data={core} />
                   )}
