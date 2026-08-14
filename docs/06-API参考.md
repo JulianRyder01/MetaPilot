@@ -7,9 +7,20 @@
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/health` | 健康检查 `{ok, version}` |
-| GET | `/api/plugins` | 插件清单 `[{id, name, version, description, enabled}]` |
+| GET | `/api/plugins` | 插件清单 `[{id, name, version, description, tags, source, enabled}]`，顺序：用户自定义 → 官方插件 → 官方核心 |
 
-## 2. 库 / 文档集 / 文档 / 小节 / 块（内容 CRUD）
+## 2. 插件商店
+
+> 依赖 `.env` 的 `PLUGIN_STORE_URL`（未配置时返回 400 + 提示）。商店服务独立部署，见 `plugins-store/` 与 [04-插件开发指南.md](04-插件开发指南.md) §10。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/plugins/store/plugins` | 拉取商店插件清单（元数据 + tags + downloadUrl） |
+| POST | `/api/plugins/store/plugins/{id}/install` | 从商店下载并安装为本地 user 插件（立即生效） |
+| POST | `/api/plugins/upload` | 上传 zip 本地安装（multipart `file`，不经商店） |
+| POST | `/api/plugins/store/publish` | 上传 zip 发布到商店（multipart `file`） |
+
+## 3. 库 / 文档集 / 文档 / 小节 / 块（内容 CRUD）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -34,7 +45,7 @@
 
 块类型与字段见 [02-数据模型.md](02-数据模型.md)。
 
-## 3. 学习进度（course 插件）
+## 4. 学习进度（course 插件）
 
 > 前缀 `/api/plugins/course/progress`（规范 §4 统一前缀）。
 
@@ -45,7 +56,7 @@
 | PUT | `/api/plugins/course/progress/{cid}/completed/{sid}?completed=true` | 显式设置 |
 | PUT | `/api/plugins/course/progress/{cid}/position` | 记录上次位置 `{documentId, sectionId}` |
 
-## 4. 学习统计（course 插件）
+## 5. 学习统计（course 插件）
 
 > 前缀 `/api/plugins/course/stats`。官方核心统计（访问/热力图等）见 `GET /api/stats/core/summary`、`POST /api/stats/core/visit`、`GET /api/stats/widgets`。
 
@@ -54,7 +65,7 @@
 | POST | `/api/plugins/course/stats/sessions` | 上报学习时长 `{collectionId, documentId, sectionId, durationSec}` |
 | GET | `/api/plugins/course/stats/summary?range=all\|today\|week\|month` | 汇总：总时长、每日分布、每课程分布 |
 
-## 5. AI 判题（course 插件）
+## 6. AI 判题（course 插件）
 
 > 前缀 `/api/plugins/course/ai`。
 
@@ -64,7 +75,7 @@
 
 未配置 `MINIMAX_API_KEY` 返回 503。
 
-## 6. 课程插件（course）
+## 7. 课程插件（course）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -73,11 +84,11 @@
 | POST | `/api/plugins/notes/import` | multipart 上传 `.md` 笔记；按二级标题分小节（核心能力，不属于插件） |
 | GET | `/api/plugins/course/assets/{cid}/{file}` | 交互块资产（iframe 加载入口） |
 
-## 7. 个人知识库插件（knowledge_base）
+## 8. 个人知识库插件（knowledge_base）
 
 见 [05-个人知识库插件.md](05-个人知识库插件.md)：`embedding-status` / `embedding/start` / `{cid}/status` / `{cid}/index` / `{cid}/ask`，前缀 `/api/plugins/knowledge_base`。
 
-## 8. 错误约定
+## 9. 错误约定
 
 - 404：对象不存在；400：参数/格式错误；503：依赖服务未就绪（未配 Key、embedding 未启动）；502：上游调用失败。
 - 错误体统一 `{"detail": "错误说明"}`（中文）。
