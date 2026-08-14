@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
+import { useT } from "@/i18n"
 import { api, type Collection, type Document } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { buildCollectionTree, folderPath, type FolderNode } from "@/lib/tree"
@@ -47,6 +48,7 @@ const BLOCK_TYPE_LABEL: Record<string, string> = Object.fromEntries(
 
 export default function EditPage() {
   const { confirm, prompt } = useDialogs()
+  const t = useT()
   const { cid } = useParams()
   const navigate = useNavigate()
   const [col, setCol] = useState<Collection | null>(null)
@@ -63,7 +65,7 @@ export default function EditPage() {
   }, [load])
 
   if (!col) {
-    return <p className="px-6 py-10 text-sm text-muted-foreground">加载中...</p>
+    return <p className="px-6 py-10 text-sm text-muted-foreground">{t("common.loading")}</p>
   }
 
   async function saveCollection(patch: Partial<Collection>) {
@@ -75,7 +77,7 @@ export default function EditPage() {
 
   async function addDocument() {
     if (!col) return
-    const doc = await api.createDocument(col.id, { name: "新章节", docType: "study" })
+    const doc = await api.createDocument(col.id, { name: t("core.edit.newDocName"), docType: "study" })
     setCol((c) => (c ? { ...c, documents: [...c.documents, doc] } : c))
     setSel({ kind: "doc", id: doc.id })
     setDirty(true)
@@ -83,7 +85,7 @@ export default function EditPage() {
 
   async function addSection(docId: string) {
     if (!col) return
-    const sec = await api.createSection(docId, { name: "新知识点" })
+    const sec = await api.createSection(docId, { name: t("core.edit.newSectionName") })
     setCol((c) =>
       c
         ? {
@@ -119,9 +121,9 @@ export default function EditPage() {
 
   async function removeDoc(docId: string) {
     const ok = await confirm({
-      title: "删除章节",
-      description: "删除该章节？其下所有小节与内容将被删除，不可恢复。",
-      confirmText: "删除",
+      title: t("core.edit.deleteDocTitle"),
+      description: t("core.edit.deleteDocDesc"),
+      confirmText: t("common.delete"),
       destructive: true,
     })
     if (!ok) return
@@ -133,9 +135,9 @@ export default function EditPage() {
 
   async function removeSection(sectionId: string) {
     const ok = await confirm({
-      title: "删除小节",
-      description: "删除该小节？",
-      confirmText: "删除",
+      title: t("core.edit.deleteSectionTitle"),
+      description: t("core.edit.deleteSectionDesc"),
+      confirmText: t("common.delete"),
       destructive: true,
     })
     if (!ok) return
@@ -157,9 +159,9 @@ export default function EditPage() {
 
   async function removeBlock(blockId: string) {
     const ok = await confirm({
-      title: "删除组件",
-      description: "删除该组件？",
-      confirmText: "删除",
+      title: t("core.edit.deleteBlockTitle"),
+      description: t("core.edit.deleteBlockDesc"),
+      confirmText: t("common.delete"),
       destructive: true,
     })
     if (!ok) return
@@ -207,10 +209,10 @@ export default function EditPage() {
   async function createFolderIn(parentId: string) {
     if (!col) return
     const name = await prompt({
-      title: "新建文件夹",
-      description: "输入新文件夹的名称。",
-      placeholder: "例如：章节笔记",
-      confirmText: "创建",
+      title: t("core.edit.newFolderTitle"),
+      description: t("core.edit.newFolderDesc"),
+      placeholder: t("core.edit.newFolderPlaceholder"),
+      confirmText: t("common.create"),
     })
     if (!name?.trim()) return
     try {
@@ -218,7 +220,7 @@ export default function EditPage() {
       await load()
       setDirty(true)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "创建失败")
+      toast.error(e instanceof Error ? e.message : t("core.edit.createFailed"))
     }
   }
 
@@ -226,9 +228,9 @@ export default function EditPage() {
     const folder = col?.folders.find((f) => f.id === fid)
     if (!folder) return
     const name = await prompt({
-      title: "重命名文件夹",
+      title: t("core.edit.renameFolderTitle"),
       initialValue: folder.name,
-      confirmText: "重命名",
+      confirmText: t("common.rename"),
     })
     if (!name?.trim() || name.trim() === folder.name) return
     try {
@@ -236,15 +238,15 @@ export default function EditPage() {
       await load()
       setDirty(true)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "重命名失败")
+      toast.error(e instanceof Error ? e.message : t("core.edit.renameFailed"))
     }
   }
 
   async function removeFolder(fid: string) {
     const ok = await confirm({
-      title: "删除文件夹",
-      description: "删除该文件夹？其下所有子文件夹与文档将被一并删除，不可恢复。",
-      confirmText: "删除",
+      title: t("core.edit.deleteFolderTitle"),
+      description: t("core.edit.deleteFolderDesc"),
+      confirmText: t("common.delete"),
       destructive: true,
     })
     if (!ok) return
@@ -254,7 +256,7 @@ export default function EditPage() {
       setSel({ kind: "collection" })
       setDirty(true)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "删除失败")
+      toast.error(e instanceof Error ? e.message : t("core.edit.deleteFailed"))
     }
   }
 
@@ -266,7 +268,7 @@ export default function EditPage() {
       await load()
       setDirty(true)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "移动失败")
+      toast.error(e instanceof Error ? e.message : t("core.edit.moveFailed"))
     }
   }
 
@@ -275,35 +277,35 @@ export default function EditPage() {
   if (sel.kind === "collection") {
     editor = (
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">课程信息</h3>
+        <h3 className="text-lg font-semibold">{t("core.edit.collectionInfo")}</h3>
         <div className="space-y-1.5">
-          <Label>名称</Label>
+          <Label>{t("common.name")}</Label>
           <Input value={col.name} onChange={(e) => saveCollection({ name: e.target.value })} />
         </div>
         <div className="space-y-1.5">
-          <Label>简介</Label>
+          <Label>{t("core.edit.summary")}</Label>
           <Textarea rows={3} value={col.description ?? ""} onChange={(e) => saveCollection({ description: e.target.value })} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label>作者</Label>
+            <Label>{t("common.author")}</Label>
             <Input value={col.author ?? ""} onChange={(e) => saveCollection({ author: e.target.value })} />
           </div>
           <div className="space-y-1.5">
-            <Label>版本</Label>
+            <Label>{t("common.version")}</Label>
             <Input value={col.version ?? ""} onChange={(e) => saveCollection({ version: e.target.value })} />
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label>类型</Label>
+          <Label>{t("common.type")}</Label>
           <Select value={col.kind} onValueChange={(v) => saveCollection({ kind: v as Collection["kind"] })}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="course">课程</SelectItem>
-              <SelectItem value="note">笔记</SelectItem>
-              <SelectItem value="kb">知识库</SelectItem>
+              <SelectItem value="course">{t("core.library.kindCourse")}</SelectItem>
+              <SelectItem value="note">{t("core.library.kindNote")}</SelectItem>
+              <SelectItem value="kb">{t("core.library.kindKb")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -314,9 +316,9 @@ export default function EditPage() {
     if (doc) {
       editor = (
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold">章节设置</h3>
+          <h3 className="text-lg font-semibold">{t("core.edit.docSettings")}</h3>
           <div className="space-y-1.5">
-            <Label>章节名</Label>
+            <Label>{t("core.edit.docNameLabel")}</Label>
             <Input
               value={doc.name}
               onChange={async (e) => {
@@ -334,7 +336,7 @@ export default function EditPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>类型</Label>
+            <Label>{t("common.type")}</Label>
             <Select
               value={doc.docType}
               onValueChange={async (v) => {
@@ -354,23 +356,23 @@ export default function EditPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="study">学习章节</SelectItem>
-                <SelectItem value="quiz">测验章节</SelectItem>
-                <SelectItem value="note">笔记</SelectItem>
+                <SelectItem value="study">{t("core.edit.docTypeStudy")}</SelectItem>
+                <SelectItem value="quiz">{t("core.edit.docTypeQuiz")}</SelectItem>
+                <SelectItem value="note">{t("core.library.kindNote")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>所在文件夹（移动文档）</Label>
+            <Label>{t("core.edit.moveDocLabel")}</Label>
             <Select
               value={doc.folderId ?? ""}
               onValueChange={(v) => moveDoc(doc.id, v)}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="根目录" />
+                <SelectValue placeholder={t("core.edit.rootFolder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">根目录</SelectItem>
+                <SelectItem value="">{t("core.edit.rootFolder")}</SelectItem>
                 {(col.folders ?? []).map((f) => (
                   <SelectItem key={f.id} value={f.id}>
                     {folderPath(col, f.id)}
@@ -380,7 +382,7 @@ export default function EditPage() {
             </Select>
           </div>
           <p className="text-xs text-muted-foreground">
-            学习章节与测验章节可以自由搭配，实现学习与考试分离。
+            {t("core.edit.docTypeHint")}
           </p>
         </div>
       )
@@ -390,9 +392,9 @@ export default function EditPage() {
     if (found) {
       editor = (
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold">知识点设置</h3>
+          <h3 className="text-lg font-semibold">{t("core.edit.sectionSettings")}</h3>
           <div className="space-y-1.5">
-            <Label>知识点名称</Label>
+            <Label>{t("core.edit.sectionNameLabel")}</Label>
             <Input
               value={found.section.name}
               onChange={async (e) => {
@@ -413,7 +415,7 @@ export default function EditPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>引用其他文档（小节引用）</Label>
+            <Label>{t("core.edit.refDocLabel")}</Label>
             <Select
               value={found.section.refDocId ?? ""}
               onValueChange={async (v) => {
@@ -423,10 +425,10 @@ export default function EditPage() {
               }}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="无引用" />
+                <SelectValue placeholder={t("core.edit.noRef")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">无引用</SelectItem>
+                <SelectItem value="">{t("core.edit.noRef")}</SelectItem>
                 {col.documents
                   .filter((d) => d.id !== found.doc.id)
                   .map((d) => (
@@ -437,11 +439,11 @@ export default function EditPage() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              设为引用后，学习页会显示引用卡片并跳转到目标文档。
+              {t("core.edit.refDocHint")}
             </p>
           </div>
           <div>
-            <Label className="mb-2 block">新增组件</Label>
+            <Label className="mb-2 block">{t("core.edit.addBlockLabel")}</Label>
             <div className="flex gap-2">
               <Select value={newBlockType} onValueChange={setNewBlockType}>
                 <SelectTrigger className="flex-1">
@@ -450,14 +452,14 @@ export default function EditPage() {
                 <SelectContent>
                   {BLOCK_TYPES.map((b) => (
                     <SelectItem key={b.value} value={b.value}>
-                      {b.label}
+                      {t(b.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <Button onClick={() => addBlock(found.section.id)}>
                 <Plus className="size-4" />
-                添加
+                {t("common.add")}
               </Button>
             </div>
           </div>
@@ -470,9 +472,9 @@ export default function EditPage() {
       editor = (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">{BLOCK_TYPE_LABEL[found.block.type] ?? "组件"}</h3>
+            <h3 className="text-lg font-semibold">{t(BLOCK_TYPE_LABEL[found.block.type] ?? "core.edit.block")}</h3>
             <Button variant="ghost" size="sm" onClick={() => setSel({ kind: "section", id: found.section.id })}>
-              回到小节
+              {t("core.edit.backToSection")}
             </Button>
           </div>
           <BlockForm
@@ -482,7 +484,7 @@ export default function EditPage() {
             onSave={async (data) => {
               await api.updateBlock(found.block.id, data)
               await load()
-              toast.success("组件已保存")
+              toast.success(t("core.edit.blockSaved"))
               setDirty(true)
             }}
           />
@@ -508,10 +510,10 @@ export default function EditPage() {
           <BookOpen className="size-3.5 shrink-0" />
           <span className="truncate">{doc.name}</span>
         </button>
-        <button onClick={() => addSection(doc.id)} className="text-muted-foreground hover:text-foreground" title="新增小节">
+        <button onClick={() => addSection(doc.id)} className="text-muted-foreground hover:text-foreground" title={t("core.edit.addSectionTitle")}>
           <ListPlus className="size-3.5" />
         </button>
-        <button onClick={() => removeDoc(doc.id)} className="text-muted-foreground hover:text-destructive" title="删除章节">
+        <button onClick={() => removeDoc(doc.id)} className="text-muted-foreground hover:text-destructive" title={t("core.edit.deleteDocTitle")}>
           <Trash2 className="size-3.5" />
         </button>
       </div>
@@ -532,7 +534,7 @@ export default function EditPage() {
                 <span className="truncate">{sec.name}</span>
                 <span className="text-[10px] text-muted-foreground">{sec.blocks.length}</span>
               </button>
-              <button onClick={() => removeSection(sec.id)} className="text-muted-foreground hover:text-destructive" title="删除小节">
+              <button onClick={() => removeSection(sec.id)} className="text-muted-foreground hover:text-destructive" title={t("core.edit.deleteSectionTitle")}>
                 <Trash2 className="size-3.5" />
               </button>
             </div>
@@ -548,7 +550,7 @@ export default function EditPage() {
                       : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
                   )}
                 >
-                  <span className="truncate">{BLOCK_TYPE_LABEL[b.type] ?? b.type}</span>
+                  <span className="truncate">{t(BLOCK_TYPE_LABEL[b.type] ?? "core.edit.block")}</span>
                   <Trash2
                     className="ml-auto size-3 shrink-0 opacity-0 hover:text-destructive group-hover:opacity-100"
                     onClick={(e) => {
@@ -559,13 +561,13 @@ export default function EditPage() {
                 </button>
               ))}
               {sec.blocks.length === 0 && (
-                <p className="px-2 py-0.5 text-[11px] text-muted-foreground/60">暂无组件</p>
+                <p className="px-2 py-0.5 text-[11px] text-muted-foreground/60">{t("core.edit.noBlocks")}</p>
               )}
             </div>
           </div>
         ))}
         {doc.sections.length === 0 && (
-          <p className="px-2 py-0.5 text-[11px] text-muted-foreground/60">暂无小节</p>
+          <p className="px-2 py-0.5 text-[11px] text-muted-foreground/60">{t("core.edit.noSections")}</p>
         )}
       </div>
     </div>
@@ -585,25 +587,25 @@ export default function EditPage() {
               className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <FolderPlus className="size-3" />
-              子文件夹
+              {t("core.edit.subFolder")}
             </button>
             <button
               onClick={() => renameFolder(node.id)}
               className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
             >
-              重命名
+              {t("common.rename")}
             </button>
             <button
               onClick={() => removeFolder(node.id)}
               className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-destructive"
             >
-              删除
+              {t("common.delete")}
             </button>
           </div>
           {node.children.map(renderFolderNode)}
           {node.documents.map(renderDocRow)}
           {node.children.length === 0 && node.documents.length === 0 && (
-            <p className="px-2 py-0.5 text-[11px] text-muted-foreground/60">空文件夹</p>
+            <p className="px-2 py-0.5 text-[11px] text-muted-foreground/60">{t("core.edit.emptyFolder")}</p>
           )}
         </div>
       </CollapsibleContent>
@@ -617,18 +619,18 @@ export default function EditPage() {
         <div className="flex h-12 items-center justify-between border-b px-4">
           <div className="flex items-center gap-2">
             <Pencil className="size-4 text-primary" />
-            <span className="text-sm font-medium">编辑模式</span>
+            <span className="text-sm font-medium">{t("core.edit.mode")}</span>
           </div>
-          <Badge variant={dirty ? "secondary" : "outline"}>{dirty ? "有改动" : "已保存"}</Badge>
+          <Badge variant={dirty ? "secondary" : "outline"}>{dirty ? t("core.edit.dirty") : t("core.edit.saved")}</Badge>
         </div>
         <div className="flex h-10 items-center gap-2 border-b px-3">
           <Button variant="outline" size="sm" onClick={addDocument}>
             <FilePlus2 className="size-4" />
-            章节
+            {t("core.edit.newDoc")}
           </Button>
           <Button variant="outline" size="sm" onClick={() => createFolderIn("")}>
             <FolderPlus className="size-4" />
-            文件夹
+            {t("core.edit.newFolder")}
           </Button>
           <Button
             variant="outline"
@@ -636,7 +638,7 @@ export default function EditPage() {
             className="ml-auto"
             onClick={() => navigate(`/course/${cid}`)}
           >
-            完成
+            {t("core.edit.done")}
           </Button>
         </div>
         <ScrollArea className="flex-1">

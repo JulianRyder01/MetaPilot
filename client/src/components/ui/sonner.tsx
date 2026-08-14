@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { translate } from "@/i18n"
 import { toast } from "@/lib/toast"
 
 /** 复制文本到剪贴板，带兼容 fallback（非安全上下文时 clipboard API 不可用）。 */
@@ -47,7 +48,7 @@ function Toaster({ ...props }: ToasterProps) {
       const description = li.querySelector("[data-description]")?.textContent?.trim() ?? ""
       const text = description ? `${title}\n${description}` : title
       if (!text) return
-      void copyText(text).then(() => toast.success("已复制到剪贴板"))
+      void copyText(text).then(() => toast.success(translate("core.toast.copied")))
     }
 
     container.addEventListener("click", handleClick)

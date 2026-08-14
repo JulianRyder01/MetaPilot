@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { GraduationCap, Lock, Puzzle, Rocket, Trash2, Palette } from "lucide-react"
+import { GraduationCap, Lock, Puzzle, Trash2, Palette } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { api } from "@/lib/api"

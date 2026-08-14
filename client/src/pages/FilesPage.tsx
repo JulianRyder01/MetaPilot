@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { FolderOpen, HardDrive, Link2, Trash2 } from "lucide-react"
 
+import { useT } from "@/i18n"
 import type { SymlinkMount } from "@/lib/api"
 import { symlinkMounts, symlinkRemoveMount } from "@/plugins/symlink/api"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +12,7 @@ import { MountBrowser } from "@/components/symlink/MountBrowser"
 import { useDialogs } from "@/components/ui/dialog-provider"
 
 export default function FilesPage() {
+  const t = useT()
   const { confirm } = useDialogs()
   const [params] = useSearchParams()
   const [mounts, setMounts] = useState<SymlinkMount[]>([])
@@ -27,11 +29,11 @@ export default function FilesPage() {
   }, [loadMounts])
 
   async function removeMount(id: string) {
-    const name = mounts.find((m) => m.id === id)?.name ?? "该挂载"
+    const name = mounts.find((m) => m.id === id)?.name ?? t("symlink.thatMount")
     const ok = await confirm({
-      title: "卸载软链接",
-      description: `「${name}」将从列表中移除，磁盘上的文件不会被删除。`,
-      confirmText: "卸载",
+      title: t("symlink.unmountSymlink"),
+      description: t("symlink.unmountConfirmDesc", { name }),
+      confirmText: t("symlink.unmount"),
     })
     if (!ok) return
     await symlinkRemoveMount(id)
@@ -45,19 +47,19 @@ export default function FilesPage() {
     <div className="mx-auto max-w-5xl px-6 py-8">
       <div className="mb-4 flex items-center gap-2">
         <FolderOpen className="size-6 text-primary" />
-        <h1 className="text-2xl font-semibold">文件浏览器</h1>
+        <h1 className="text-2xl font-semibold">{t("symlink.fileBrowser")}</h1>
         <Badge variant="outline" className="gap-1">
           <Link2 className="size-3" />
-          软链接插件
+          {t("symlink.symlinkPlugin")}
         </Badge>
       </div>
 
-      <PluginGate pluginId="symlink" hint="浏览与读写本机目录">
+      <PluginGate pluginId="symlink" hint={t("symlink.pluginHint")}>
         <div className="flex gap-5">
           {/* 左：挂载列表 */}
           <aside className="w-64 shrink-0 space-y-2">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-muted-foreground">挂载</h2>
+              <h2 className="text-sm font-semibold text-muted-foreground">{t("symlink.mounts")}</h2>
               <AddMountDialog onAdded={loadMounts} />
             </div>
             <div className="space-y-1">
@@ -79,20 +81,20 @@ export default function FilesPage() {
                   <button
                     onClick={() => removeMount(m.id)}
                     className="text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
-                    title="卸载"
+                    title={t("symlink.unmount")}
                   >
                     <Trash2 className="size-3.5" />
                   </button>
                 </div>
               ))}
               {mounts.length === 0 && (
-                <p className="px-2 text-xs text-muted-foreground">暂无挂载，点击右上角添加本机文件夹或文件</p>
+                <p className="px-2 text-xs text-muted-foreground">{t("symlink.noMounts")}</p>
               )}
             </div>
             {currentMount && (
               <p className="px-2 text-[11px] text-muted-foreground">
-                当前挂载根：{currentMount.root}
-                {currentMount.type === "file" ? "（单文件）" : ""}
+                {t("symlink.currentMountRoot", { root: currentMount.root })}
+                {currentMount.type === "file" ? t("symlink.singleFileNote") : ""}
               </p>
             )}
           </aside>
@@ -101,7 +103,7 @@ export default function FilesPage() {
           <section className="min-w-0 flex-1">
             {!currentMount ? (
               <div className="rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
-                请先挂载一个本机文件夹或文件
+                {t("symlink.pleaseMount")}
               </div>
             ) : (
               <MountBrowser mount={currentMount} />

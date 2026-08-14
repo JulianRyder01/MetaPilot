@@ -5,6 +5,7 @@ import { Check, Moon, Palette, Sun } from "lucide-react"
 import { useThemeStore } from "@/stores/theme"
 import { ensurePluginsLoaded, usePluginEnabled } from "@/stores/plugins"
 import { cn } from "@/lib/utils"
+import { useT } from "@/i18n"
 
 /**
  * 主题选择面板：黑夜/白天模式 + 「主题」插件提供的特色主题。
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils"
  *   提示引导去 /plugins 启用；已缓存的主题仍可切换（本地偏好）。
  */
 export function ThemeSelector() {
+  const t = useT()
   const { mode, themeId, themes, setMode, setTheme, fetchThemes } = useThemeStore()
   const themesEnabled = usePluginEnabled("themes")
 
@@ -31,7 +33,7 @@ export function ThemeSelector() {
     <div className="space-y-4">
       {/* 黑夜 / 白天 */}
       <div>
-        <p className="mb-2 text-xs font-medium text-muted-foreground">黑夜 / 白天模式</p>
+        <p className="mb-2 text-xs font-medium text-muted-foreground">{t("sys.theme.mode")}</p>
         <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
           <button
             type="button"
@@ -42,7 +44,7 @@ export function ThemeSelector() {
             )}
           >
             <Sun className="size-4" />
-            白天
+            {t("sys.theme.light")}
           </button>
           <button
             type="button"
@@ -53,7 +55,7 @@ export function ThemeSelector() {
             )}
           >
             <Moon className="size-4" />
-            黑夜
+            {t("sys.theme.dark")}
           </button>
         </div>
       </div>
@@ -62,17 +64,17 @@ export function ThemeSelector() {
       <div>
         <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Palette className="size-3.5" />
-          特色主题
+          {t("sys.theme.featured")}
         </p>
 
         {!themesEnabled && (
           <div className="mb-2 rounded-md border border-dashed p-2.5 text-xs text-muted-foreground">
-            主题由「主题」插件提供，当前未启用。
+            {t("sys.theme.pluginDisabled")}
             <Link
               to="/plugins"
               className="ml-1 font-medium text-primary underline underline-offset-2"
             >
-              去插件管理页启用
+              {t("sys.plugins.goEnable")}
             </Link>
           </div>
         )}
@@ -80,8 +82,8 @@ export function ThemeSelector() {
         <div className="grid grid-cols-2 gap-1.5">
           <ThemeItem
             active={themeId === null}
-            name="默认"
-            description="跟随系统配色"
+            name={t("sys.theme.defaultName")}
+            description={t("sys.theme.defaultDesc")}
             bg="#fafafa"
             primary="#8b5cf6"
             onClick={() => setTheme(null)}

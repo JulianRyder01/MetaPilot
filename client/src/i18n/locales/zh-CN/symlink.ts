@@ -1,2 +1,83 @@
-/** 域词典：core（官方核心：学习/库/统计/编辑/画布/导航等）。key 前缀 core. 由接入时填充。 */
-export const symlinkZhCN: Record<string, string> = {}
+/** 域词典：symlink（软链接插件：挂载列表 / 文件浏览器 / 本地路径选择器）。key 前缀 symlink. */
+export const symlinkZhCN: Record<string, string> = {
+  // 页面 / 插件
+  "symlink.fileBrowser": "文件浏览器",
+  "symlink.symlinkPlugin": "软链接插件",
+  "symlink.pluginHint": "浏览与读写本机目录",
+  "symlink.linkLocalDoc": "链接本地文档（软链接）",
+  "symlink.addMountDesc1": "链接的是本机磁盘上的",
+  "symlink.addMountDesc2": "或",
+  "symlink.addMountDesc3": "，不会复制或移动原文件；链接后可在文件浏览器中像文档一样浏览、阅读与编辑。",
+
+  // 挂载
+  "symlink.mounts": "挂载",
+  "symlink.mount": "挂载",
+  "symlink.thatMount": "该挂载",
+  "symlink.unmount": "卸载",
+  "symlink.unmountSymlink": "卸载软链接",
+  "symlink.unmountConfirmDesc": "「{name}」将从列表中移除，磁盘上的文件不会被删除。",
+  "symlink.noMounts": "暂无挂载，点击右上角添加本机文件夹或文件",
+  "symlink.currentMountRoot": "当前挂载根：{root}",
+  "symlink.pleaseMount": "请先挂载一个本机文件夹或文件",
+  "symlink.mountSuccess": "挂载成功",
+  "symlink.mountFailed": "挂载失败",
+  "symlink.displayName": "显示名称",
+  "symlink.namePlaceholder": "例如：我的笔记",
+  "symlink.localPathLabel": "本地路径（文件夹或文件）",
+  "symlink.pathPlaceholder": "点击「浏览」选择，或手动输入（Windows/Linux 均支持）",
+  "symlink.collapse": "收起",
+  "symlink.browse": "浏览",
+  "symlink.afterMountHint": "挂载后可在文件浏览器中浏览、阅读与编辑目录内的文本文件（权限限制在挂载根内）。",
+
+  // 目录 / 文件
+  "symlink.directory": "目录",
+  "symlink.folder": "文件夹",
+  "symlink.file": "文件",
+  "symlink.singleFile": "单文件",
+  "symlink.singleFileNote": "（单文件）",
+  "symlink.singleFileMount": "（单文件挂载）",
+  "symlink.rootDir": "（根目录）",
+  "symlink.noSubfolders": "无子文件夹",
+  "symlink.emptyDir": "空目录",
+  "symlink.expandDir": "展开目录",
+  "symlink.collapseDir": "收起目录",
+  "symlink.newFolder": "新建文件夹",
+  "symlink.newFolderDesc": "输入新文件夹的名称。",
+  "symlink.newFolderPlaceholder": "例如：章节笔记",
+
+  // 工具栏
+  "symlink.searchPlaceholder": "搜索…",
+  "symlink.gridView": "网格视图",
+  "symlink.listView": "列表视图",
+  "symlink.backToList": "返回列表",
+  "symlink.reveal": "定位",
+  "symlink.revealInFileManager": "在文件管理器中显示",
+  "symlink.openWithDefault": "用默认方式打开",
+  "symlink.editing": "编辑：{path}",
+
+  // 操作结果 / toast
+  "symlink.saved": "已保存",
+  "symlink.saveFailed": "保存失败",
+  "symlink.createFailed": "创建失败",
+  "symlink.deleteFile": "删除文件",
+  "symlink.deleteConfirmDesc": "确定删除「{target}」？",
+  "symlink.deleteDirWarning": "文件夹将递归删除，不可恢复。",
+  "symlink.deleteFailed": "删除失败",
+  "symlink.openedWithDefault": "已调用系统默认方式打开",
+  "symlink.openFailed": "打开失败",
+  "symlink.readFailed": "读取失败",
+  "symlink.noInlinePreview": "该文件类型不支持内联预览",
+  "symlink.noInlinePreviewHint": "该文件类型不支持内联预览，可右键选择「用默认方式打开」",
+  "symlink.noMatch": "没有匹配的项目。",
+
+  // 本机路径选择器
+  "symlink.goUp": "上一级",
+  "symlink.myComputer": "我的电脑",
+  "symlink.reading": "读取中…",
+  "symlink.emptyFolder": "空文件夹",
+  "symlink.selectedFolder": "文件夹：{path}",
+  "symlink.selectedFile": "文件：{path}",
+  "symlink.selectHint": "单击选择文件夹或文件，双击文件夹进入",
+  "symlink.selectThisFolder": "选择此文件夹",
+  "symlink.selectThisFile": "选择此文件",
+}

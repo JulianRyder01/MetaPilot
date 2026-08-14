@@ -4,6 +4,7 @@ import { Puzzle } from "lucide-react"
 
 import { usePluginsStore, ensurePluginsLoaded } from "@/stores/plugins"
 import { Button } from "@/components/ui/button"
+import { useT } from "@/i18n"
 
 interface Props {
   pluginId: string
@@ -19,6 +20,7 @@ interface Props {
  * 启用后渲染 children。
  */
 export function PluginGate({ pluginId, hint, children, compact }: Props) {
+  const t = useT()
   const plugins = usePluginsStore((s) => s.plugins)
   const plugin = plugins.find((p) => p.id === pluginId)
   const enabled = plugin ? plugin.enabled : true
@@ -41,12 +43,12 @@ export function PluginGate({ pluginId, hint, children, compact }: Props) {
     >
       <Puzzle className="size-5 text-amber-600" />
       <div className="text-foreground">
-        需要启用「<span className="font-medium text-amber-700 dark:text-amber-400">{plugin?.name ?? pluginId}</span>
-        」插件才可使用{hint ? ` ${hint}` : "此功能"}
+        {t("sys.plugins.needEnablePrefix")}<span className="font-medium text-amber-700 dark:text-amber-400">{plugin?.name ?? pluginId}</span>
+        {t("sys.plugins.needEnableSuffix")}{hint ? ` ${hint}` : t("sys.plugins.thisFeature")}
       </div>
       <Link to="/plugins">
         <Button size="sm" variant="outline">
-          去插件管理页启用
+          {t("sys.plugins.goEnable")}
         </Button>
       </Link>
     </div>

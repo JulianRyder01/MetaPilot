@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Loader2, Sparkles } from "lucide-react"
 import { toast } from "@/lib/toast"
 
+import { useT } from "@/i18n"
 import { type GradeResult } from "@/lib/api"
 import { grade } from "@/plugins/course/api"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function FillBlankBlock({ block }: Props) {
+  const t = useT()
   const blanks = block.blanks ?? []
   const [inputs, setInputs] = useState<string[]>(blanks.map(() => ""))
   const [result, setResult] = useState<GradeResult | null>(null)
@@ -37,7 +39,7 @@ export function FillBlankBlock({ block }: Props) {
         })
         setResult(r)
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "判题失败")
+        toast.error(e instanceof Error ? e.message : t("core.learn.gradeFailed"))
       } finally {
         setGrading(false)
       }
@@ -53,12 +55,12 @@ export function FillBlankBlock({ block }: Props) {
     <div className="rounded-lg border bg-card p-5">
       <div className="mb-3 flex items-center justify-between">
         <p className="font-medium">
-          填空题{block.question && <span className="ml-2">{block.question}</span>}
+          {t("core.learn.fillBlank")}{block.question && <span className="ml-2">{block.question}</span>}
         </p>
         {aiGraded && (
           <Badge variant="secondary" className="gap-1">
             <Sparkles className="size-3" />
-            AI 判题
+            {t("core.learn.aiGraded")}
           </Badge>
         )}
       </div>
@@ -66,7 +68,7 @@ export function FillBlankBlock({ block }: Props) {
         {blanks.map((_, i) => (
           <Input
             key={i}
-            placeholder={`第 ${i + 1} 空`}
+            placeholder={t("core.learn.blankN", { n: i + 1 })}
             value={inputs[i] ?? ""}
             onChange={(e) => setInputs((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))}
             disabled={!!result}
@@ -76,11 +78,11 @@ export function FillBlankBlock({ block }: Props) {
       <div className="mt-4 flex items-center gap-3">
         <Button size="sm" onClick={submit} disabled={grading || !!result || inputs.some((v) => !v.trim())}>
           {grading ? <Loader2 className="size-4 animate-spin" /> : null}
-          提交
+          {t("core.learn.submit")}
         </Button>
         {result && (
           <Badge variant={result.isCorrect ? "success" : "destructive"}>
-            准确率 {result.score}%
+            {t("core.learn.accuracy", { score: result.score })}
           </Badge>
         )}
         {result && !result.feedback && (
@@ -92,12 +94,12 @@ export function FillBlankBlock({ block }: Props) {
               setInputs(blanks.map(() => ""))
             }}
           >
-            重做
+            {t("core.learn.redo")}
           </Button>
         )}
       </div>
       {result?.feedback && <p className="mt-3 text-sm text-muted-foreground">{result.feedback}</p>}
-      {block.explanation && <p className="mt-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">解析：{block.explanation}</p>}
+      {block.explanation && <p className="mt-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">{t("core.learn.explanation", { text: block.explanation })}</p>}
     </div>
   )
 }

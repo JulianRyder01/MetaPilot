@@ -2,6 +2,7 @@ import { useState } from "react"
 import { FileUp, FolderUp, Upload } from "lucide-react"
 import { toast } from "@/lib/toast"
 
+import { useT } from "@/i18n"
 import { api } from "@/lib/api"
 import { usePluginsStore } from "@/stores/plugins"
 import { useSettingsStore } from "@/stores/settings"
@@ -27,6 +28,7 @@ interface Props {
 }
 
 export function ImportDialog({ libraryId, onImported }: Props) {
+  const t = useT()
   const [courseFile, setCourseFile] = useState<File | null>(null)
   const [noteFile, setNoteFile] = useState<File | null>(null)
   const [mpfFile, setMpfFile] = useState<File | null>(null)
@@ -37,11 +39,11 @@ export function ImportDialog({ libraryId, onImported }: Props) {
     setBusy(true)
     try {
       const res = await importCourseApi(courseFile, libraryId || "")
-      toast.success(`已导入课程「${res.imported.map((c) => c.name).join("、")}」`)
+      toast.success(t("core.library.importedCourse", { names: res.imported.map((c) => c.name).join("、") }))
       setCourseFile(null)
       onImported?.()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "导入失败")
+      toast.error(e instanceof Error ? e.message : t("core.library.importFailed"))
     } finally {
       setBusy(false)
     }
@@ -52,11 +54,11 @@ export function ImportDialog({ libraryId, onImported }: Props) {
     setBusy(true)
     try {
       const res = await api.importNote(noteFile)
-      toast.success(`已导入笔记（${res.sectionCount} 个小节）`)
+      toast.success(t("core.library.importedNote", { count: res.sectionCount }))
       setNoteFile(null)
       onImported?.()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "导入失败")
+      toast.error(e instanceof Error ? e.message : t("core.library.importFailed"))
     } finally {
       setBusy(false)
     }
@@ -74,13 +76,13 @@ export function ImportDialog({ libraryId, onImported }: Props) {
       })
       if (missing.length > 0 && useSettingsStore.getState().showPluginWarnings) {
         const names = [...new Set(missing.map((u) => u.requiredPlugin))].join("、")
-        toast.warning(`导入内容中的部分组件依赖「${names}」插件，未启用时将显示为原始数据。`)
+        toast.warning(t("core.library.importWarning", { names }))
       }
-      toast.success(res.type === "canvas" ? `已导入图表「${res.name ?? ""}」` : "已导入内容")
+      toast.success(res.type === "canvas" ? t("core.library.importedCanvas", { name: res.name ?? "" }) : t("core.library.importedContent"))
       setMpfFile(null)
       onImported?.()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "导入失败")
+      toast.error(e instanceof Error ? e.message : t("core.library.importFailed"))
     } finally {
       setBusy(false)
     }
@@ -91,25 +93,25 @@ export function ImportDialog({ libraryId, onImported }: Props) {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <Upload className="size-4" />
-          导入
+          {t("core.library.import")}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>导入内容</DialogTitle>
+          <DialogTitle>{t("core.library.importTitle")}</DialogTitle>
           <DialogDescription>
-            支持 MetaPilot 文件（.mpf/.canvas，统一格式：doc=课程内容、canvas=图表）、课程包（zip）与 Markdown 笔记。
+            {t("core.library.importDesc")}
           </DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="mpf">
           <TabsList className="w-full">
-            <TabsTrigger value="mpf" className="flex-1">MetaPilot 文件</TabsTrigger>
-            <TabsTrigger value="course" className="flex-1">课程包</TabsTrigger>
+            <TabsTrigger value="mpf" className="flex-1">{t("core.library.tabMpf")}</TabsTrigger>
+            <TabsTrigger value="course" className="flex-1">{t("core.library.tabCourse")}</TabsTrigger>
             <TabsTrigger value="note" className="flex-1">Markdown</TabsTrigger>
           </TabsList>
           {/* .mpf / .canvas 是系统底层格式（官方核心能力），无需任何插件门禁 */}
           <TabsContent value="mpf" className="space-y-3">
-            <Label htmlFor="mpf-file">MetaPilot 文件（.mpf / .canvas）</Label>
+            <Label htmlFor="mpf-file">{t("core.library.mpfLabel")}</Label>
             <div className="flex items-center gap-2">
               <Input
                 id="mpf-file"
@@ -119,18 +121,18 @@ export function ImportDialog({ libraryId, onImported }: Props) {
               />
               <Button onClick={importMpf} disabled={!mpfFile || busy}>
                 <FileUp className="size-4" />
-                导入
+                {t("core.library.import")}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              doc 类型解析为课程/文档；.canvas 文件（Obsidian Canvas）自动转换为图表。
+              {t("core.library.mpfHint")}
             </p>
           </TabsContent>
           {/* 课程包与笔记导入依赖「课程」插件 */}
           <TabsContent value="course">
-            <PluginGate pluginId="course" hint="导入课程包（zip）">
+            <PluginGate pluginId="course" hint={t("core.library.courseGateHint")}>
               <div className="space-y-3">
-                <Label htmlFor="course-file">课程包文件（.zip，含 manifest.json）</Label>
+                <Label htmlFor="course-file">{t("core.library.courseFileLabel")}</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     id="course-file"
@@ -147,9 +149,9 @@ export function ImportDialog({ libraryId, onImported }: Props) {
             </PluginGate>
           </TabsContent>
           <TabsContent value="note">
-            <PluginGate pluginId="course" hint="导入 Markdown 笔记">
+            <PluginGate pluginId="course" hint={t("core.library.noteGateHint")}>
               <div className="space-y-3">
-                <Label htmlFor="note-file">Markdown / Obsidian 文件（.md）</Label>
+                <Label htmlFor="note-file">{t("core.library.noteFileLabel")}</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     id="note-file"

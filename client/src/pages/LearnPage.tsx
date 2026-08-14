@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
+import { useT } from "@/i18n"
 import { api, type Collection, type Progress } from "@/lib/api"
 import { addSession, getProgress, setPosition, toggleCompleted } from "@/plugins/course/api"
 import { cn } from "@/lib/utils"
@@ -28,6 +29,7 @@ import { BlockRenderer } from "@/components/learn/BlockRenderer"
 export default function LearnPage() {
   const { cid, sid } = useParams()
   const navigate = useNavigate()
+  const t = useT()
   const [col, setCol] = useState<Collection | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
   const startRef = useRef(Date.now())
@@ -126,7 +128,7 @@ export default function LearnPage() {
           }
         : p,
     )
-    toast.success(r.completed ? "已标记学完" : "已取消标记")
+    toast.success(r.completed ? t("core.learn.markedCompleted") : t("core.learn.unmarkedCompleted"))
   }
 
   function go(sectionId: string) {
@@ -142,13 +144,12 @@ export default function LearnPage() {
     if (isCourse && !courseEnabled && !warnedRef.current) {
       warnedRef.current = true
       if (useSettingsStore.getState().showPluginWarnings) {
-        toast.warning(
-          "此文档依赖「课程」插件，题目与交互块将以原始数据展示，可前往「插件」页启用。",
-          { duration: 6000 },
-        )
+        toast.warning(t("core.learn.courseDisabledWarning"), {
+          duration: 6000,
+        })
       }
     }
-  }, [isCourse, courseEnabled])
+  }, [t, isCourse, courseEnabled])
 
   if (!col || currentIndex === -1) {
     return (
@@ -221,10 +222,10 @@ export default function LearnPage() {
               className="gap-1.5"
             >
               {isCompleted ? <CheckCircle2 className="size-4" /> : <Circle className="size-4" />}
-              {isCompleted ? "已学完" : "标记学完"}
+              {isCompleted ? t("core.learn.completed") : t("core.learn.markComplete")}
             </Button>
           ) : (
-            <Badge variant="secondary">文档阅读</Badge>
+            <Badge variant="secondary">{t("core.learn.readingMode")}</Badge>
           )}
         </div>
 
@@ -237,7 +238,10 @@ export default function LearnPage() {
               </p>
               <h1 className="mt-1 text-2xl font-semibold">{current.section.name}</h1>
               <p className="mt-1 text-xs text-muted-foreground">
-                {currentIndex + 1} / {flat.length} {isCourse ? "个知识点" : "篇"}
+                {t(isCourse ? "core.learn.progressKnowledge" : "core.learn.progressDoc", {
+                  pos: currentIndex + 1,
+                  total: flat.length,
+                })}
               </p>
             </header>
 
@@ -247,7 +251,7 @@ export default function LearnPage() {
                 <div className="flex items-center gap-2 text-sm">
                   <Link2 className="size-4 text-primary" />
                   <span>
-                    本小节引用文档「{refTarget.doc.name}」
+                    {t("core.learn.refToDoc", { name: refTarget.doc.name })}
                     {refTarget.section.name && <span className="text-muted-foreground">（{refTarget.section.name}）</span>}
                   </span>
                 </div>
@@ -257,7 +261,7 @@ export default function LearnPage() {
                   disabled={!refTarget.section.id}
                   onClick={() => refTarget.section.id && navigate(`/learn/${cid}/${refTarget.section.id}`)}
                 >
-                  前往引用文档
+                  {t("core.learn.gotoRefDoc")}
                 </Button>
               </div>
             )}
@@ -267,7 +271,7 @@ export default function LearnPage() {
               ))}
               {current.section.blocks.length === 0 && (
                 <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                  这个知识点还没有内容
+                  {t("core.learn.emptySection")}
                 </p>
               )}
             </div>
@@ -284,11 +288,11 @@ export default function LearnPage() {
             className={cn(!prev && "invisible")}
           >
             <ArrowLeft className="size-4" />
-            上一个知识点
+            {t("core.learn.prevKnowledge")}
           </Button>
           {canTrack ? (
             <Button variant="ghost" size="sm" onClick={toggleDone}>
-              {isCompleted ? "取消学完标记" : "标记本知识点学完"}
+              {isCompleted ? t("core.learn.unmarkComplete") : t("core.learn.markCurrentComplete")}
             </Button>
           ) : (
             <span className="text-xs text-muted-foreground">
@@ -301,7 +305,7 @@ export default function LearnPage() {
             onClick={() => next && go(next.section.id)}
             className={cn(!next && "invisible")}
           >
-            下一个知识点
+            {t("core.learn.nextKnowledge")}
             <ArrowRight className="size-4" />
           </Button>
         </div>

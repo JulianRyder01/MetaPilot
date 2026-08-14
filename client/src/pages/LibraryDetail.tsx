@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { BookOpen, ChevronDown, FileText, Folder, GraduationCap } from "lucide-react"
 
+import { useT } from "@/i18n"
 import { api, type Library } from "@/lib/api"
 import { buildCollectionTree, type FolderNode } from "@/lib/tree"
 import { Badge } from "@/components/ui/badge"
@@ -32,6 +33,7 @@ function FolderBranch({ colId, node, depth }: { colId: string; node: FolderNode;
 }
 
 function DocRow({ colId, name, docType }: { colId: string; name: string; docType: string }) {
+  const t = useT()
   return (
     <Link
       to={`/course/${colId}`}
@@ -39,13 +41,14 @@ function DocRow({ colId, name, docType }: { colId: string; name: string; docType
     >
       <BookOpen className="size-3.5 shrink-0 text-muted-foreground/70" />
       <span className="truncate">{name}</span>
-      {docType === "quiz" && <Badge variant="outline" className="ml-1 text-[10px]">测验</Badge>}
+      {docType === "quiz" && <Badge variant="outline" className="ml-1 text-[10px]">{t("core.library.quiz")}</Badge>}
     </Link>
   )
 }
 
 export default function LibraryDetail() {
   const { lid } = useParams()
+  const t = useT()
   const [lib, setLib] = useState<Library | null>(null)
 
   useEffect(() => {
@@ -85,7 +88,7 @@ export default function LibraryDetail() {
                       {col.name}
                     </Link>
                   </div>
-                  <Badge variant="secondary">{col.kind === "course" ? "课程" : "笔记"}</Badge>
+                  <Badge variant="secondary">{t(col.kind === "course" ? "core.library.kindCourse" : "core.library.kindNote")}</Badge>
                 </div>
                 <div className="space-y-0.5">
                   {tree.roots.map((node) => (
@@ -100,7 +103,7 @@ export default function LibraryDetail() {
                     />
                   ))}
                   {tree.roots.length === 0 && tree.rootDocuments.length === 0 && (
-                    <p className="px-2 py-1 text-xs text-muted-foreground">暂无内容</p>
+                    <p className="px-2 py-1 text-xs text-muted-foreground">{t("core.library.empty")}</p>
                   )}
                 </div>
               </div>
@@ -108,7 +111,7 @@ export default function LibraryDetail() {
           })}
           {lib.collections.length === 0 && (
             <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground">
-              此库为空，去主页导入课程包或新建文档集。
+              {t("core.library.emptyLibrary")}
             </div>
           )}
         </div>

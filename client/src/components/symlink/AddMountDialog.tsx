@@ -2,6 +2,7 @@ import { useState } from "react"
 import { FolderOpen, HardDrive, Link2, Plus } from "lucide-react"
 import { toast } from "@/lib/toast"
 
+import { useT } from "@/i18n"
 import { symlinkAddMount } from "@/plugins/symlink/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,6 +23,7 @@ import { FsPicker } from "@/components/symlink/FsPicker"
  * 链接后可在文件浏览器中像文档一样浏览、阅读与编辑。
  */
 export function AddMountDialog({ onAdded }: { onAdded: () => void }) {
+  const t = useT()
   const [name, setName] = useState("")
   const [root, setRoot] = useState("")
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -31,14 +33,14 @@ export function AddMountDialog({ onAdded }: { onAdded: () => void }) {
     if (!name.trim() || !root.trim()) return
     try {
       await symlinkAddMount(name.trim(), root.trim())
-      toast.success("挂载成功")
+      toast.success(t("symlink.mountSuccess"))
       setName("")
       setRoot("")
       setPickerOpen(false)
       setOpen(false)
       onAdded()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "挂载失败")
+      toast.error(e instanceof Error ? e.message : t("symlink.mountFailed"))
     }
   }
 
@@ -47,32 +49,35 @@ export function AddMountDialog({ onAdded }: { onAdded: () => void }) {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <Plus className="size-4" />
-          添加
+          {t("common.add")}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="size-4 text-primary" />
-            链接本地文档（软链接）
+            {t("symlink.linkLocalDoc")}
           </DialogTitle>
           <p className="text-xs text-muted-foreground">
-            链接的是本机磁盘上的<strong>文件夹</strong>或<strong>单个文件</strong>，不会复制或移动原文件；
-            链接后可在文件浏览器中像文档一样浏览、阅读与编辑。
+            {t("symlink.addMountDesc1")}
+            <strong>{t("symlink.folder")}</strong>
+            {t("symlink.addMountDesc2")}
+            <strong>{t("symlink.singleFile")}</strong>
+            {t("symlink.addMountDesc3")}
           </p>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label>显示名称</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：我的笔记" />
+            <Label>{t("symlink.displayName")}</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("symlink.namePlaceholder")} />
           </div>
           <div className="space-y-1.5">
-            <Label>本地路径（文件夹或文件）</Label>
+            <Label>{t("symlink.localPathLabel")}</Label>
             <div className="flex gap-2">
               <Input
                 value={root}
                 onChange={(e) => setRoot(e.target.value)}
-                placeholder="点击「浏览」选择，或手动输入（Windows/Linux 均支持）"
+                placeholder={t("symlink.pathPlaceholder")}
                 className="flex-1"
               />
               <Button
@@ -82,7 +87,7 @@ export function AddMountDialog({ onAdded }: { onAdded: () => void }) {
                 className="shrink-0"
               >
                 <FolderOpen className="size-4" />
-                {pickerOpen ? "收起" : "浏览"}
+                {pickerOpen ? t("symlink.collapse") : t("symlink.browse")}
               </Button>
             </div>
             {pickerOpen && (
@@ -96,12 +101,12 @@ export function AddMountDialog({ onAdded }: { onAdded: () => void }) {
           </div>
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <HardDrive className="size-3.5" />
-            挂载后可在文件浏览器中浏览、阅读与编辑目录内的文本文件（权限限制在挂载根内）。
+            {t("symlink.afterMountHint")}
           </p>
         </div>
         <DialogFooter>
           <Button onClick={add} disabled={!name.trim() || !root.trim()}>
-            挂载
+            {t("symlink.mount")}
           </Button>
         </DialogFooter>
       </DialogContent>

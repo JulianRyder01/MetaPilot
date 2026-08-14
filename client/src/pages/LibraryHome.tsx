@@ -196,7 +196,7 @@ export default function LibraryHome() {
             <div className="mb-2 flex items-center justify-between">
               <h2 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
                 <Link2 className="size-3.5" />
-                软链接
+                {t("core.library.symlink")}
                 <Badge variant="outline" className="text-[10px]">{t("core.library.pluginBadge")}</Badge>
               </h2>
               <AddMountDialog onAdded={loadMounts} />
@@ -249,7 +249,7 @@ export default function LibraryHome() {
               <h1 className="text-xl font-semibold">{activeMount.name}</h1>
               <Badge variant="outline" className="gap-1">
                 <Link2 className="size-3" />
-                软链接
+                {t("core.library.symlink")}
               </Badge>
               <p className="truncate text-xs text-muted-foreground">{activeMount.root}</p>
             </div>

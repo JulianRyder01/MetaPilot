@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { ArrowUp, FileText, Folder, Loader2 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
+import { useT } from "@/i18n"
 import { type SymlinkFsItem } from "@/lib/api"
 import { symlinkFsList, symlinkFsRoots } from "@/plugins/symlink/api"
 import { Button } from "@/components/ui/button"
@@ -19,6 +20,7 @@ function fmtSize(n: number) {
  * 单击选中、双击打开文件夹，最终把文件夹或文件的绝对路径交还给调用方。
  */
 export function FsPicker({ onPick }: { onPick: (path: string) => void }) {
+  const t = useT()
   const [current, setCurrent] = useState<string | null>(null) // null = 我的电脑（盘符/根目录）
   const [parentPath, setParentPath] = useState<string | null>(null)
   const [items, setItems] = useState<SymlinkFsItem[]>([])
@@ -41,11 +43,11 @@ export function FsPicker({ onPick }: { onPick: (path: string) => void }) {
         setCurrent(lst.path)
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "读取失败")
+      toast.error(e instanceof Error ? e.message : t("symlink.readFailed"))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     load(null)
@@ -63,10 +65,10 @@ export function FsPicker({ onPick }: { onPick: (path: string) => void }) {
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" onClick={goUp} disabled={current === null}>
           <ArrowUp className="size-3.5" />
-          上一级
+          {t("symlink.goUp")}
         </Button>
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground" title={current ?? ""}>
-          {current ?? "我的电脑"}
+          {current ?? t("symlink.myComputer")}
         </span>
       </div>
 
@@ -75,10 +77,10 @@ export function FsPicker({ onPick }: { onPick: (path: string) => void }) {
         {loading ? (
           <div className="flex h-full items-center justify-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin" />
-            读取中…
+            {t("symlink.reading")}
           </div>
         ) : items.length === 0 ? (
-          <p className="py-8 text-center text-xs text-muted-foreground">空文件夹</p>
+          <p className="py-8 text-center text-xs text-muted-foreground">{t("symlink.emptyFolder")}</p>
         ) : (
           <div className="space-y-0.5">
             {items.map((item) => (
@@ -111,17 +113,17 @@ export function FsPicker({ onPick }: { onPick: (path: string) => void }) {
       <div className="flex items-center justify-between gap-2">
         <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={selected?.path}>
           {selected
-            ? `${selected.type === "dir" ? "文件夹" : "文件"}：${selected.path}`
-            : "单击选择文件夹或文件，双击文件夹进入"}
+            ? t(selected.type === "dir" ? "symlink.selectedFolder" : "symlink.selectedFile", { path: selected.path })
+            : t("symlink.selectHint")}
         </span>
         <div className="flex shrink-0 items-center gap-1">
           {selected?.type === "dir" && (
             <Button size="sm" variant="outline" onClick={() => load(selected.path)}>
-              打开
+              {t("common.open")}
             </Button>
           )}
           <Button size="sm" disabled={!selected} onClick={() => selected && onPick(selected.path)}>
-            {selected?.type === "dir" ? "选择此文件夹" : "选择此文件"}
+            {selected?.type === "dir" ? t("symlink.selectThisFolder") : t("symlink.selectThisFile")}
           </Button>
         </div>
       </div>

@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { useT } from "@/i18n"
 
 interface Props {
   /** 本地已安装的插件 id 集合（用于禁用「安装」按钮） */
@@ -26,6 +27,7 @@ function fmtSize(n: number) {
 }
 
 export function StorePanel({ installedIds, onChanged }: Props) {
+  const t = useT()
   const [items, setItems] = useState<StorePluginItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -41,12 +43,12 @@ export function StorePanel({ installedIds, onChanged }: Props) {
     try {
       setItems(await api.storeCatalog())
     } catch (e) {
-      setError(e instanceof Error ? e.message : "无法访问插件商店")
+      setError(e instanceof Error ? e.message : t("sys.store.storeUnavailable"))
       setItems([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     load()
@@ -61,10 +63,10 @@ export function StorePanel({ installedIds, onChanged }: Props) {
     setInstalling(item.id)
     try {
       await api.storeInstall(item.id)
-      toast.success(`已安装插件「${item.name}」`)
+      toast.success(t("sys.store.installedToast", { name: item.name }))
       onChanged()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "安装失败")
+      toast.error(e instanceof Error ? e.message : t("sys.store.installFailed"))
     } finally {
       setInstalling(null)
     }
@@ -76,17 +78,17 @@ export function StorePanel({ installedIds, onChanged }: Props) {
     try {
       if (mode === "local") {
         await api.uploadPlugin(uploadFile)
-        toast.success("已本地安装插件")
+        toast.success(t("sys.store.localInstalledToast"))
         onChanged()
       } else {
         await api.storePublish(uploadFile)
-        toast.success("已发布到插件商店")
+        toast.success(t("sys.store.publishedToast"))
         load()
       }
       setUploadFile(null)
       if (fileRef.current) fileRef.current.value = ""
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "上传失败")
+      toast.error(e instanceof Error ? e.message : t("sys.store.uploadFailed"))
     } finally {
       setBusy(false)
     }
@@ -96,11 +98,11 @@ export function StorePanel({ installedIds, onChanged }: Props) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          从插件商店浏览、筛选并安装插件（商店地址由后端 <code className="rounded bg-muted px-1">PLUGIN_STORE_URL</code> 配置）。
+          {t("sys.store.headerPrefix")}<code className="rounded bg-muted px-1">PLUGIN_STORE_URL</code>{t("sys.store.headerSuffix")}
         </p>
         <Button variant="outline" size="sm" onClick={load} disabled={loading}>
           <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-          检查更新
+          {t("sys.store.checkUpdates")}
         </Button>
       </div>
 
@@ -117,14 +119,14 @@ export function StorePanel({ installedIds, onChanged }: Props) {
         <>
           {/* tag 筛选 */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-xs text-muted-foreground">按标签筛选：</span>
+            <span className="mr-1 text-xs text-muted-foreground">{t("sys.plugins.filterByTag")}</span>
             <Button
               variant={tagFilter === null ? "secondary" : "outline"}
               size="sm"
               className="h-7 px-2.5 text-xs"
               onClick={() => setTagFilter(null)}
             >
-              全部
+              {t("common.all")}
             </Button>
             {PLUGIN_TAGS.map((t) => (
               <Button
@@ -140,7 +142,7 @@ export function StorePanel({ installedIds, onChanged }: Props) {
           </div>
 
           {filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">商店暂无匹配的插件。</p>
+            <p className="text-sm text-muted-foreground">{t("sys.store.emptyFiltered")}</p>
           ) : (
             <div className="space-y-3">
               {filtered.map((item) => {
@@ -159,7 +161,7 @@ export function StorePanel({ installedIds, onChanged }: Props) {
                             <span className="text-xs font-normal text-muted-foreground">{item.author}</span>
                           </CardTitle>
                           <p className="text-xs text-muted-foreground">
-                            id: {item.id} · {fmtSize(item.size)}
+                            {t("sys.plugins.idLabel")} {item.id} · {fmtSize(item.size)}
                           </p>
                         </div>
                       </div>
@@ -169,7 +171,7 @@ export function StorePanel({ installedIds, onChanged }: Props) {
                         ) : (
                           <CloudDownload className="size-4" />
                         )}
-                        {installed ? "已安装" : "安装"}
+                        {installed ? t("sys.store.installed") : t("sys.store.install")}
                       </Button>
                     </CardHeader>
                     <CardContent className="space-y-2">
@@ -208,9 +210,9 @@ export function StorePanel({ installedIds, onChanged }: Props) {
             <FileUp className="size-5" />
           </span>
           <div>
-            <CardTitle className="text-base">上传插件</CardTitle>
+            <CardTitle className="text-base">{t("sys.store.uploadTitle")}</CardTitle>
             <p className="text-xs text-muted-foreground">
-              选择按规范打包的插件 zip（含根目录 plugin.json，见插件开发规范 §3）：可本地安装，或发布到插件商店。
+              {t("sys.store.uploadDescPrefix")}<code className="rounded bg-muted px-1">plugin.json</code>{t("sys.store.uploadDescSuffix")}
             </p>
           </div>
         </CardHeader>
@@ -224,11 +226,11 @@ export function StorePanel({ installedIds, onChanged }: Props) {
           />
           <Button variant="outline" size="sm" disabled={!uploadFile || busy} onClick={() => upload("local")}>
             <CloudDownload className="size-4" />
-            本地安装
+            {t("sys.store.uploadLocal")}
           </Button>
           <Button size="sm" disabled={!uploadFile || busy} onClick={() => upload("publish")}>
             <Send className="size-4" />
-            发布到商店
+            {t("sys.store.uploadPublish")}
           </Button>
         </CardContent>
       </Card>

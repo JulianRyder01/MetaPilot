@@ -1,3 +1,4 @@
+import { useT } from "@/i18n"
 import type { Block } from "@/lib/api"
 import { usePluginEnabled } from "@/stores/plugins"
 import { MarkdownBlock } from "@/components/learn/blocks/MarkdownBlock"
@@ -14,12 +15,13 @@ import { PluginBlockPlaceholder } from "@/components/learn/blocks/PluginBlockPla
  * Markdown 仍正常渲染（文档库阅读），其余组件以原始数据占位展示。
  */
 export function BlockRenderer({ block, collectionId }: { block: Block; collectionId: string }) {
+  const t = useT()
   const courseEnabled = usePluginEnabled("course")
   const isMarkdown = block.type === "markdown"
   const renderable = isMarkdown || courseEnabled
 
   if (!renderable) {
-    return <PluginBlockPlaceholder block={block} pluginId="course" pluginName="课程" />
+    return <PluginBlockPlaceholder block={block} pluginId="course" pluginName={t("core.plugin.course")} />
   }
 
   switch (block.type) {
@@ -37,7 +39,7 @@ export function BlockRenderer({ block, collectionId }: { block: Block; collectio
     default:
       return (
         <p className="text-sm text-muted-foreground">
-          暂不支持的组件类型：{String(block.type)}
+          {t("core.learn.unsupportedBlock", { type: String(block.type) })}
         </p>
       )
   }

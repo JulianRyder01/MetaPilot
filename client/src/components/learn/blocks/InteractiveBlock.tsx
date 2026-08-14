@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Expand, Maximize2, Minimize2 } from "lucide-react"
 
+import { useT } from "@/i18n"
 import { cn } from "@/lib/utils"
 
 interface Props {
@@ -13,12 +14,13 @@ interface Props {
 }
 
 export function InteractiveBlock({ collectionId, block }: Props) {
+  const t = useT()
   const [expanded, setExpanded] = useState(false)
   const file = block.file ?? ""
   const baseHeight = block.height ?? 480
 
   if (!file) {
-    return <p className="text-sm text-muted-foreground">交互块缺少 file 配置</p>
+    return <p className="text-sm text-muted-foreground">{t("core.learn.interactiveNoFile")}</p>
   }
 
   return (
@@ -31,7 +33,7 @@ export function InteractiveBlock({ collectionId, block }: Props) {
       <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-2">
         <span className="flex items-center gap-2 text-sm font-medium">
           <Expand className="size-3.5 text-primary" />
-          {block.title ?? "动态交互"}
+          {block.title ?? t("core.learn.interactiveFallback")}
         </span>
         <button
           onClick={() => setExpanded((v) => !v)}
@@ -42,7 +44,7 @@ export function InteractiveBlock({ collectionId, block }: Props) {
       </div>
       <iframe
         src={`/api/plugins/course/assets/${collectionId}/${file}`}
-        title={block.title ?? "交互演示"}
+        title={block.title ?? t("core.learn.interactiveTitle")}
         className={cn("w-full", expanded ? "flex-1" : "")}
         style={{ height: expanded ? undefined : baseHeight }}
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups"

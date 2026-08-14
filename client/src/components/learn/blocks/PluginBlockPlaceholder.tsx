@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { ChevronDown, Puzzle } from "lucide-react"
 
+import { useT } from "@/i18n"
 import type { Block } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +17,7 @@ interface Props {
  * MetaPilot 是文档库：数据本身始终可见，只是缺少插件时不提供渲染体验。
  */
 export function PluginBlockPlaceholder({ block, pluginId, pluginName }: Props) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const { id: _id, type, ...data } = block
 
@@ -24,12 +26,12 @@ export function PluginBlockPlaceholder({ block, pluginId, pluginName }: Props) {
       <div className="flex flex-wrap items-center gap-2">
         <Puzzle className="size-4 text-amber-600" />
         <span className="text-sm">
-          此组件（<code className="rounded bg-muted px-1 text-xs">{type}</code>）依赖
-          「<span className="font-medium text-amber-700 dark:text-amber-400">{pluginName}</span>
-          」插件（{pluginId}），未启用时以原始数据展示
+          {t("core.learn.blockDepPrefix")}<code className="rounded bg-muted px-1 text-xs">{type}</code>{t("core.learn.blockDepMid")}
+          <span className="font-medium text-amber-700 dark:text-amber-400">{pluginName}</span>
+          {t("core.learn.blockDepPlugin")}{pluginId}{t("core.learn.blockDepSuffix")}
         </span>
         <Badge variant="outline" className="ml-auto text-muted-foreground">
-          {type === "interactive" ? "交互块未渲染" : "题目未渲染"}
+          {type === "interactive" ? t("core.learn.interactiveNotRendered") : t("core.learn.quizNotRendered")}
         </Badge>
       </div>
       <button
@@ -37,7 +39,7 @@ export function PluginBlockPlaceholder({ block, pluginId, pluginName }: Props) {
         className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
       >
         <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
-        查看原始数据
+        {t("core.learn.viewRaw")}
       </button>
       {open && (
         <pre className="mt-2 overflow-x-auto rounded-md bg-background p-3 text-xs leading-relaxed">

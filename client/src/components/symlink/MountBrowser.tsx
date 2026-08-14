@@ -24,6 +24,7 @@ import {
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
+import { useT } from "@/i18n"
 import type { SymlinkItem, SymlinkMount, SymlinkTree } from "@/lib/api"
 import {
   symlinkDelete,
@@ -99,6 +100,7 @@ function baseName(p: string) {
  * 右侧工具栏（搜索/网格列表切换）+ 文件列表 或 文件编辑器。
  */
 export function MountBrowser({ mount }: { mount: SymlinkMount }) {
+  const t = useT()
   const { confirm, prompt } = useDialogs()
   const [path, setPath] = useState("")
   const [tree, setTree] = useState<SymlinkTree | null>(null)
@@ -168,14 +170,14 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
         setFile({ path: f.path, name: item.name, kind, content: f.content })
         setEditing(false)
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "读取失败")
+        toast.error(e instanceof Error ? e.message : t("symlink.readFailed"))
       }
     } else if (kind !== "other") {
       // 媒体文件：走二进制预览端点渲染
       setFile({ path: p, name: item.name, kind })
       setEditing(false)
     } else {
-      toast.error("该文件类型不支持内联预览，可右键选择「用默认方式打开」")
+      toast.error(t("symlink.noInlinePreviewHint"))
     }
   }
 
@@ -183,9 +185,9 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
   async function openLocal(p: string, mode: "open" | "reveal") {
     try {
       await symlinkOpen(mount.id, p, mode)
-      toast.success(mode === "open" ? "已调用系统默认方式打开" : "已在文件管理器中定位")
+      toast.success(mode === "open" ? t("symlink.openedWithDefault") : t("symlink.revealInFileManager"))
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "打开失败")
+      toast.error(e instanceof Error ? e.message : t("symlink.openFailed"))
     }
   }
 
@@ -200,25 +202,25 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
       await symlinkWriteFile(mount.id, file.path, editContent)
       setFile({ ...file, content: editContent })
       setEditing(false)
-      toast.success("已保存")
+      toast.success(t("symlink.saved"))
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "保存失败")
+      toast.error(e instanceof Error ? e.message : t("symlink.saveFailed"))
     }
   }
 
   async function createFolder() {
     const name = await prompt({
-      title: "新建文件夹",
-      description: "输入新文件夹的名称。",
-      placeholder: "例如：章节笔记",
-      confirmText: "创建",
+      title: t("symlink.newFolder"),
+      description: t("symlink.newFolderDesc"),
+      placeholder: t("symlink.newFolderPlaceholder"),
+      confirmText: t("common.create"),
     })
     if (!name?.trim()) return
     try {
       await symlinkMkdir(mount.id, joinPath(path, name.trim()))
       await loadTree(path)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "创建失败")
+      toast.error(e instanceof Error ? e.message : t("symlink.createFailed"))
     }
   }
 
@@ -226,9 +228,10 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
     setCtxMenu(null)
     const target = joinPath(path, item.name)
     const ok = await confirm({
-      title: "删除文件",
-      description: `确定删除「${target}」？${item.type === "dir" ? "文件夹将递归删除，不可恢复。" : ""}`,
-      confirmText: "删除",
+      title: t("symlink.deleteFile"),
+      description:
+        t("symlink.deleteConfirmDesc", { target }) + (item.type === "dir" ? t("symlink.deleteDirWarning") : ""),
+      confirmText: t("common.delete"),
       destructive: true,
     })
     if (!ok) return
@@ -236,7 +239,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
       await symlinkDelete(mount.id, target)
       await loadTree(path)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "删除失败")
+      toast.error(e instanceof Error ? e.message : t("symlink.deleteFailed"))
     }
   }
 
@@ -249,7 +252,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
   // ---- 左侧目录面板 ----
   const sidePanel = collapsed ? (
     <div className="flex w-10 shrink-0 flex-col items-center gap-2 border-r py-3">
-      <button onClick={() => setCollapsed(false)} className="rounded p-1.5 text-muted-foreground hover:bg-accent" title="展开目录">
+      <button onClick={() => setCollapsed(false)} className="rounded p-1.5 text-muted-foreground hover:bg-accent" title={t("symlink.expandDir")}>
         <PanelLeft className="size-4" />
       </button>
       <button onClick={() => loadTree("")} className="rounded p-1.5 text-primary hover:bg-accent" title={mount.name}>
@@ -277,14 +280,14 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
           <Link2 className="size-3.5 shrink-0" />
           <span className="truncate">{mount.name}</span>
         </button>
-        <button onClick={() => setCollapsed(true)} className="rounded p-1 text-muted-foreground hover:bg-accent" title="收起目录">
+        <button onClick={() => setCollapsed(true)} className="rounded p-1 text-muted-foreground hover:bg-accent" title={t("symlink.collapseDir")}>
           <PanelLeftClose className="size-3.5" />
         </button>
       </div>
       <ScrollArea className="flex-1">
         <div className="p-2">
           {/* 路径层级（面包屑，可向上跳转） */}
-          <p className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">目录</p>
+          <p className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">{t("symlink.directory")}</p>
           <div className="mb-2 space-y-0.5">
             {crumbs.map((c, i) => {
               const target = crumbs.slice(0, i + 1).join("/")
@@ -300,11 +303,11 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
               )
             })}
             {crumbs.length === 0 && (
-              <p className="px-1.5 py-0.5 text-xs text-muted-foreground">（根目录）</p>
+              <p className="px-1.5 py-0.5 text-xs text-muted-foreground">{t("symlink.rootDir")}</p>
             )}
           </div>
           {/* 当前目录的子文件夹 */}
-          <p className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">文件夹</p>
+          <p className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">{t("symlink.folder")}</p>
           <div className="space-y-0.5">
             {dirs.map((d) => (
               <button
@@ -317,7 +320,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
               </button>
             ))}
             {dirs.length === 0 && (
-              <p className="px-1.5 py-0.5 text-xs text-muted-foreground">无子文件夹</p>
+              <p className="px-1.5 py-0.5 text-xs text-muted-foreground">{t("symlink.noSubfolders")}</p>
             )}
           </div>
         </div>
@@ -351,7 +354,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                 </span>
               )
             })}
-            {mount.type === "file" && <Badge variant="outline" className="ml-1">单文件</Badge>}
+            {mount.type === "file" && <Badge variant="outline" className="ml-1">{t("symlink.singleFile")}</Badge>}
           </div>
           <div className="ml-auto flex items-center gap-1.5">
             {mount.type !== "file" && (
@@ -361,7 +364,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                   <Input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="搜索..."
+                    placeholder={t("symlink.searchPlaceholder")}
                     className="h-8 w-40 pl-7 text-xs"
                   />
                 </div>
@@ -372,7 +375,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                       "rounded-l-md p-1.5",
                       view === "grid" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
                     )}
-                    title="网格视图"
+                    title={t("symlink.gridView")}
                   >
                     <Grid3X3 className="size-3.5" />
                   </button>
@@ -382,20 +385,20 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                       "rounded-r-md p-1.5",
                       view === "list" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
                     )}
-                    title="列表视图"
+                    title={t("symlink.listView")}
                   >
                     <List className="size-3.5" />
                   </button>
                 </div>
               </>
             )}
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => loadTree(path)} title="刷新">
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => loadTree(path)} title={t("common.refresh")}>
               <RefreshCw className="size-3.5" />
             </Button>
             {mount.type !== "file" && (
               <Button variant="outline" size="sm" className="h-8" onClick={createFolder}>
                 <Plus className="size-3.5" />
-                新建文件夹
+                {t("symlink.newFolder")}
               </Button>
             )}
           </div>
@@ -410,11 +413,11 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                 <span className="truncate">{file.path || baseName(mount.root)}</span>
               </span>
               <div className="flex shrink-0 items-center gap-1">
-                <Badge variant="outline">预览</Badge>
+                <Badge variant="outline">{t("common.preview")}</Badge>
                 {mount.type !== "file" && (
                   <Button size="sm" variant="outline" className="h-7" onClick={() => setFile(null)}>
                     <X className="size-3.5" />
-                    返回列表
+                    {t("symlink.backToList")}
                   </Button>
                 )}
                 <Button
@@ -422,20 +425,20 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                   variant="outline"
                   className="h-7"
                   onClick={() => openLocal(file.path, "reveal")}
-                  title="在文件管理器中显示"
+                  title={t("symlink.revealInFileManager")}
                 >
                   <FolderOpen className="size-3.5" />
-                  定位
+                  {t("symlink.reveal")}
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-7"
                   onClick={() => openLocal(file.path, "open")}
-                  title="用系统默认方式打开"
+                  title={t("symlink.openWithDefault")}
                 >
                   <ExternalLink className="size-3.5" />
-                  打开
+                  {t("common.open")}
                 </Button>
                 {file.kind === "text" && (
                   <Button
@@ -447,7 +450,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                     }}
                   >
                     <Pencil className="size-3.5" />
-                    编辑
+                    {t("common.edit")}
                   </Button>
                 )}
               </div>
@@ -467,15 +470,15 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
           ) : editing ? (
             <div className="flex h-full flex-col">
               <div className="flex items-center justify-between border-b bg-muted/40 px-3 py-1.5">
-                <span className="text-sm font-medium">编辑：{file?.path || baseName(mount.root)}</span>
+                <span className="text-sm font-medium">{t("symlink.editing", { path: file?.path || baseName(mount.root) })}</span>
                 <div className="flex items-center gap-1">
                   <Button size="sm" variant="outline" className="h-7" onClick={() => setEditing(false)}>
                     <X className="size-3.5" />
-                    取消
+                    {t("common.cancel")}
                   </Button>
                   <Button size="sm" className="h-7" onClick={saveFile}>
                     <Save className="size-3.5" />
-                    保存
+                    {t("common.save")}
                   </Button>
                 </div>
               </div>
@@ -490,7 +493,11 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
             <div className="p-3">
               {filteredItems.length === 0 ? (
                 <p className="py-10 text-center text-sm text-muted-foreground">
-                  {search ? "没有匹配的项目。" : mount.type === "file" ? "（单文件挂载）" : "空目录"}
+                  {search
+                    ? t("symlink.noMatch")
+                    : mount.type === "file"
+                      ? t("symlink.singleFileMount")
+                      : t("symlink.emptyDir")}
                 </p>
               ) : view === "grid" ? (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -518,7 +525,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                         <button
                           onClick={() => removeItem(item)}
                           className="absolute right-1.5 top-1.5 rounded p-1 text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
-                          title="删除"
+                          title={t("common.delete")}
                         >
                           <Trash2 className="size-3.5" />
                         </button>
@@ -552,7 +559,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                         <button
                           onClick={() => removeItem(item)}
                           className="text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
-                          title="删除"
+                          title={t("common.delete")}
                         >
                           <Trash2 className="size-3.5" />
                         </button>
@@ -583,14 +590,14 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
             onClick={() => openContextItem(ctxMenu.item, "open")}
           >
             <ExternalLink className="size-3.5" />
-            用默认方式打开
+            {t("symlink.openWithDefault")}
           </button>
           <button
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
             onClick={() => openContextItem(ctxMenu.item, "reveal")}
           >
             <FolderOpen className="size-3.5" />
-            在文件管理器中显示
+            {t("symlink.revealInFileManager")}
           </button>
           {mount.type !== "file" && ctxMenu.item.type === "file" && (
             <>
@@ -600,7 +607,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                 onClick={() => removeItem(ctxMenu.item)}
               >
                 <Trash2 className="size-3.5" />
-                删除
+                {t("common.delete")}
               </button>
             </>
           )}
@@ -619,6 +626,7 @@ function MediaViewer({
   mount: SymlinkMount
   file: { path: string; name: string; kind: FileKind }
 }) {
+  const t = useT()
   const url = symlinkMediaUrl(mount.id, file.path)
   switch (file.kind) {
     case "image":
@@ -650,6 +658,6 @@ function MediaViewer({
         </div>
       )
     default:
-      return <p className="p-4 text-sm text-muted-foreground">该文件类型不支持内联预览</p>
+      return <p className="p-4 text-sm text-muted-foreground">{t("symlink.noInlinePreview")}</p>
   }
 }

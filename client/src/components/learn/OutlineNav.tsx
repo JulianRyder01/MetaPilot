@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { BookOpen, CheckCircle2, ChevronDown, Circle, Folder } from "lucide-react"
 
+import { useT } from "@/i18n"
 import type { Collection, Document } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { buildCollectionTree, type FolderNode } from "@/lib/tree"
@@ -27,6 +28,7 @@ function DocBlock({
 }) {
   const [open, setOpen] = useState(() => doc.sections.some((s) => s.id === currentSectionId))
   const docDone = doc.sections.length > 0 && doc.sections.every((s) => completedSet.has(s.id))
+  const t = useT()
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -38,7 +40,7 @@ function DocBlock({
           <BookOpen className="size-3.5 shrink-0 text-muted-foreground" />
         )}
         <span className="min-w-0 flex-1 truncate">{doc.name}</span>
-        {doc.docType === "quiz" && <Badge variant="outline">测验</Badge>}
+        {doc.docType === "quiz" && <Badge variant="outline">{t("core.library.quiz")}</Badge>}
       </CollapsibleTrigger>
       <CollapsibleContent className="ml-4 space-y-0.5 border-l pl-2">
         {doc.sections.map((sec) => {
@@ -61,12 +63,12 @@ function DocBlock({
                 <Circle className="size-3.5 shrink-0 text-muted-foreground/40" />
               )}
               <span className="min-w-0 flex-1 truncate">{sec.name}</span>
-              {sec.refDocId && <Badge variant="outline" className="text-[10px]">引用</Badge>}
+              {sec.refDocId && <Badge variant="outline" className="text-[10px]">{t("core.learn.ref")}</Badge>}
             </button>
           )
         })}
         {doc.sections.length === 0 && (
-          <p className="px-2 py-1 text-xs text-muted-foreground">暂无小节</p>
+          <p className="px-2 py-1 text-xs text-muted-foreground">{t("core.edit.noSections")}</p>
         )}
       </CollapsibleContent>
     </Collapsible>
@@ -84,6 +86,7 @@ function FolderBlock({
   completedSet: Set<string>
   onNavigate: (sectionId: string) => void
 }) {
+  const t = useT()
   return (
     <Collapsible>
       <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-accent/60">
@@ -111,7 +114,7 @@ function FolderBlock({
           />
         ))}
         {node.children.length === 0 && node.documents.length === 0 && (
-          <p className="px-2 py-1 text-xs text-muted-foreground">空文件夹</p>
+          <p className="px-2 py-1 text-xs text-muted-foreground">{t("core.edit.emptyFolder")}</p>
         )}
       </CollapsibleContent>
     </Collapsible>

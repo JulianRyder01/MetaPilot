@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 import { CheckCircle2, XCircle } from "lucide-react"
 
+import { useT } from "@/i18n"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +20,7 @@ interface Props {
 const LETTERS = ["A", "B", "C", "D", "E", "F"]
 
 export function ChoiceBlock({ block }: Props) {
+  const t = useT()
   const multiple = block.type === "multiple_choice" || Array.isArray(block.answers)
   const [selected, setSelected] = useState<number[]>([])
   const [submitted, setSubmitted] = useState(false)
@@ -45,10 +47,10 @@ export function ChoiceBlock({ block }: Props) {
     <div className="rounded-lg border bg-card p-5">
       <div className="mb-3 flex items-start justify-between gap-2">
         <p className="font-medium">
-          {multiple ? "多选题" : "单选题"}
+          {multiple ? t("core.learn.choiceMultiple") : t("core.learn.choiceSingle")}
           {block.question && <span className="ml-2">{block.question}</span>}
         </p>
-        <Badge variant="secondary">{multiple ? "可多选" : "单选"}</Badge>
+        <Badge variant="secondary">{multiple ? t("core.learn.multiSelect") : t("core.learn.singleSelect")}</Badge>
       </div>
       <div className="space-y-2">
         {(block.options ?? []).map((opt, i) => {
@@ -92,16 +94,16 @@ export function ChoiceBlock({ block }: Props) {
       </div>
       <div className="mt-4 flex items-center gap-3">
         <Button size="sm" onClick={() => setSubmitted(true)} disabled={submitted || selected.length === 0}>
-          提交
+          {t("core.learn.submit")}
         </Button>
         {submitted && (
           <Badge variant={isCorrect ? "success" : "destructive"}>
-            {isCorrect ? "回答正确" : "回答错误"}
+            {isCorrect ? t("core.learn.correct") : t("core.learn.incorrect")}
           </Badge>
         )}
       </div>
       {submitted && block.explanation && (
-        <p className="mt-3 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">解析：{block.explanation}</p>
+        <p className="mt-3 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">{t("core.learn.explanation", { text: block.explanation })}</p>
       )}
     </div>
   )
