@@ -696,6 +696,9 @@ export default function CanvasPage() {
             height: BOARD_SIZE,
             transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`,
             transformOrigin: "0 0",
+            // Obsidian 风格点状网格（随缩放变换自动缩放）
+            backgroundImage: "radial-gradient(circle, rgba(148,163,184,0.35) 1px, transparent 1px)",
+            backgroundSize: "22px 22px",
           }}
         >
           {/* 连线层 */}
@@ -714,11 +717,10 @@ export default function CanvasPage() {
               const toEnd = e.toEnd === "arrow" || e.toEnd == null
               return (
                 <g key={e.id}>
-                  <line
-                    x1={p1.x}
-                    y1={p1.y}
-                    x2={p2.x}
-                    y2={p2.y}
+                  {/* Obsidian 风格：三次贝塞尔曲线连接节点，控制点在水平方向 */}
+                  <path
+                    d={`M ${p1.x} ${p1.y} C ${p1.x + (p2.x - p1.x) / 2} ${p1.y}, ${p2.x - (p2.x - p1.x) / 2} ${p2.y}, ${p2.x} ${p2.y}`}
+                    fill="none"
                     stroke={color}
                     strokeWidth={selected ? 3 : 1.5}
                     style={{ pointerEvents: "stroke", cursor: "pointer" }}
@@ -736,7 +738,15 @@ export default function CanvasPage() {
               const a = nodeById(linking.fromId)
               if (!a) return null
               const p1 = centerOf(a, linking.fromSide)
-              return <line x1={p1.x} y1={p1.y} x2={linkPos.x} y2={linkPos.y} stroke="#6366f1" strokeWidth={1.5} strokeDasharray="4 3" />
+              return (
+                <path
+                  d={`M ${p1.x} ${p1.y} C ${p1.x + (linkPos.x - p1.x) / 2} ${p1.y}, ${linkPos.x - (linkPos.x - p1.x) / 2} ${linkPos.y}, ${linkPos.x} ${linkPos.y}`}
+                  fill="none"
+                  stroke="#6366f1"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                />
+              )
             })()}
           </svg>
 
@@ -750,7 +760,7 @@ export default function CanvasPage() {
             return (
               <div
                 key={`${e.id}-label`}
-                className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground shadow-sm"
                 style={{ left: (p1.x + p2.x) / 2, top: (p1.y + p2.y) / 2 }}
               >
                 {e.label}
@@ -768,7 +778,11 @@ export default function CanvasPage() {
                 onMouseDown={(e) => onNodeMouseDown(e, node)}
                 onMouseUp={() => endLinkOn(node.id)}
                 className={cn(
-                  "absolute cursor-grab rounded-md border bg-card p-2 shadow-sm active:cursor-grabbing",
+                  "group absolute cursor-grab p-2 active:cursor-grabbing",
+                  // Obsidian：文本节点默认无边框（hover 显示淡边框），文件/链接为带边框卡片，分组为半透明圆角块
+                  node.type === "text" && "rounded-md border border-transparent bg-card shadow-sm transition-colors hover:border-border",
+                  (node.type === "file" || node.type === "link") && "rounded-md border bg-card shadow-sm",
+                  node.type === "group" && "rounded-lg",
                   isSelected && "ring-2 ring-primary",
                 )}
                 style={{
@@ -777,14 +791,19 @@ export default function CanvasPage() {
                   width: node.width,
                   height: node.height,
                   borderColor: node.color || undefined,
-                  background: node.type === "group" ? "rgba(100,116,139,0.15)" : undefined,
+                  background: node.type === "group"
+                    ? `${resolveColor(node.color) ?? "rgba(100,116,139,0.6)"}1f`
+                    : undefined,
                 }}
               >
                 {/* 删除 */}
                 <button
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={() => removeNode(node.id)}
-                  className="absolute -right-2 -top-2 z-10 rounded-full bg-background p-0.5 text-muted-foreground opacity-0 shadow hover:text-destructive group-hover:opacity-100 hover:opacity-100"
+                  className={cn(
+                    "absolute -right-2 -top-2 z-10 rounded-full bg-background p-0.5 text-muted-foreground opacity-0 shadow hover:text-destructive group-hover:opacity-100 hover:opacity-100",
+                    isSelected && "opacity-100",
+                  )}
                   title={t("core.canvas.deleteNode")}
                 >
                   <Trash2 className="size-3" />
@@ -822,8 +841,8 @@ export default function CanvasPage() {
                     <span className="truncate">{node.label || node.url}</span>
                   </a>
                 ) : (
-                  <div className="flex h-full w-full items-center gap-1 text-xs font-medium">
-                    <StickyNote className="size-3.5" />
+                  // Obsidian 分组：半透明圆角块，标签在顶部居中，无内容区
+                  <div className="absolute inset-x-2 top-2 text-center text-xs font-medium text-foreground/70">
                     {node.label || t("core.canvas.group")}
                   </div>
                 )}
@@ -838,7 +857,10 @@ export default function CanvasPage() {
                           e.stopPropagation()
                           startLink(node.id, s.key)
                         }}
-                        className="absolute z-10 size-2.5 rounded-full border border-primary bg-background opacity-0 hover:opacity-100"
+                        className={cn(
+                          "absolute z-10 size-2.5 rounded-full border border-primary bg-background opacity-0 transition-opacity hover:opacity-100",
+                          isSelected && "opacity-100",
+                        )}
                         style={{ left: `calc(${s.dx * 100}% - 5px)`, top: `calc(${s.dy * 100}% - 5px)` }}
                         title={t("core.canvas.dragLink")}
                       />
