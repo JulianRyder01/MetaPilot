@@ -19,7 +19,7 @@ from .services.mpf import register_core_mpf_types
 from .services.stats_core import init_stats_core
 from .stats_widgets import register_core_widgets
 
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.1.0"
 
 
 @asynccontextmanager
