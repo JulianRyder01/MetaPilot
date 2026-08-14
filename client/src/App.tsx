@@ -18,7 +18,7 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
         {/* 插件路由：由前端插件注册表（client/src/plugins/registry.ts）自动收集 */}
         {pluginRoutes.map((r) => (
-          <Route key={r.path} path={r.path} element={r.element} />
+          <Route key={r.path} path={r.path} element={<r.Component />} />
         ))}
       </Route>
     </Routes>
