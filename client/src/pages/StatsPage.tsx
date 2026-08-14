@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
+import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SourceBadge } from "@/components/stats/SourceBadge"
 
 const SIZE_CLASS: Record<WidgetSize, string> = {
@@ -51,7 +52,7 @@ function fmtTime(sec: number) {
   return `${sec} 秒`
 }
 
-const WEEKDAY = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+const WEEKDAY_SHORT = ["一", "二", "三", "四", "五", "六", "日"]
 
 export default function StatsPage() {
   const [widgets, setWidgets] = useState<StatsWidget[]>([])
@@ -332,36 +333,145 @@ function CoreWidget({ id, data }: { id: string; data: StatsCoreSummary | null })
   }
 }
 
-function Heatmap({ data }: { data: { byWeekday: number[]; byHour: number[] } }) {
-  const max = Math.max(...data.byHour, 1)
+/** 热力图颜色分档：从「无访问」到「高频」，深浅逐级加深。 */
+const HEAT_COLORS = [
+  "rgba(79,70,229,0.12)",
+  "rgba(79,70,229,0.3)",
+  "rgba(79,70,229,0.5)",
+  "rgba(79,70,229,0.72)",
+  "rgba(79,70,229,0.92)",
+]
+
+/** 访问量 → 颜色档位（相对当日最大值分档）。 */
+function heatLevel(count: number, max: number): number {
+  if (count <= 0) return 0
+  const r = count / max
+  if (r > 0.75) return 4
+  if (r > 0.5) return 3
+  if (r > 0.25) return 2
+  return 1
+}
+
+/** 以 end 所在周的周一为起点，往前 weeks 个完整周，返回 [周列][行] 的日期网格（GitHub 贡献图布局）。 */
+function buildWeeks(end: Date, weeks: number): { date: Date; row: number }[][] {
+  const mondayOffset = (end.getDay() + 6) % 7
+  const monday = new Date(end)
+  monday.setDate(end.getDate() - mondayOffset)
+  const cols: { date: Date; row: number }[][] = []
+  for (let w = weeks - 1; w >= 0; w--) {
+    const col: { date: Date; row: number }[] = []
+    for (let r = 0; r < 7; r++) {
+      const d = new Date(monday)
+      d.setDate(monday.getDate() - w * 7 + r)
+      col.push({ date: d, row: r })
+    }
+    cols.push(col)
+  }
+  return cols
+}
+
+function Heatmap({
+  data,
+}: {
+  data: { byWeekday: number[]; byHour: number[]; byDate: { date: string; count: number }[] }
+}) {
+  const counts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const d of data.byDate || []) m.set(d.date, d.count)
+    return m
+  }, [data])
+  const weeks = useMemo(() => buildWeeks(new Date(), 13), [])
+  const max = useMemo(() => Math.max(1, ...counts.values()), [counts])
+  const hourMax = Math.max(...data.byHour, 1)
+  const today = new Date()
+
   return (
     <div className="space-y-3">
+      {/* 月度日历热力图：最近 3 个月，深浅表示访问量 */}
+      <div>
+        <p className="mb-1.5 text-xs text-muted-foreground">最近 3 个月访问热力图</p>
+        <div className="flex">
+          {/* 星期标签 */}
+          <div className="flex flex-col gap-[3px] pr-1 pt-3 text-[9px] leading-3 text-muted-foreground">
+            {[0, 2, 4].map((r) => (
+              <div key={r} className="flex flex-col gap-[3px]">
+                <span className="h-3">{WEEKDAY_SHORT[r]}</span>
+                <span className="h-3" />
+              </div>
+            ))}
+            <span className="h-3">{WEEKDAY_SHORT[6]}</span>
+          </div>
+          <div className="flex gap-[3px] overflow-x-auto pb-1">
+            {weeks.map((col, wi) => {
+              const first = col[0].date
+              const prev = wi > 0 ? weeks[wi - 1][0].date : null
+              const showMonth =
+                !prev || first.getMonth() !== prev.getMonth() || first.getFullYear() !== prev.getFullYear()
+              return (
+                <div key={wi} className="flex flex-col gap-[3px]">
+                  <div className="h-3 text-center text-[9px] leading-3 text-muted-foreground">
+                    {showMonth ? `${first.getMonth() + 1}月` : ""}
+                  </div>
+                  {col.map(({ date }) => {
+                    const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+                    const count = counts.get(iso) ?? 0
+                    const future = date.getTime() > today.getTime()
+                    return (
+                      <UITooltip key={iso}>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={cn(
+                              "size-3 rounded-[3px] transition-colors",
+                              future && "opacity-30",
+                              count === 0 && "bg-muted",
+                            )}
+                            style={count > 0 ? { background: HEAT_COLORS[heatLevel(count, max)] } : undefined}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          {date.getMonth() + 1}月{date.getDate()}日 · {count} 次访问
+                        </TooltipContent>
+                      </UITooltip>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+        {/* 图例 */}
+        <div className="mt-1.5 flex items-center gap-1 text-[9px] text-muted-foreground">
+          <span>少</span>
+          {HEAT_COLORS.map((c, i) => (
+            <span key={i} className="size-2.5 rounded-[2px]" style={{ background: c }} />
+          ))}
+          <span>多</span>
+        </div>
+      </div>
+      {/* 按小时分布 */}
       <div>
         <p className="mb-1 text-xs text-muted-foreground">按小时访问分布</p>
         <div className="grid grid-cols-24 gap-0.5">
           {data.byHour.map((v, h) => (
-            <div key={h} title={`${h} 时：${v} 次`} className="group relative">
-              <div
-                className="h-16 w-full rounded-sm"
-                style={{ background: `rgba(79,70,229,${0.08 + (v / max) * 0.92})` }}
-              />
-              {h % 4 === 0 && <p className="mt-0.5 text-center text-[9px] text-muted-foreground">{h}</p>}
-            </div>
+            <UITooltip key={h}>
+              <TooltipTrigger asChild>
+                <div
+                  className="h-10 w-full rounded-sm"
+                  style={{ background: `rgba(79,70,229,${0.08 + (v / hourMax) * 0.92})` }}
+                />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                {h} 时 · {v} 次
+              </TooltipContent>
+            </UITooltip>
           ))}
         </div>
-      </div>
-      <div>
-        <p className="mb-1 text-xs text-muted-foreground">按星期分布</p>
-        <div className="grid grid-cols-7 gap-0.5">
-          {data.byWeekday.map((v, d) => (
-            <div key={d} title={`${WEEKDAY[d]}：${v} 次`}>
-              <div
-                className="h-10 w-full rounded-sm"
-                style={{ background: `rgba(79,70,229,${0.08 + (v / max) * 0.92})` }}
-              />
-              <p className="mt-0.5 text-center text-[9px] text-muted-foreground">{WEEKDAY[d].slice(1)}</p>
-            </div>
-          ))}
+        <div className="mt-0.5 flex justify-between text-[9px] text-muted-foreground">
+          <span>0 时</span>
+          <span>6 时</span>
+          <span>12 时</span>
+          <span>18 时</span>
+          <span>23 时</span>
         </div>
       </div>
     </div>

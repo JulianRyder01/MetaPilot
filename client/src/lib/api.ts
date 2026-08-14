@@ -255,7 +255,7 @@ export interface StatsCoreSummary {
   totalDurationSec: number
   topDocs: { docId: string; name: string; visits: number; totalDurationSec: number }[]
   recentDocs: { docId: string; name: string; at: string; durationSec: number }[]
-  heatmap: { byWeekday: number[]; byHour: number[] }
+  heatmap: { byWeekday: number[]; byHour: number[]; byDate: { date: string; count: number }[] }
   totalWords: number
   wordsPerCollection: { id: string; name: string; words: number }[]
 }

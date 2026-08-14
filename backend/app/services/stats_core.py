@@ -127,10 +127,11 @@ class StatsCoreService:
             for e in recent
         ]
 
-        # 热力图：按星期几 × 小时
+        # 热力图：按星期几 × 小时 + 按日（用于月度日历热力图）
         from datetime import datetime
         by_weekday = [0] * 7
         by_hour = [0] * 24
+        by_date: dict[str, int] = {}
         for e in events:
             try:
                 dt = datetime.fromisoformat(e["at"])
@@ -138,6 +139,7 @@ class StatsCoreService:
                 continue
             by_weekday[dt.weekday()] += 1
             by_hour[dt.hour] += 1
+            by_date[dt.date().isoformat()] = by_date.get(dt.date().isoformat(), 0) + 1
 
         words = self._count_words()
         return {
@@ -145,7 +147,11 @@ class StatsCoreService:
             "totalDurationSec": total_duration,
             "topDocs": top_docs,
             "recentDocs": recent_docs,
-            "heatmap": {"byWeekday": by_weekday, "byHour": by_hour},
+            "heatmap": {
+                "byWeekday": by_weekday,
+                "byHour": by_hour,
+                "byDate": [{"date": k, "count": v} for k, v in sorted(by_date.items())],
+            },
             "totalWords": words["totalWords"],
             "wordsPerCollection": words["perCollection"],
         }
