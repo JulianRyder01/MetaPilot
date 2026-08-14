@@ -146,15 +146,15 @@ def test_disable_kb_blocks_ask():
     r = client.post("/api/plugins/knowledge_base/disable").json()
     assert r["enabled"] is False
 
-    resp = client.get("/api/plugins/kb/embedding-status")
+    resp = client.get("/api/plugins/knowledge_base/embedding-status")
     assert resp.status_code == 503
     assert "个人知识库" in resp.json()["detail"]
 
-    resp = client.post("/api/plugins/kb/demo/ask", json={"question": "q"})
+    resp = client.post("/api/plugins/knowledge_base/demo/ask", json={"question": "q"})
     assert resp.status_code == 503
 
     client.post("/api/plugins/knowledge_base/enable")
-    resp = client.get("/api/plugins/kb/embedding-status")
+    resp = client.get("/api/plugins/knowledge_base/embedding-status")
     assert resp.status_code in (200, 503)  # 200（健康查询）或 embedding 服务未就绪的 503
 
 

@@ -10,7 +10,7 @@ from app.services.embedding import EmbeddingError
 from app.services.embedding_server import embedding_server_manager
 
 router = APIRouter(
-    prefix="/api/plugins/kb",
+    prefix="/api/plugins/knowledge_base",
     tags=["kb"],
     dependencies=[Depends(requires_plugin("knowledge_base"))],
 )

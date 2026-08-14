@@ -134,19 +134,19 @@ export const api = {
   exportCourseUrl: (cid: string) => `${BASE}/plugins/course/${cid}/export`,
 
   // 知识库插件
-  kbStatus: (cid: string) => request<KbStatus>(`/plugins/kb/${cid}/status`),
+  kbStatus: (cid: string) => request<KbStatus>(`/plugins/knowledge_base/${cid}/status`),
   kbIndex: (cid: string) =>
-    request<{ indexed: boolean; sectionCount: number; vectorDim: number }>(`/plugins/kb/${cid}/index`, {
+    request<{ indexed: boolean; sectionCount: number; vectorDim: number }>(`/plugins/knowledge_base/${cid}/index`, {
       method: "POST",
     }),
   kbAsk: (cid: string, question: string, topK = 5) =>
-    request<{ answer: string; sources: KbSource[] }>(`/plugins/kb/${cid}/ask`, {
+    request<{ answer: string; sources: KbSource[] }>(`/plugins/knowledge_base/${cid}/ask`, {
       method: "POST",
       body: JSON.stringify({ question, topK }),
     }),
-  kbEmbeddingStatus: () => request<KbEmbeddingStatus>("/plugins/kb/embedding-status"),
+  kbEmbeddingStatus: () => request<KbEmbeddingStatus>("/plugins/knowledge_base/embedding-status"),
   kbEmbeddingStart: () =>
-    request<{ started: boolean; pid?: number; message?: string; error?: string }>("/plugins/kb/embedding/start", {
+    request<{ started: boolean; pid?: number; message?: string; error?: string }>("/plugins/knowledge_base/embedding/start", {
       method: "POST",
     }),
 

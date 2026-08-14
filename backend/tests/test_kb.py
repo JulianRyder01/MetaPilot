@@ -83,15 +83,15 @@ def test_plugins_list():
 def test_index_and_status():
     t = _make_course()
     cid = t["col"]["id"]
-    st = client.get(f"/api/plugins/kb/{cid}/status").json()
+    st = client.get(f"/api/plugins/knowledge_base/{cid}/status").json()
     assert st["indexed"] is False
 
-    r = client.post(f"/api/plugins/kb/{cid}/index").json()
+    r = client.post(f"/api/plugins/knowledge_base/{cid}/index").json()
     assert r["indexed"] is True
     assert r["sectionCount"] == 2
     assert r["vectorDim"] == 4
 
-    st = client.get(f"/api/plugins/kb/{cid}/status").json()
+    st = client.get(f"/api/plugins/knowledge_base/{cid}/status").json()
     assert st["indexed"] is True
     assert st["sectionCount"] == 2
 
@@ -99,7 +99,7 @@ def test_index_and_status():
 def test_ask_with_sources(monkeypatch):
     t = _make_course()
     cid = t["col"]["id"]
-    client.post(f"/api/plugins/kb/{cid}/index")
+    client.post(f"/api/plugins/knowledge_base/{cid}/index")
 
     captured = {}
 
@@ -109,7 +109,7 @@ def test_ask_with_sources(monkeypatch):
 
     monkeypatch.setattr("plugins.knowledge_base.service.chat_completion", fake_chat)
 
-    r = client.post(f"/api/plugins/kb/{cid}/ask", json={"question": "问题：什么是傅里叶变换？"})
+    r = client.post(f"/api/plugins/knowledge_base/{cid}/ask", json={"question": "问题：什么是傅里叶变换？"})
     assert r.status_code == 200, r.text
     result = r.json()
     assert "傅里叶" in result["answer"]
@@ -123,5 +123,5 @@ def test_ask_with_sources(monkeypatch):
 
 def test_ask_without_index_returns_400():
     t = _make_course()
-    r = client.post(f"/api/plugins/kb/{t['col']['id']}/ask", json={"question": "问题"})
+    r = client.post(f"/api/plugins/knowledge_base/{t['col']['id']}/ask", json={"question": "问题"})
     assert r.status_code == 400
