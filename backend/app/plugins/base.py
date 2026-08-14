@@ -18,6 +18,13 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
 
 
+# 插件 tags 预定义集合（docs/04-插件开发规范.md §3.2）：单插件可多 tag，用于商店/插件页筛选
+PLUGIN_TAGS = ["效率", "学习", "工具", "主题", "存储", "AI"]
+
+# 插件清单排序：用户自定义 → 官方插件 → 官方核心
+_SOURCE_ORDER = {"user": 0, "official": 1, "core": 2}
+
+
 class Plugin:
     # 元数据唯一来源是 plugin.json（docs/04-插件开发规范.md §3）；
     # 以下类属性仅作为旧格式插件（无 plugin.json 或字段缺失）的向后兼容回退。
@@ -32,6 +39,8 @@ class Plugin:
     source: str = "user"
     # 依赖的其它插件 id
     depends_on: list[str] = []
+    # 功能标签（预定义集合 PLUGIN_TAGS 内取值，可多个）
+    tags: list[str] = []
 
     def register(self, app: "FastAPI") -> None:
         raise NotImplementedError
@@ -75,10 +84,16 @@ class PluginManager:
         return self._registry.get(plugin_id)
 
     def list(self) -> list[dict]:
-        """插件清单（含启用状态、来源分类与依赖信息），首位为官方核心。"""
-        out = [self._core_info()]
-        for p in self._registry.values():
-            out.append(self._info(p))
+        """插件清单（含启用状态、来源分类、tags 与依赖信息）。
+
+        顺序：用户自定义 → 官方插件 → 官方核心（官方核心放最后）。
+        """
+        plugins = sorted(
+            self._registry.values(),
+            key=lambda p: (_SOURCE_ORDER.get(p.source, 9), p.name or p.id),
+        )
+        out = [self._info(p) for p in plugins]
+        out.append(self._core_info())
         return out
 
     @staticmethod
@@ -91,6 +106,7 @@ class PluginManager:
             "description": "MetaPilot 本身：库-文档集-文档-小节 的浏览与 Markdown 阅读、笔记导入、插件管理。官方核心，不允许禁用或删除。",
             "author": "MetaPilot",
             "source": "core",
+            "tags": [],
             "enabled": True,
             "locked": True,
             "removable": False,
@@ -110,6 +126,7 @@ class PluginManager:
             "description": p.description,
             "author": p.author,
             "source": p.source,
+            "tags": p.tags,
             "enabled": enabled,
             "locked": p.source == "core",
             "removable": p.source == "user",

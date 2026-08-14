@@ -208,6 +208,7 @@ export interface PluginInfo {
   description: string
   author?: string
   source: "core" | "official" | "user"
+  tags: string[]
   enabled: boolean
   locked: boolean
   removable: boolean

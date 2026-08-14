@@ -6,5 +6,9 @@
   "description": "对库-文档集-文档-小节进行向量编码存储，支持 AI 提问并溯源每一个文档",
   "author": "MetaPilot",
   "depends_on": [],
-  "source": "official"
+  "source": "official",
+  "tags": [
+    "学习",
+    "AI"
+  ]
 }

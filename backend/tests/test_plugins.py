@@ -241,3 +241,41 @@ def test_legacy_plugin_without_plugin_json_still_loads():
         assert client.get("/api/plugins").status_code == 200
     finally:
         manager._registry.pop("legacy_plugin", None)
+
+
+# ---------------- 分类顺序与 tags（docs/04 §2 / §3.2） ----------------
+
+def test_plugin_list_ordered_user_official_core():
+    from app.plugins.base import Plugin
+
+    class FakeUserPlugin(Plugin):
+        id = "zz_user_plugin"
+        name = "用户插件"
+        source = "user"
+
+    manager.register(FakeUserPlugin())
+    try:
+        plugins = client.get("/api/plugins").json()
+        srcs = [p["source"] for p in plugins]
+        assert srcs.index("user") < srcs.index("official"), "用户自定义插件应在官方插件之前"
+        assert srcs.index("official") < srcs.index("core"), "官方插件应在官方核心之前"
+        assert plugins[-1]["id"] == "core", "官方核心应排在最后"
+    finally:
+        manager._registry.pop("zz_user_plugin", None)
+
+
+def test_plugin_list_includes_tags():
+    from app.plugins.base import PLUGIN_TAGS
+
+    plugins = client.get("/api/plugins").json()
+    for p in plugins:
+        assert "tags" in p, f"插件 {p['id']} 缺少 tags 字段"
+        assert isinstance(p["tags"], list)
+        for t in p["tags"]:
+            assert t in PLUGIN_TAGS, f"插件 {p['id']} 的 tag {t} 不在预定义集合 {PLUGIN_TAGS}"
+    by_id = {p["id"]: p for p in plugins}
+    assert by_id["course"]["tags"] == ["学习"]
+    assert by_id["knowledge_base"]["tags"] == ["学习", "AI"]
+    assert by_id["themes"]["tags"] == ["主题"]
+    assert by_id["symlink"]["tags"] == ["工具", "存储"]
+    assert by_id["core"]["tags"] == []

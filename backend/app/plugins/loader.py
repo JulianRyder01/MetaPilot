@@ -32,6 +32,7 @@ _META_FIELDS = (
     ("author", "author"),
     ("depends_on", "depends_on"),
     ("source", "source"),
+    ("tags", "tags"),
 )
 
 
