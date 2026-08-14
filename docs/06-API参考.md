@@ -84,6 +84,18 @@
 | POST | `/api/plugins/notes/import` | multipart 上传 `.md` 笔记；按二级标题分小节（核心能力，不属于插件） |
 | GET | `/api/plugins/course/assets/{cid}/{file}` | 交互块资产（iframe 加载入口） |
 
+## 7.5 AI 统一网关（核心 1.1.1，前缀 /api/ai）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/ai/config` | AI provider 配置（key 掩码）+ 本地模型状态 |
+| PUT | `/api/ai/config` | 更新配置并写回 .env（apiKey 留空保持原值；含模型价格表与货币） |
+| GET | `/api/ai/usage?range=` | AI 用量统计（all/today/week/month）：调用次数/token/成本，按模型分组 |
+| GET | `/api/ai/local-models` | 内置本地模型状态（已下载/运行中） |
+| POST | `/api/ai/local-models/download` | 后台下载本地模型（embedding/llm/rerank） |
+| POST | `/api/ai/local-models/start` / `stop` | 启动/停止本地模型服务 |
+| POST | `/api/ai/test` | 连通性测试（一次最小 chat 调用，计入用量） |
+
 ## 8. AI 洞察插件（ai_insight）
 
 见 [05-AI洞察插件.md](05-AI洞察插件.md)：`resources` / `resources/symlink/{mid}/tree` / `index`（异步+进度） / `index/{key}/status` / `ask`（四模式） / `plan`（洞察规划生成） / `embedding-status` / `embedding/start` / `embedding/stop`，前缀 `/api/plugins/ai_insight`。
