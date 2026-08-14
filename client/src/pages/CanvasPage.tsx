@@ -593,6 +593,20 @@ export default function CanvasPage() {
 
   const nodeById = (id: string) => nodes.find((n) => n.id === id)
   const selectedEdge = selectedEdgeId ? edges.find((e) => e.id === selectedEdgeId) ?? null : null
+
+  /** 导出为 Obsidian 原生 .canvas（JSON Canvas 顶层 nodes/edges，无 .mpf 包装）。 */
+  function exportCanvasFile() {
+    const payload = { nodes, edges }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${col?.name || "canvas"}.canvas`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
   const centerOf = (node: CanvasNode, side?: string) => {
     const s = side ? SIDES.find((x) => x.key === side) : undefined
     return { x: node.x + node.width * (s?.dx ?? 0.5), y: node.y + node.height * (s?.dy ?? 0.5) }
@@ -1010,12 +1024,18 @@ export default function CanvasPage() {
 
       <div className="mt-3 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">{t("core.canvas.stats", { nodes: nodes.length, edges: edges.length })}</p>
-        <Button variant="outline" size="sm" asChild>
-          <a href={cid ? api.exportMpfUrl(cid, "collection") : "#"}>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={exportCanvasFile}>
             <Download className="size-4" />
-            {t("core.canvas.exportMpf")}
-          </a>
-        </Button>
+            {t("core.canvas.exportCanvas")}
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a href={cid ? api.exportMpfUrl(cid, "collection") : "#"}>
+              <Download className="size-4" />
+              {t("core.canvas.exportMpf")}
+            </a>
+          </Button>
+        </div>
       </div>
     </div>
   )

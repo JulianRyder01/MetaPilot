@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import {
   BookOpen,
   FileText,
@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
+import { useT } from "@/i18n"
 import { api, type LibraryMeta, type SymlinkMount } from "@/lib/api"
 import { symlinkMounts, symlinkRemoveMount } from "@/plugins/symlink/api"
 import { cn } from "@/lib/utils"
@@ -39,15 +40,17 @@ import { AddMountDialog } from "@/components/symlink/AddMountDialog"
 import { MountBrowser } from "@/components/symlink/MountBrowser"
 import { useDialogs } from "@/components/ui/dialog-provider"
 
-const KIND_META: Record<string, { label: string; icon: typeof BookOpen }> = {
-  course: { label: "课程", icon: GraduationCap },
-  note: { label: "笔记", icon: FileText },
-  kb: { label: "知识库", icon: BookOpen },
-  canvas: { label: "图表", icon: Workflow },
+const KIND_META: Record<string, { labelKey: string; icon: typeof BookOpen }> = {
+  course: { labelKey: "core.library.kindCourse", icon: GraduationCap },
+  note: { labelKey: "core.library.kindNote", icon: FileText },
+  kb: { labelKey: "core.library.kindKb", icon: BookOpen },
+  canvas: { labelKey: "core.library.kindCanvas", icon: Workflow },
 }
 
 export default function LibraryHome() {
-  const { confirm } = useDialogs()
+  const { confirm, prompt } = useDialogs()
+  const t = useT()
+  const navigate = useNavigate()
   const [libraries, setLibraries] = useState<LibraryMeta[]>([])
   const [loading, setLoading] = useState(true)
   const [mounts, setMounts] = useState<SymlinkMount[]>([])
@@ -86,28 +89,50 @@ export default function LibraryHome() {
 
   async function handleDelete(id: string) {
     const ok = await confirm({
-      title: "删除库",
-      description: "确定删除该库？其下所有内容将一并删除，不可恢复。",
-      confirmText: "删除",
+      title: t("core.library.deleteLibTitle"),
+      description: t("core.library.deleteLibDesc"),
+      confirmText: t("common.delete"),
       destructive: true,
     })
     if (!ok) return
     await api.deleteLibrary(id)
-    toast.success("已删除库")
+    toast.success(t("core.library.deletedLib"))
     refresh()
   }
 
+  /** 在当前库中新建空白图表（kind=canvas），创建后跳转画布。 */
+  async function createCanvasCollection() {
+    if (!currentLibraryId) return
+    const name = await prompt({
+      title: t("core.library.newCanvasTitle"),
+      placeholder: t("core.library.newCanvasPlaceholder"),
+      initialValue: t("core.library.newCanvasDefault"),
+    })
+    if (name == null) return
+    if (!name.trim()) return
+    const col = await api.createCollection(currentLibraryId, {
+      name: name.trim(),
+      kind: "canvas",
+      description: "",
+      author: "",
+      version: "1.0.0",
+    })
+    toast.success(t("core.library.createdCanvas"))
+    await refresh()
+    navigate(`/canvas/${col.id}`)
+  }
+
   async function removeMount(id: string) {
-    const name = mounts.find((m) => m.id === id)?.name ?? "该软链接"
+    const name = mounts.find((m) => m.id === id)?.name ?? t("core.library.unmountNameFallback")
     const ok = await confirm({
-      title: "卸载软链接",
-      description: `「${name}」将从列表中移除，磁盘上的文件不会被删除。`,
-      confirmText: "卸载",
+      title: t("core.library.unmountTitle"),
+      description: t("core.library.unmountDesc", { name }),
+      confirmText: t("core.library.unmount"),
     })
     if (!ok) return
     await symlinkRemoveMount(id)
     if (selectedMountId === id) setSelectedMountId(null)
-    toast.success("已卸载")
+    toast.success(t("core.library.unmounted"))
     loadMounts()
   }
 
@@ -129,7 +154,7 @@ export default function LibraryHome() {
       {/* 左侧：库列表 + 软链接 */}
       <aside className="w-56 shrink-0">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-muted-foreground">库</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground">{t("core.library.library")}</h2>
           <div className="flex items-center gap-1">
             <ImportDialog onImported={refresh} />
             <NewLibraryDialog onCreated={refresh} />
@@ -159,7 +184,7 @@ export default function LibraryHome() {
             ))}
             {libraries.length === 0 && (
               <p className="px-2 text-sm text-muted-foreground">
-                暂无库。点击右上角导入课程包，或新建一个库。
+                {t("core.library.emptyLibraries")}
               </p>
             )}
           </div>
@@ -172,7 +197,7 @@ export default function LibraryHome() {
               <h2 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
                 <Link2 className="size-3.5" />
                 软链接
-                <Badge variant="outline" className="text-[10px]">插件</Badge>
+                <Badge variant="outline" className="text-[10px]">{t("core.library.pluginBadge")}</Badge>
               </h2>
               <AddMountDialog onAdded={loadMounts} />
             </div>
@@ -191,7 +216,7 @@ export default function LibraryHome() {
                       setCurrentLibraryId(null)
                     }}
                     className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm"
-                    title={`${m.name} → ${m.root}${m.type === "file" ? "（单文件）" : ""}`}
+                    title={`${m.name} → ${m.root}${m.type === "file" ? t("core.library.singleFile") : ""}`}
                   >
                     <HardDrive className="size-3.5 shrink-0 text-primary" />
                     <Link2 className="size-3 shrink-0 text-muted-foreground/60" />
@@ -200,7 +225,7 @@ export default function LibraryHome() {
                   <button
                     onClick={() => removeMount(m.id)}
                     className="text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
-                    title="卸载软链接"
+                    title={t("core.library.unmountTitle")}
                   >
                     <Trash2 className="size-3.5" />
                   </button>
@@ -208,7 +233,7 @@ export default function LibraryHome() {
               ))}
               {mounts.length === 0 && (
                 <p className="px-2 text-xs text-muted-foreground">
-                  暂无软链接，点击右侧添加本机文件夹或文件
+                  {t("core.library.noSymlinks")}
                 </p>
               )}
             </div>
@@ -236,12 +261,16 @@ export default function LibraryHome() {
             <div className="mb-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h1 className="text-xl font-semibold">{current?.name ?? "我的库"}</h1>
+                  <h1 className="text-xl font-semibold">{current?.name ?? t("nav.library")}</h1>
                   <p className="text-sm text-muted-foreground">{current?.description}</p>
                 </div>
                 {current && (
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline">{current.collectionCount} 个文档集</Badge>
+                    <Badge variant="outline">{t("core.library.collectionCount", { count: current.collectionCount })}</Badge>
+                    <Button variant="outline" size="sm" onClick={createCanvasCollection}>
+                      <Workflow className="size-4" />
+                      {t("core.library.newCanvas")}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -260,7 +289,7 @@ export default function LibraryHome() {
                     <Input
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder="搜索文档集..."
+                      placeholder={t("core.library.searchPlaceholder")}
                       className="pl-8"
                     />
                   </div>
@@ -271,7 +300,7 @@ export default function LibraryHome() {
                         "rounded-l-md p-1.5",
                         view === "grid" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
                       )}
-                      title="网格视图"
+                      title={t("core.library.gridView")}
                     >
                       <Grid3X3 className="size-4" />
                     </button>
@@ -281,7 +310,7 @@ export default function LibraryHome() {
                         "rounded-r-md p-1.5",
                         view === "list" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
                       )}
-                      title="列表视图"
+                      title={t("core.library.listView")}
                     >
                       <List className="size-4" />
                     </button>
@@ -307,8 +336,8 @@ export default function LibraryHome() {
                               </CardTitle>
                             </CardHeader>
                             <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
-                              <Badge variant="secondary">{meta.label}</Badge>
-                              <span>{col.kind === "course" ? "章节" : col.kind === "canvas" ? "画布" : "文档"}</span>
+                              <Badge variant="secondary">{t(meta.labelKey)}</Badge>
+                              <span>{col.kind === "course" ? "core.library.unitChapter" : col.kind === "canvas" ? "core.library.unitCanvas" : "core.library.unitDoc"}</span>
                             </CardContent>
                           </Card>
                         </Link>
@@ -328,9 +357,9 @@ export default function LibraryHome() {
                         >
                           <Icon className="size-4 shrink-0 text-primary" />
                           <span className="min-w-0 flex-1 truncate font-medium">{col.name}</span>
-                          <Badge variant="secondary">{meta.label}</Badge>
+                          <Badge variant="secondary">{t(meta.labelKey)}</Badge>
                           <span className="shrink-0 text-xs text-muted-foreground">
-                            {col.kind === "course" ? "章节" : col.kind === "canvas" ? "画布" : "文档"}
+                            {col.kind === "course" ? "core.library.unitChapter" : col.kind === "canvas" ? "core.library.unitCanvas" : "core.library.unitDoc"}
                           </span>
                         </Link>
                       )
@@ -339,11 +368,11 @@ export default function LibraryHome() {
                 )
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  {search ? "没有匹配的文档集。" : "此库还没有文档集，可以导入课程包或新建。"}
+                  {search ? t("core.library.noSearchResults") : t("core.library.emptyCollections")}
                 </p>
               )
             ) : (
-              <p className="text-sm text-muted-foreground">选择一个库或软链接查看内容。</p>
+              <p className="text-sm text-muted-foreground">{t("core.library.selectPlaceholder")}</p>
             )}
           </>
         )}
@@ -356,11 +385,12 @@ function NewLibraryDialog({ onCreated }: { onCreated: () => void }) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [open, setOpen] = useState(false)
+  const t = useT()
 
   async function create() {
     if (!name.trim()) return
     await api.createLibrary(name.trim(), description.trim())
-    toast.success("已创建库")
+    toast.success(t("core.library.createdLib"))
     setName("")
     setDescription("")
     setOpen(false)
@@ -372,25 +402,25 @@ function NewLibraryDialog({ onCreated }: { onCreated: () => void }) {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <Plus className="size-4" />
-          新建
+          {t("common.create")}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>新建库</DialogTitle>
+          <DialogTitle>{t("core.library.newLibTitle")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label>名称</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：专业课" />
+            <Label>{t("common.name")}</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("core.library.namePlaceholder")} />
           </div>
           <div className="space-y-1.5">
-            <Label>描述（可选）</Label>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="这个库里放什么" />
+            <Label>{t("core.library.descriptionOptional")}</Label>
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("core.library.descPlaceholder")} />
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={create} disabled={!name.trim()}>创建</Button>
+          <Button onClick={create} disabled={!name.trim()}>{t("common.create")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
