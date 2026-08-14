@@ -36,6 +36,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ImportDialog } from "@/components/library/ImportDialog"
 import { AddMountDialog } from "@/components/symlink/AddMountDialog"
 import { MountBrowser } from "@/components/symlink/MountBrowser"
+import { useDialogs } from "@/components/ui/dialog-provider"
 
 const KIND_META: Record<string, { label: string; icon: typeof BookOpen }> = {
   course: { label: "课程", icon: GraduationCap },
@@ -44,6 +45,7 @@ const KIND_META: Record<string, { label: string; icon: typeof BookOpen }> = {
 }
 
 export default function LibraryHome() {
+  const { confirm } = useDialogs()
   const [libraries, setLibraries] = useState<LibraryMeta[]>([])
   const [loading, setLoading] = useState(true)
   const [mounts, setMounts] = useState<SymlinkMount[]>([])
@@ -81,14 +83,26 @@ export default function LibraryHome() {
   }, [loadMounts])
 
   async function handleDelete(id: string) {
-    if (!window.confirm("确定删除该库？其下所有内容将一并删除。")) return
+    const ok = await confirm({
+      title: "删除库",
+      description: "确定删除该库？其下所有内容将一并删除，不可恢复。",
+      confirmText: "删除",
+      destructive: true,
+    })
+    if (!ok) return
     await api.deleteLibrary(id)
     toast.success("已删除库")
     refresh()
   }
 
   async function removeMount(id: string) {
-    if (!window.confirm("卸载该软链接？不会删除磁盘上的文件。")) return
+    const name = mounts.find((m) => m.id === id)?.name ?? "该软链接"
+    const ok = await confirm({
+      title: "卸载软链接",
+      description: `「${name}」将从列表中移除，磁盘上的文件不会被删除。`,
+      confirmText: "卸载",
+    })
+    if (!ok) return
     await symlinkRemoveMount(id)
     if (selectedMountId === id) setSelectedMountId(null)
     toast.success("已卸载")

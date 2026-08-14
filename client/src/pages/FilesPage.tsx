@@ -8,8 +8,10 @@ import { Badge } from "@/components/ui/badge"
 import { PluginGate } from "@/components/plugins/PluginGate"
 import { AddMountDialog } from "@/components/symlink/AddMountDialog"
 import { MountBrowser } from "@/components/symlink/MountBrowser"
+import { useDialogs } from "@/components/ui/dialog-provider"
 
 export default function FilesPage() {
+  const { confirm } = useDialogs()
   const [params] = useSearchParams()
   const [mounts, setMounts] = useState<SymlinkMount[]>([])
   const [mid, setMid] = useState(params.get("mount") ?? "")
@@ -25,7 +27,13 @@ export default function FilesPage() {
   }, [loadMounts])
 
   async function removeMount(id: string) {
-    if (!window.confirm("卸载该挂载？不会删除磁盘上的文件。")) return
+    const name = mounts.find((m) => m.id === id)?.name ?? "该挂载"
+    const ok = await confirm({
+      title: "卸载软链接",
+      description: `「${name}」将从列表中移除，磁盘上的文件不会被删除。`,
+      confirmText: "卸载",
+    })
+    if (!ok) return
     await symlinkRemoveMount(id)
     setMid("")
     loadMounts()

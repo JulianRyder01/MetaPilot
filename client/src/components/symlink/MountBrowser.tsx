@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { MarkdownBlock } from "@/components/learn/blocks/MarkdownBlock"
+import { useDialogs } from "@/components/ui/dialog-provider"
 
 function joinPath(base: string, name: string) {
   return base ? `${base}/${name}` : name
@@ -64,6 +65,7 @@ function baseName(p: string) {
  * 右侧工具栏（搜索/网格列表切换）+ 文件列表 或 文件编辑器。
  */
 export function MountBrowser({ mount }: { mount: SymlinkMount }) {
+  const { confirm, prompt } = useDialogs()
   const [path, setPath] = useState("")
   const [tree, setTree] = useState<SymlinkTree | null>(null)
   const [file, setFile] = useState<{ path: string; content: string } | null>(null)
@@ -123,7 +125,12 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
   }
 
   async function createFolder() {
-    const name = window.prompt("新建文件夹名称：")
+    const name = await prompt({
+      title: "新建文件夹",
+      description: "输入新文件夹的名称。",
+      placeholder: "例如：章节笔记",
+      confirmText: "创建",
+    })
     if (!name?.trim()) return
     try {
       await symlinkMkdir(mount.id, joinPath(path, name.trim()))
@@ -135,7 +142,13 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
 
   async function removeItem(item: SymlinkItem) {
     const target = joinPath(path, item.name)
-    if (!window.confirm(`删除「${target}」？${item.type === "dir" ? "文件夹将递归删除，不可恢复。" : ""}`)) return
+    const ok = await confirm({
+      title: "删除文件",
+      description: `确定删除「${target}」？${item.type === "dir" ? "文件夹将递归删除，不可恢复。" : ""}`,
+      confirmText: "删除",
+      destructive: true,
+    })
+    if (!ok) return
     try {
       await symlinkDelete(mount.id, target)
       await loadTree(path)
