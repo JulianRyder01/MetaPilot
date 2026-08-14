@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { EyeOff, GripVertical, Maximize2, Minimize2, Settings2 } from "lucide-react"
+import { Eye, EyeOff, GripVertical, Maximize2, Minimize2, Settings2 } from "lucide-react"
 
 import {
   api,
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SourceBadge } from "@/components/stats/SourceBadge"
 
@@ -180,11 +181,12 @@ export default function StatsPage() {
 
 // ---------- 组件管理 ----------
 
-/** 「管理组件」对话框：集中查看/开关组件显示，替代页面底部的隐藏恢复条。 */
+/** 「管理组件」对话框：分区管理统计页组件，「已隐藏」有独立面板与恢复操作。 */
 function WidgetManagerDialog({ widgets }: { widgets: StatsWidget[] }) {
   const [open, setOpen] = useState(false)
   const layout = useStatsLayoutStore()
-  const hiddenCount = widgets.filter((w) => layout.visible[w.id] === false).length
+  const visibleCount = widgets.filter((w) => layout.visible[w.id] !== false).length
+  const hiddenCount = widgets.length - visibleCount
   const ordered = [...widgets].sort((a, b) => {
     const ia = layout.order.indexOf(a.id)
     const ib = layout.order.indexOf(b.id)
@@ -209,44 +211,66 @@ function WidgetManagerDialog({ widgets }: { widgets: StatsWidget[] }) {
           )}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>管理组件</DialogTitle>
-          <DialogDescription>开关控制各组件在统计页的显示；隐藏的组件可从本面板随时恢复。</DialogDescription>
+          <DialogDescription>
+            在「显示中」隐藏组件，或在「已隐藏」面板随时恢复显示；拖动统计页卡片可调整位置与顺序。
+          </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="max-h-96 pr-3">
-          {ordered.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">暂无可用的统计组件</p>
-          ) : (
-            <div className="space-y-1.5">
-              {ordered.map((w) => {
-                const visible = layout.visible[w.id] !== false
-                return (
-                  <div
-                    key={w.id}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors",
-                      !visible && "bg-muted/40",
-                    )}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className={cn("truncate text-sm font-medium", !visible && "text-muted-foreground")}>
-                          {w.title}
-                        </span>
-                        <SourceBadge source={w.source} />
-                      </div>
-                      {w.description && (
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground">{w.description}</p>
-                      )}
-                    </div>
-                    <Switch checked={visible} onCheckedChange={(v) => layout.setVisible(w.id, v)} />
+        {ordered.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">暂无可用的统计组件</p>
+        ) : (
+          <Tabs defaultValue="visible" className="gap-3">
+            <TabsList className="w-full">
+              <TabsTrigger value="visible" className="flex-1">
+                显示中（{visibleCount}）
+              </TabsTrigger>
+              <TabsTrigger value="hidden" className="flex-1">
+                已隐藏（{hiddenCount}）
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="visible">
+              <ScrollArea className="max-h-80 pr-3">
+                <div className="space-y-1.5">
+                  {ordered
+                    .filter((w) => layout.visible[w.id] !== false)
+                    .map((w) => (
+                      <WidgetRow
+                        key={w.id}
+                        w={w}
+                        visible
+                        onToggle={(v) => layout.setVisible(w.id, v)}
+                      />
+                    ))}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+            <TabsContent value="hidden">
+              <ScrollArea className="max-h-80 pr-3">
+                {hiddenCount === 0 ? (
+                  <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-8 text-center">
+                    <Eye className="size-5 text-muted-foreground/60" />
+                    <p className="text-sm text-muted-foreground">没有隐藏的组件，全部组件都在显示中</p>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </ScrollArea>
+                ) : (
+                  <div className="space-y-1.5">
+                    {ordered
+                      .filter((w) => layout.visible[w.id] === false)
+                      .map((w) => (
+                        <WidgetRow
+                          key={w.id}
+                          w={w}
+                          visible={false}
+                          onToggle={(v) => layout.setVisible(w.id, v)}
+                        />
+                      ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </TabsContent>
+          </Tabs>
+        )}
         <DialogFooter className="gap-2 sm:justify-between">
           <Button variant="ghost" size="sm" onClick={resetLayout} disabled={widgets.length === 0}>
             恢复默认布局
@@ -257,6 +281,43 @@ function WidgetManagerDialog({ widgets }: { widgets: StatsWidget[] }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** 组件行：标题/来源/描述 + 显眼的「恢复显示」按钮（仅隐藏时）+ 开关。 */
+function WidgetRow({
+  w,
+  visible,
+  onToggle,
+}: {
+  w: StatsWidget
+  visible: boolean
+  onToggle: (v: boolean) => void
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors",
+        !visible && "border-dashed bg-muted/40",
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className={cn("truncate text-sm font-medium", !visible && "text-muted-foreground")}>
+            {w.title}
+          </span>
+          <SourceBadge source={w.source} />
+        </div>
+        {w.description && <p className="mt-0.5 truncate text-xs text-muted-foreground">{w.description}</p>}
+      </div>
+      {!visible && (
+        <Button variant="secondary" size="sm" className="shrink-0 gap-1" onClick={() => onToggle(true)}>
+          <Eye className="size-3.5" />
+          恢复显示
+        </Button>
+      )}
+      <Switch checked={visible} onCheckedChange={onToggle} />
+    </div>
   )
 }
 
