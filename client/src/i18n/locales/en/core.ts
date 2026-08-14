@@ -5,6 +5,7 @@ export const coreEn: Record<string, string> = {
   "nav.plugins": "Plugins",
   "nav.settings": "Settings",
   "nav.stats": "Stats",
+  "nav.insight": "AI Insight",
 
   // ---- Stats widget titles (backend widget id → title) ----
   "core.widget.topDocs": "Most visited docs",

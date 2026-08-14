@@ -3,13 +3,15 @@
  * 各插件在 client/src/plugins/<plugin_id>.ts 登记前端信息（路由/导航），
  * 本文件汇总后供 App.tsx（路由）与 AppLayout.tsx（导航）自动读取。
  */
+import { aiInsightPlugin } from "./ai_insight"
 import { coursePlugin } from "./course"
 import { themesPlugin } from "./themes"
 import { symlinkPlugin } from "./symlink"
 import type { PluginFrontend, PluginNavItem } from "./types"
 
-/** 全部前端插件（顺序即展示顺序：course → themes → symlink） */
+/** 全部前端插件（顺序即展示顺序：ai_insight → course → themes → symlink） */
 export const pluginFrontends: PluginFrontend[] = [
+  aiInsightPlugin,
   coursePlugin,
   themesPlugin,
   symlinkPlugin,

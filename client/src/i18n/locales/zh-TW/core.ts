@@ -5,6 +5,7 @@ export const coreZhTW: Record<string, string> = {
   "nav.plugins": "外掛",
   "nav.settings": "設定",
   "nav.stats": "統計",
+  "nav.insight": "AI 洞察",
 
   // ---- 统计组件（后端 widget id → 标题） ----
   "core.widget.topDocs": "最常瀏覽的文件",

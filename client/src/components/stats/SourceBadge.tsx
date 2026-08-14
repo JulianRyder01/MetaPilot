@@ -1,4 +1,4 @@
-import { GraduationCap, Palette, Puzzle } from "lucide-react"
+import { GraduationCap, Lightbulb, Palette, Puzzle } from "lucide-react"
 
 import { useT } from "@/i18n"
 import { useSettingsStore } from "@/stores/settings"
@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 const PLUGIN_ICONS: Record<string, typeof Puzzle> = {
   course: GraduationCap,
+  ai_insight: Lightbulb,
   themes: Palette,
 }
 
