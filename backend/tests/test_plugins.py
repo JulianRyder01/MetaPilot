@@ -14,6 +14,11 @@ from app.storage.progress import ProgressStore
 from app.storage.stats import StatsStore
 from app.storage.store import LibraryStore
 
+# 测试环境不自动拉起真实 embedding 服务进程
+from app.config import settings
+
+settings.embedding_auto_start = False
+
 client = TestClient(app)
 
 
@@ -150,8 +155,11 @@ def test_disable_kb_blocks_ask():
     assert resp.status_code == 503
     assert "个人知识库" in resp.json()["detail"]
 
-    resp = client.post("/api/plugins/knowledge_base/demo/ask", json={"question": "q"})
+    # 新路由（多数据源）：禁用后 /ask 与 /sources 均返回 503
+    resp = client.post("/api/plugins/knowledge_base/ask",
+                       json={"sources": [{"type": "library", "id": "demo"}], "question": "q"})
     assert resp.status_code == 503
+    assert client.get("/api/plugins/knowledge_base/sources").status_code == 503
 
     client.post("/api/plugins/knowledge_base/enable")
     resp = client.get("/api/plugins/knowledge_base/embedding-status")

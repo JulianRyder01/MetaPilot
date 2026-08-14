@@ -1,4 +1,4 @@
-"""个人知识库插件：对"库-文档集-文档-小节"向量编码，AI 问答并溯源文档。"""
+"""个人知识库插件：对 默认库（含课程）与软链接挂载目录 多数据源向量编码，AI 问答并溯源。"""
 from __future__ import annotations
 
 from fastapi import FastAPI
