@@ -33,6 +33,8 @@ _META_FIELDS = (
     ("depends_on", "depends_on"),
     ("source", "source"),
     ("tags", "tags"),
+    # 更新历史（schema v1.1 起可选）：[{version, date, summary}]，时间倒序（最新在前）
+    ("changelog", "changelog"),
 )
 
 

@@ -9,5 +9,12 @@
   "source": "official",
   "tags": [
     "学习"
+  ],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "",
+      "summary": "课程包制作与导入/导出、章节知识点学习（进度/时长统计）、AI 判题与动态交互块渲染"
+    }
   ]
 }

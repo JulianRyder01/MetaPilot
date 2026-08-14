@@ -287,3 +287,19 @@ def test_plugin_list_includes_tags():
     assert by_id["themes"]["tags"] == ["主题"]
     assert by_id["symlink"]["tags"] == ["工具", "存储"]
     assert by_id["core"]["tags"] == []
+
+
+def test_plugin_list_includes_changelog():
+    """插件清单携带更新历史（changelog）：官方核心内置多版本，官方插件至少一条。"""
+    by_id = {p["id"]: p for p in client.get("/api/plugins").json()}
+    # 官方核心：内置 1.0.0 → 1.0.1 → 1.1.0 历史，倒序（最新在前）
+    core = by_id["core"]
+    assert isinstance(core["changelog"], list) and len(core["changelog"]) >= 3
+    assert core["changelog"][0]["version"] == "1.1.0"
+    assert all("version" in c and "summary" in c for c in core["changelog"])
+    # 官方插件：来自 plugin.json，至少一条，含 version/summary 字段
+    for pid in ("course", "symlink", "themes", "ai_insight"):
+        p = by_id[pid]
+        assert isinstance(p["changelog"], list) and len(p["changelog"]) >= 1
+        assert p["changelog"][0]["version"] == p["version"]
+        assert p["changelog"][0]["summary"].strip() != ""

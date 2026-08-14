@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
-import { GraduationCap, Lock, Puzzle, Trash2, Palette } from "lucide-react"
+import { GraduationCap, History, Lightbulb, Lock, Puzzle, Trash2, Palette } from "lucide-react"
 import { toast } from "@/lib/toast"
 
-import { api } from "@/lib/api"
+import { api, type PluginInfo } from "@/lib/api"
 import { PLUGIN_TAGS } from "@/plugins/types"
 import { usePluginsStore, ensurePluginsLoaded } from "@/stores/plugins"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,12 +12,21 @@ import { Switch } from "@/components/ui/switch"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { StorePanel } from "@/components/plugins/StorePanel"
 import { useDialogs } from "@/components/ui/dialog-provider"
 import { useT } from "@/i18n"
 
 const PLUGIN_ICONS: Record<string, typeof Puzzle> = {
   course: GraduationCap,
+  ai_insight: Lightbulb,
   themes: Palette,
 }
 
@@ -28,6 +37,11 @@ const PLUGIN_FEATURES: Record<string, string[]> = {
     "sys.plugins.featureCourseProgress",
     "sys.plugins.featureCourseGrading",
     "sys.plugins.featureCourseInteractive",
+  ],
+  ai_insight: [
+    "sys.plugins.featureInsightIndex",
+    "sys.plugins.featureInsightModes",
+    "sys.plugins.featureInsightPlan",
   ],
 }
 
@@ -57,6 +71,7 @@ export default function PluginsPage() {
   const { confirm } = useDialogs()
   const { plugins, loaded, refresh, setEnabled } = usePluginsStore()
   const [tagFilter, setTagFilter] = useState<string | null>(null)
+  const [changelogFor, setChangelogFor] = useState<PluginInfo | null>(null)
 
   useEffect(() => {
     ensurePluginsLoaded()
@@ -179,6 +194,12 @@ export default function PluginsPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
+                              {p.changelog && p.changelog.length > 0 && (
+                                <Button variant="outline" size="sm" onClick={() => setChangelogFor(p)}>
+                                  <History className="size-3.5" />
+                                  {t("sys.plugins.changelogBtn")}
+                                </Button>
+                              )}
                               {p.removable && (
                                 <Button
                                   variant="ghost"
@@ -252,6 +273,60 @@ export default function PluginsPage() {
           <StorePanel installedIds={plugins.map((p) => p.id)} onChanged={refresh} />
         </TabsContent>
       </Tabs>
+
+      {/* 更新历史（roadmap）对话框 */}
+      <ChangelogDialog plugin={changelogFor} onClose={() => setChangelogFor(null)} />
     </div>
+  )
+}
+
+/** 更新历史对话框：以时间线（roadmap）形式展示插件各版本更新历程，最新在前。 */
+function ChangelogDialog({ plugin, onClose }: { plugin: PluginInfo | null; onClose: () => void }) {
+  const t = useT()
+  const changelog = plugin?.changelog ?? []
+  return (
+    <Dialog open={plugin !== null} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <History className="size-4 text-primary" />
+            {t("sys.plugins.changelogTitle", { name: plugin?.name ?? "" })}
+          </DialogTitle>
+          <DialogDescription>
+            {t("sys.plugins.changelogDesc", { version: plugin?.version ?? "" })}
+          </DialogDescription>
+        </DialogHeader>
+        <ScrollArea className="max-h-96 pr-3">
+          {changelog.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">{t("sys.plugins.changelogEmpty")}</p>
+          ) : (
+            <ol className="relative space-y-5 border-l pl-5">
+              {changelog.map((c, i) => {
+                const isLatest = i === 0
+                return (
+                  <li key={c.version} className="relative">
+                    {/* 时间线圆点 */}
+                    <span
+                      className={cn(
+                        "absolute -left-[26px] top-1 size-2.5 rounded-full ring-4",
+                        isLatest ? "bg-primary ring-primary/15" : "bg-muted-foreground/50 ring-transparent",
+                      )}
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={isLatest ? "default" : "outline"}>
+                        v{c.version}
+                        {isLatest && <span className="ml-1 text-[10px] font-normal opacity-80">· {t("sys.plugins.currentVersion")}</span>}
+                      </Badge>
+                      {c.date && <span className="text-xs text-muted-foreground">{c.date}</span>}
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">{c.summary}</p>
+                  </li>
+                )
+              })}
+            </ol>
+          )}
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
   )
 }

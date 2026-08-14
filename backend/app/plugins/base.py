@@ -41,6 +41,8 @@ class Plugin:
     depends_on: list[str] = []
     # 功能标签（预定义集合 PLUGIN_TAGS 内取值，可多个）
     tags: list[str] = []
+    # 更新历史（schema v1.1 起可选）：[{version, date, summary}]，时间倒序（最新在前）
+    changelog: list[dict] = []
 
     def register(self, app: "FastAPI") -> None:
         raise NotImplementedError
@@ -112,6 +114,11 @@ class PluginManager:
             "removable": False,
             "dependsOn": [],
             "missingDependencies": [],
+            "changelog": [
+                {"version": "1.1.0", "date": "", "summary": "内置 i18n：界面支持简体中文/繁体中文/English 三语（useT/translate + 域拆分词典），顶栏与设置页可随时切换；插件开发规范升级 1.2.0（新增 §12 i18n 约定）"},
+                {"version": "1.0.1", "date": "", "summary": "统一弹窗组件库 DialogProvider + useDialogs（confirm/prompt/select），全应用零原生弹窗；.mpf 解析支持 doc/canvas 类型与未解析项检测"},
+                {"version": "1.0.0", "date": "", "summary": "MetaPilot 首个正式版本：库-文档集-文档-小节浏览与 Markdown 阅读、笔记导入、插件机制与插件管理、基础统计（访问/热力图/停留/字数）"},
+            ],
         }
 
     def _info(self, p: Plugin) -> dict:
@@ -132,6 +139,7 @@ class PluginManager:
             "removable": p.source == "user",
             "dependsOn": deps,
             "missingDependencies": missing_deps,
+            "changelog": p.changelog or [],
         }
 
     # ---- 启用状态 ----

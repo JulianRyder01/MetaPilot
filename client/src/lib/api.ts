@@ -7,9 +7,12 @@ export const BASE = "/api"
 
 export class ApiError extends Error {
   status: number
-  constructor(status: number, message: string) {
+  /** 后端返回的 detail（可能是字符串或对象，如 409 的 {code, keys}） */
+  detail?: unknown
+  constructor(status: number, message: string, detail?: unknown) {
     super(message)
     this.status = status
+    this.detail = detail
   }
 }
 
@@ -32,7 +35,11 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
         toast.error(detail, { duration: 5000 })
       }
     }
-    throw new ApiError(res.status, detail)
+    throw new ApiError(
+      res.status,
+      typeof detail === "string" ? detail : JSON.stringify(detail),
+      detail,
+    )
   }
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
@@ -282,6 +289,8 @@ export interface PluginInfo {
   removable: boolean
   dependsOn: string[]
   missingDependencies: string[]
+  /** 更新历史（roadmap）：[{version, date, summary}]，最新在前 */
+  changelog?: { version: string; date?: string; summary: string }[]
 }
 
 /** 插件商店清单项（GET /api/plugins/store/plugins） */
