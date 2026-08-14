@@ -1,11 +1,16 @@
-import { Settings2, Palette } from "lucide-react"
+import { Languages, Palette, Settings2 } from "lucide-react"
 
+import { LANGS, useI18nStore, useT } from "@/i18n"
 import { useSettingsStore } from "@/stores/settings"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { ThemeSelector } from "@/components/theme/ThemeSelector"
+import { cn } from "@/lib/utils"
 
 export default function SettingsPage() {
+  const t = useT()
+  const lang = useI18nStore((s) => s.lang)
+  const setLang = useI18nStore((s) => s.setLang)
   const {
     showPluginWarnings,
     showPluginErrors,
@@ -20,23 +25,46 @@ export default function SettingsPage() {
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-semibold">
           <Settings2 className="size-6 text-primary" />
-          设置
+          {t("sys.title")}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          控制插件相关的提示行为。MetaPilot 是文档库：文档始终可以打开查看，未渲染的部分会以原始数据展示；
-          提示仅作提醒，不会打断操作。
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{t("sys.subtitle")}</p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Palette className="size-4 text-primary" />
-            外观
+            <Languages className="size-4 text-primary" />
+            {t("sys.language")}
           </CardTitle>
-          <CardDescription>
-            黑夜 / 白天模式随时可切换；特色主题由「主题」插件提供（在插件管理页启用后选装）。
-          </CardDescription>
+          <CardDescription>{t("sys.languageDesc")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {LANGS.map((l) => (
+              <button
+                key={l.value}
+                onClick={() => setLang(l.value)}
+                className={cn(
+                  "rounded-md border px-3 py-1.5 text-sm transition-colors",
+                  lang === l.value
+                    ? "border-primary bg-primary/10 text-primary font-medium"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )}
+              >
+                {l.native}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Palette className="size-4 text-primary" />
+            {t("sys.appearance")}
+          </CardTitle>
+          <CardDescription>{t("sys.appearanceDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
           <ThemeSelector />
@@ -46,11 +74,8 @@ export default function SettingsPage() {
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-4">
           <div>
-            <CardTitle className="text-base">插件警告提示</CardTitle>
-            <CardDescription>
-              打开依赖已禁用插件的文档（如课程、知识库）时，在顶部弹出警告气泡，
-              提示"此内容依赖 xx 插件，部分组件可能无法渲染"。
-            </CardDescription>
+            <CardTitle className="text-base">{t("sys.pluginWarnings")}</CardTitle>
+            <CardDescription>{t("sys.pluginWarningsDesc")}</CardDescription>
           </div>
           <Switch
             checked={showPluginWarnings}
@@ -62,11 +87,8 @@ export default function SettingsPage() {
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-4">
           <div>
-            <CardTitle className="text-base">插件错误提示</CardTitle>
-            <CardDescription>
-              操作时若因插件未启用而失败（例如 AI 判题、知识库问答），在顶部弹出错误气泡；
-              关闭后此类错误将被静默忽略。
-            </CardDescription>
+            <CardTitle className="text-base">{t("sys.pluginErrors")}</CardTitle>
+            <CardDescription>{t("sys.pluginErrorsDesc")}</CardDescription>
           </div>
           <Switch checked={showPluginErrors} onCheckedChange={setShowPluginErrors} />
         </CardHeader>
@@ -75,19 +97,14 @@ export default function SettingsPage() {
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-4">
           <div>
-            <CardTitle className="text-base">标记组件来源</CardTitle>
-            <CardDescription>
-              开启后，在库、统计等页面中，由插件提供的组件/内容会标出该插件的图标（悬停可见插件名）；
-              官方核心（MetaPilot 本身）不标记。关闭后不显示来源标记，用户无法看出哪些组件来自第三方插件。
-            </CardDescription>
+            <CardTitle className="text-base">{t("sys.componentSource")}</CardTitle>
+            <CardDescription>{t("sys.componentSourceDesc")}</CardDescription>
           </div>
           <Switch checked={showComponentSource} onCheckedChange={setShowComponentSource} />
         </CardHeader>
       </Card>
 
-      <p className="text-xs text-muted-foreground">
-        提示仅在浏览器本地保存（localStorage），不影响其他设备。
-      </p>
+      <p className="text-xs text-muted-foreground">{t("sys.localOnly")}</p>
     </div>
   )
 }

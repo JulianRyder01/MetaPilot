@@ -8,5 +8,5 @@ import type { PluginFrontend } from "./types"
 export const knowledgeBasePlugin: PluginFrontend = {
   id: "knowledge_base",
   routes: [{ path: "/kb", Component: KnowledgeBasePage }],
-  navItems: [{ to: "/kb", label: "AI 知识库", icon: Rocket }],
+  navItems: [{ to: "/kb", label: "nav.kb", icon: Rocket }],
 }

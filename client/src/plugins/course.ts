@@ -16,5 +16,5 @@ export const coursePlugin: PluginFrontend = {
     { path: "/edit/:cid", Component: EditPage },
     { path: "/stats", Component: StatsPage },
   ],
-  navItems: [{ to: "/stats", label: "统计", icon: BarChart3 }],
+  navItems: [{ to: "/stats", label: "nav.stats", icon: BarChart3 }],
 }
