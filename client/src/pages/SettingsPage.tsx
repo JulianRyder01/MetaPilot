@@ -5,6 +5,8 @@ import { useSettingsStore } from "@/stores/settings"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { ThemeSelector } from "@/components/theme/ThemeSelector"
+import { AiProviderCard } from "@/components/settings/AiProviderCard"
+import { LocalModelsCard } from "@/components/settings/LocalModelsCard"
 import { cn } from "@/lib/utils"
 
 export default function SettingsPage() {
@@ -57,6 +59,10 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* AI 统一网关：provider 配置（写回 .env）+ 内置本地模型 */}
+      <AiProviderCard />
+      <LocalModelsCard />
 
       <Card>
         <CardHeader>

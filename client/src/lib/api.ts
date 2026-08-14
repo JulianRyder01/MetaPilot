@@ -380,3 +380,97 @@ export interface SymlinkTree {
   path: string
   items: SymlinkItem[]
 }
+
+// ==================== AI 统一网关（核心 1.1.1） ====================
+
+export interface AIModelPrice {
+  input: number
+  cachedInput: number
+  output: number
+  currency: "$" | "¥"
+}
+
+export interface LocalModelStatus {
+  kind: "embedding" | "llm" | "rerank"
+  model: string
+  url: string
+  running: boolean
+  downloaded: boolean
+  downloading: boolean
+  downloadError?: string
+}
+
+export interface AIConfigPublic {
+  provider: string
+  baseUrl: string
+  apiKey: string
+  apiKeyConfigured: boolean
+  chatModel: string
+  embeddingProvider: string
+  embeddingUrl: string
+  embeddingModel: string
+  localLlmUrl: string
+  rerankUrl: string
+  localLlmModel: string
+  rerankModel: string
+  prices: Record<string, AIModelPrice>
+  currency: string
+  providers: string[]
+  currencies: string[]
+  defaultCurrency: string
+  localModels: LocalModelStatus[]
+}
+
+export interface AIUsageSummary {
+  range: string
+  totalCalls: number
+  totalTokens: number
+  inputTokens: number
+  cachedTokens: number
+  outputTokens: number
+  totalCost: number
+  currency: string
+  byModel: {
+    model: string
+    provider: string
+    calls: number
+    inputTokens: number
+    cachedTokens: number
+    outputTokens: number
+    cost: number
+  }[]
+}
+
+export const aiGetConfig = () => request<AIConfigPublic>("/ai/config")
+
+export const aiPutConfig = (data: Record<string, unknown>) =>
+  request<AIConfigPublic>("/ai/config", { method: "PUT", body: JSON.stringify(data) })
+
+export const aiUsage = (range = "all") =>
+  request<AIUsageSummary>(`/ai/usage?range=${encodeURIComponent(range)}`)
+
+export const aiLocalModels = () => request<LocalModelStatus[]>("/ai/local-models")
+
+export const aiLocalModelDownload = (kind: string, model = "") =>
+  request<{ started: boolean; message?: string }>("/ai/local-models/download", {
+    method: "POST",
+    body: JSON.stringify({ kind, model }),
+  })
+
+export const aiLocalModelStart = (kind: string, model = "") =>
+  request<{ started: boolean; pid?: number; message?: string; error?: string }>("/ai/local-models/start", {
+    method: "POST",
+    body: JSON.stringify({ kind, model }),
+  })
+
+export const aiLocalModelStop = (kind: string) =>
+  request<{ ok: boolean; kind: string }>("/ai/local-models/stop", {
+    method: "POST",
+    body: JSON.stringify({ kind }),
+  })
+
+export const aiTest = () =>
+  request<{ ok: boolean; model: string; provider: string; inputTokens: number; outputTokens: number }>(
+    "/ai/test",
+    { method: "POST" },
+  )
