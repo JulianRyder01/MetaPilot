@@ -84,9 +84,9 @@
 | POST | `/api/plugins/notes/import` | multipart 上传 `.md` 笔记；按二级标题分小节（核心能力，不属于插件） |
 | GET | `/api/plugins/course/assets/{cid}/{file}` | 交互块资产（iframe 加载入口） |
 
-## 8. 个人知识库插件（knowledge_base）
+## 8. AI 洞察插件（ai_insight）
 
-见 [05-个人知识库插件.md](05-个人知识库插件.md)：`embedding-status` / `embedding/start` / `{cid}/status` / `{cid}/index` / `{cid}/ask`，前缀 `/api/plugins/knowledge_base`。
+见 [05-AI洞察插件.md](05-AI洞察插件.md)：`resources` / `resources/symlink/{mid}/tree` / `index`（异步+进度） / `index/{key}/status` / `ask`（四模式） / `plan`（洞察规划生成） / `embedding-status` / `embedding/start` / `embedding/stop`，前缀 `/api/plugins/ai_insight`。
 
 ## 9. 错误约定
 
