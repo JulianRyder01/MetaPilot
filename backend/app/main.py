@@ -3,12 +3,13 @@
 MetaPilot 核心 = 文档库阅读器：库-文档集-文档-小节 的浏览与 Markdown 阅读、
 Markdown 笔记导入、插件管理。课程/学习/知识库等能力由 backend/plugins/ 下的插件提供。
 """
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import DATA_DIR
+from .config import DATA_DIR, settings
 from .storage.store import LibraryStore
 from .api import documents, folders, libraries, mpf, notes, plugin_store, plugins, stats_core
 from .plugins.base import manager
@@ -20,7 +21,23 @@ from .stats_widgets import register_core_widgets
 
 APP_VERSION = "1.0.1"
 
-app = FastAPI(title="MetaPilot", version=APP_VERSION)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 个人知识库 embedding 服务随后端启动后台自动加载（不阻塞启动），
+    # 避免首次打开知识库页面时现场拉起 + 下载/加载模型导致久等；
+    # 若服务进程已存活（如上次后端退出后遗留）则直接复用，退出重进不再重新加载。
+    if settings.embedding_auto_start and settings.embedding_provider != "none":
+        try:
+            from .services.embedding_server import embedding_server_manager
+            res = embedding_server_manager.start(wait_ready=False)
+            print(f"[main] embedding 服务: {res.get('message', res)}")
+        except Exception as e:
+            print(f"[main] 自动启动 embedding 服务失败: {e}")
+    yield
+
+
+app = FastAPI(title="MetaPilot", version=APP_VERSION, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

@@ -22,12 +22,27 @@ class EmbeddingServerManager:
     def is_running(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
 
-    def start(self, model: str = "") -> dict:
-        """启动本地 embedding 服务进程；model 可指定 Qwen3 模型 id（默认 settings.embedding_model）。"""
+    def start(self, model: str = "", wait_ready: bool = True) -> dict:
+        """启动本地 embedding 服务进程；model 可指定 Qwen3 模型 id（默认 settings.embedding_model）。
+
+        wait_ready=False 时仅拉起进程立即返回（供后端启动时后台自动加载用），
+        就绪状态由前端轮询 /embedding-status 获取。
+        """
         if self.is_running():
             return {"started": True, "pid": self.proc.pid, "message": "服务已在运行"}
 
         model = model or settings.embedding_model
+        # 复用仍在运行的服务（例如上一次后端退出后遗留的进程）：直接探测端口，
+        # 避免每次后端重启都重新加载模型（个人知识库打开页面不再久等）
+        try:
+            import httpx
+            r = httpx.get(f"http://127.0.0.1:{self.port}/health", timeout=1)
+            if r.status_code == 200:
+                return {"started": True, "pid": 0,
+                        "message": f"复用已在 {self.port} 端口运行的服务"}
+        except Exception:
+            pass
+
         conda = shutil.which("conda")
         if not conda:
             # 当前环境直接跑（需已安装 torch/transformers）
@@ -47,6 +62,10 @@ class EmbeddingServerManager:
             )
         except Exception as e:
             return {"started": False, "error": f"启动失败: {e}"}
+
+        if not wait_ready:
+            return {"started": True, "pid": self.proc.pid,
+                    "message": f"已用 {launcher} 启动（后台加载中，状态可查询）"}
 
         # 等待就绪（最多 60s；模型下载可能更久，超时不报错）
         for _ in range(60):
