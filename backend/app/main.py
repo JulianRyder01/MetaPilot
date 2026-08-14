@@ -14,6 +14,7 @@ from .api import documents, folders, libraries, notes, plugin_store, plugins, st
 from .plugins.base import manager
 from .plugins.loader import load_plugins
 from .services.importer import CourseImporter
+from .services.mpf import register_core_mpf_types
 from .services.stats_core import init_stats_core
 from .stats_widgets import register_core_widgets
 
@@ -37,6 +38,8 @@ app.state.importer = CourseImporter(app.state.store, ASSETS_DIR)
 # 官方核心统计：访问记录 + 统计页 core 组件
 init_stats_core(DATA_DIR, app.state.store)
 register_core_widgets()
+# 官方核心 .mpf 解析：doc / canvas 类型
+register_core_mpf_types()
 
 app.include_router(libraries.router)
 app.include_router(documents.router)

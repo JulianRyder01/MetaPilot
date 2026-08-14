@@ -1,12 +1,12 @@
-"""本地 JSON 文件存储层。
+"""本地存储层（库文件为 .mpf 格式）。
 
 布局（data_dir）:
-  index.json           库摘要列表
-  libraries/{id}.json  每个库的完整内容树
-  progress.json        学习进度（每课程独立）
-  stats.json           学习时长会话
-  assets/{cid}/        课程包资产（interactives 等）
-  kb/                  知识库向量索引
+  index.json              库摘要列表
+  libraries/{id}.mpf      每个库的完整内容树（.mpf doc 类型，兼容旧 .json 自动迁移）
+  progress.json           学习进度（每课程独立）
+  stats.json              学习时长会话
+  assets/{cid}/           课程包资产（interactives 等）
+  kb/                     知识库向量索引
 """
 from __future__ import annotations
 
@@ -17,6 +17,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
+
+from ..services import mpf as mpf_service
 
 
 def now_iso() -> str:
@@ -98,16 +100,44 @@ class LibraryStore:
         _write_json(self.index_path, {"libraries": items})
 
     def _lib_path(self, lid: str) -> Path:
-        return self.libs_dir / f"{lid}.json"
+        return self.libs_dir / f"{lid}.mpf"
 
     def _load_lib(self, lid: str) -> dict:
-        lib = _read_json(self._lib_path(lid), None)
-        if lib is None:
-            raise KeyError(f"库不存在: {lid}")
-        return lib
+        mpf_path = self._lib_path(lid)
+        json_path = self.libs_dir / f"{lid}.json"
+        if mpf_path.exists():
+            parsed = mpf_service.parse_mpf(mpf_path.read_text(encoding="utf-8"))
+            if not parsed["ok"]:
+                raise KeyError(f"库文件损坏: {lid}: {'; '.join(parsed['errors'])}")
+            meta = parsed["meta"]
+            return {
+                "id": lid,
+                "name": meta["name"],
+                "description": meta["description"],
+                "createdAt": meta.get("createdAt") or now_iso(),
+                "updatedAt": meta.get("updatedAt") or now_iso(),
+                "collections": parsed["content"]["collections"],
+            }
+        if json_path.exists():
+            # 旧 .json 格式：读取并自动迁移为 .mpf
+            lib = _read_json(json_path, None)
+            if lib is not None:
+                self._save_lib(lib)
+                return lib
+        raise KeyError(f"库不存在: {lid}")
 
     def _save_lib(self, lib: dict) -> None:
-        _write_json(self._lib_path(lib["id"]), lib)
+        doc = {
+            "type": "doc",
+            "id": lib["id"],
+            "name": lib.get("name", ""),
+            "description": lib.get("description", ""),
+            "createdAt": lib.get("createdAt", ""),
+            "updatedAt": lib.get("updatedAt", ""),
+            "collections": lib.get("collections", []),
+        }
+        mpf_path = self._lib_path(lib["id"])
+        mpf_path.write_text(mpf_service.serialize_mpf(doc), encoding="utf-8")
         self._refresh_index_item(lib)
 
     def _refresh_index_item(self, lib: dict) -> None:
@@ -167,6 +197,9 @@ class LibraryStore:
             path = self._lib_path(lid)
             if path.exists():
                 path.unlink()
+            old = self.libs_dir / f"{lid}.json"
+            if old.exists():
+                old.unlink()
             items = [it for it in self._load_index() if it["id"] != lid]
             self._save_index(items)
 
