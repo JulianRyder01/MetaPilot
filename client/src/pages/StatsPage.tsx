@@ -392,14 +392,14 @@ function Heatmap({
         <p className="mb-1.5 text-xs text-muted-foreground">最近 3 个月访问热力图</p>
         <div className="flex">
           {/* 星期标签 */}
-          <div className="flex flex-col gap-[3px] pr-1 pt-3 text-[9px] leading-3 text-muted-foreground">
+          <div className="flex flex-col gap-[3px] pr-1 pt-4 text-[9px] leading-4 text-muted-foreground">
             {[0, 2, 4].map((r) => (
               <div key={r} className="flex flex-col gap-[3px]">
-                <span className="h-3">{WEEKDAY_SHORT[r]}</span>
-                <span className="h-3" />
+                <span className="h-4">{WEEKDAY_SHORT[r]}</span>
+                <span className="h-4" />
               </div>
             ))}
-            <span className="h-3">{WEEKDAY_SHORT[6]}</span>
+            <span className="h-4">{WEEKDAY_SHORT[6]}</span>
           </div>
           <div className="flex gap-[3px] overflow-x-auto pb-1">
             {weeks.map((col, wi) => {
@@ -409,7 +409,7 @@ function Heatmap({
                 !prev || first.getMonth() !== prev.getMonth() || first.getFullYear() !== prev.getFullYear()
               return (
                 <div key={wi} className="flex flex-col gap-[3px]">
-                  <div className="h-3 text-center text-[9px] leading-3 text-muted-foreground">
+                  <div className="h-4 text-center text-[9px] leading-4 text-muted-foreground">
                     {showMonth ? `${first.getMonth() + 1}月` : ""}
                   </div>
                   {col.map(({ date }) => {
@@ -421,7 +421,7 @@ function Heatmap({
                         <TooltipTrigger asChild>
                           <div
                             className={cn(
-                              "size-3 rounded-[3px] transition-colors",
+                              "size-4 rounded-[3px] transition-colors",
                               future && "opacity-30",
                               count === 0 && "bg-muted",
                             )}
@@ -443,7 +443,7 @@ function Heatmap({
         <div className="mt-1.5 flex items-center gap-1 text-[9px] text-muted-foreground">
           <span>少</span>
           {HEAT_COLORS.map((c, i) => (
-            <span key={i} className="size-2.5 rounded-[2px]" style={{ background: c }} />
+            <span key={i} className="size-3 rounded-[2px]" style={{ background: c }} />
           ))}
           <span>多</span>
         </div>
@@ -456,7 +456,7 @@ function Heatmap({
             <UITooltip key={h}>
               <TooltipTrigger asChild>
                 <div
-                  className="h-10 w-full rounded-sm"
+                  className="h-6 w-full rounded-sm"
                   style={{ background: `rgba(79,70,229,${0.08 + (v / hourMax) * 0.92})` }}
                 />
               </TooltipTrigger>

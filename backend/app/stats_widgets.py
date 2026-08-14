@@ -26,8 +26,8 @@ def list_widgets() -> list[dict]:
 def register_core_widgets() -> None:
     register_widget({"id": "topDocs", "title": "最常访问的文档", "source": "core", "defaultSize": "lg",
                      "description": "按访问次数排序的文档 Top 10（核心提供）"})
-    register_widget({"id": "heatmap", "title": "访问热力图", "source": "core", "defaultSize": "xl",
-                     "description": "按星期与小时分布的访问热力图（核心提供）"})
+    register_widget({"id": "heatmap", "title": "访问热力图", "source": "core", "defaultSize": "md",
+                     "description": "月度日历 + 按小时分布的访问热力图（核心提供）"})
     register_widget({"id": "stayTime", "title": "文档停留时长", "source": "core", "defaultSize": "md",
                      "description": "各文档累计停留时长（核心提供）"})
     register_widget({"id": "wordCount", "title": "内容字数", "source": "core", "defaultSize": "md",

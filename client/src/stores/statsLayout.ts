@@ -76,6 +76,17 @@ export const useStatsLayoutStore = create<StatsLayoutState>()(
           return dirty ? { visible, size, order } : {}
         }),
     }),
-    { name: "metapilot-stats-layout" },
+    {
+      name: "metapilot-stats-layout",
+      version: 2,
+      // v1 → v2：访问热力图默认尺寸由 xl（整行）调整为 md（半行）
+      migrate: (persisted) => {
+        const s = (persisted ?? {}) as Partial<StatsLayoutState>
+        if (s.size && s.size.heatmap === "xl") {
+          return { ...s, size: { ...s.size, heatmap: "md" } }
+        }
+        return s
+      },
+    },
   ),
 )
