@@ -45,6 +45,10 @@ function fmtSize(n: number) {
   return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 
+function baseName(p: string) {
+  return p.split(/[\\/]/).filter(Boolean).pop() ?? p
+}
+
 export default function FilesPage() {
   const [params] = useSearchParams()
   const [mounts, setMounts] = useState<SymlinkMount[]>([])
@@ -79,8 +83,9 @@ export default function FilesPage() {
   }, [mid])
 
   async function openItem(item: SymlinkItem) {
-    const p = joinPath(path, item.name)
-    if (item.type === "dir") {
+    // 挂载根是单个文件时：列表里只有该文件自身，读取用空路径（= 根文件）
+    const p = currentMount?.type === "file" ? "" : joinPath(path, item.name)
+    if (item.type === "dir" && currentMount?.type !== "file") {
       await loadTree(p)
     } else {
       try {
@@ -137,6 +142,7 @@ export default function FilesPage() {
   }
 
   const crumbs = path ? path.split("/").filter(Boolean) : []
+  const currentMount = mounts.find((m) => m.id === mid)
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
@@ -187,12 +193,13 @@ export default function FilesPage() {
                 </div>
               ))}
               {mounts.length === 0 && (
-                <p className="px-2 text-xs text-muted-foreground">暂无挂载，点击右上角添加本机目录</p>
+                <p className="px-2 text-xs text-muted-foreground">暂无挂载，点击右上角添加本机文件夹或文件</p>
               )}
             </div>
             {mounts.length > 0 && (
               <p className="px-2 text-[11px] text-muted-foreground">
-                当前挂载根：{mounts.find((m) => m.id === mid)?.root ?? ""}
+                当前挂载根：
+                {currentMount ? `${currentMount.root}${currentMount.type === "file" ? "（单文件）" : ""}` : ""}
               </p>
             )}
           </aside>
@@ -201,7 +208,7 @@ export default function FilesPage() {
           <section className="min-w-0 flex-1">
             {!mid ? (
               <div className="rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
-                请先挂载一个本机目录
+                请先挂载一个本机文件夹或文件
               </div>
             ) : (
               <>
@@ -225,10 +232,12 @@ export default function FilesPage() {
                     <Button variant="ghost" size="sm" onClick={() => loadTree(path)}>
                       <RefreshCw className="size-3.5" />
                     </Button>
-                    <Button variant="outline" size="sm" onClick={createFolder}>
-                      <Plus className="size-3.5" />
-                      新建文件夹
-                    </Button>
+                    {currentMount?.type !== "file" && (
+                      <Button variant="outline" size="sm" onClick={createFolder}>
+                        <Plus className="size-3.5" />
+                        新建文件夹
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -253,13 +262,15 @@ export default function FilesPage() {
                             </span>
                           )}
                         </button>
-                        <button
-                          onClick={() => removeItem(item)}
-                          className="text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
-                          title="删除"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
+                        {currentMount?.type !== "file" && (
+                          <button
+                            onClick={() => removeItem(item)}
+                            className="text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
+                            title="删除"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        )}
                       </div>
                     ))}
                     {tree && tree.items.length === 0 && (
@@ -272,7 +283,7 @@ export default function FilesPage() {
                 {file && (
                   <div className="mt-4 rounded-lg border">
                     <div className="flex items-center justify-between border-b bg-muted/40 px-3 py-2">
-                      <span className="text-sm font-medium">{file.path}</span>
+                      <span className="text-sm font-medium">{file.path || (currentMount?.type === "file" ? baseName(currentMount.root) : "")}</span>
                       <div className="flex items-center gap-1">
                         {file.path.endsWith(".md") || file.path.endsWith(".markdown") ? (
                           <Badge variant="outline">Markdown</Badge>

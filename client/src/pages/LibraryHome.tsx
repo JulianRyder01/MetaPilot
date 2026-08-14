@@ -139,7 +139,7 @@ export default function LibraryHome() {
                   <button
                     onClick={() => navigate(`/files?mount=${m.id}`)}
                     className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm"
-                    title={`${m.name} → ${m.root}`}
+                    title={`${m.name} → ${m.root}${m.type === "file" ? "（单文件）" : ""}`}
                   >
                     <HardDrive className="size-3.5 shrink-0 text-primary" />
                     <Link2 className="size-3 shrink-0 text-muted-foreground/60" />
@@ -156,7 +156,7 @@ export default function LibraryHome() {
               ))}
               {mounts.length === 0 && (
                 <p className="px-2 text-xs text-muted-foreground">
-                  暂无软链接，点击右侧添加本机目录
+                  暂无软链接，点击右侧添加本机文件夹或文件
                 </p>
               )}
             </div>
