@@ -264,6 +264,11 @@ export interface ThemeDef {
   variables: { light: Record<string, string>; dark: Record<string, string> }
 }
 
+/** 知识库来源跳转信息（learn=学习页；symlink=文件浏览器） */
+export type KbSourceLink =
+  | { kind: "learn"; collectionId: string; sectionId: string }
+  | { kind: "symlink"; mountId: string; path: string }
+
 export interface KbSource {
   sectionId: string
   sectionName: string
@@ -272,6 +277,7 @@ export interface KbSource {
   collectionName: string
   excerpt: string
   score: number
+  link?: KbSourceLink
 }
 
 export interface KbEmbeddingStatus {
