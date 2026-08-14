@@ -19,11 +19,15 @@ if TYPE_CHECKING:
 
 
 class Plugin:
+    # 元数据唯一来源是 plugin.json（docs/04-插件开发规范.md §3）；
+    # 以下类属性仅作为旧格式插件（无 plugin.json 或字段缺失）的向后兼容回退。
     id: str = ""
     name: str = ""
     version: str = "1.0.0"
     description: str = ""
     author: str = ""
+    # 本插件遵循的规范版本（plugin.json 的 specVersion），缺省视为 "1.0"
+    spec_version: str = "1.0"
     # 来源分类：core（MetaPilot 本身，不可禁用/删除）| official（官方插件，可禁用不可删除）| user（用户自定义，可删除/禁用）
     source: str = "user"
     # 依赖的其它插件 id
@@ -83,6 +87,7 @@ class PluginManager:
             "id": "core",
             "name": "MetaPilot 文档库",
             "version": "1.0.0",
+            "specVersion": "1.0",
             "description": "MetaPilot 本身：库-文档集-文档-小节 的浏览与 Markdown 阅读、笔记导入、插件管理。官方核心，不允许禁用或删除。",
             "author": "MetaPilot",
             "source": "core",
@@ -101,6 +106,7 @@ class PluginManager:
             "id": p.id,
             "name": p.name,
             "version": p.version,
+            "specVersion": p.spec_version,
             "description": p.description,
             "author": p.author,
             "source": p.source,

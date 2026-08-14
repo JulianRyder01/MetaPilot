@@ -12,10 +12,6 @@ KB_DIR = DATA_DIR / "kb"
 
 class KnowledgeBasePlugin(Plugin):
     id = "knowledge_base"
-    name = "个人知识库"
-    version = "1.0.0"
-    description = "对库-文档集-文档-小节进行向量编码存储，支持 AI 提问并溯源每一个文档"
-    author = "MetaPilot"
 
     def register(self, app: FastAPI) -> None:
         from .routes import router

@@ -11,10 +11,6 @@ from app.storage.stats import StatsStore
 
 class CoursePlugin(Plugin):
     id = "course"
-    name = "课程"
-    version = "1.0.0"
-    description = "课程包制作与导入/导出、章节知识点学习（进度/时长统计/AI 判题）、动态交互块渲染"
-    author = "MetaPilot"
 
     def register(self, app: FastAPI) -> None:
         from .routes import router as plugins_router

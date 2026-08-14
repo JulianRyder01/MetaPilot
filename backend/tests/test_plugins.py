@@ -169,3 +169,75 @@ def test_state_persisted_across_manager_reload():
     manager.configure(manager.data_dir)
     info = next(p for p in manager.list() if p["id"] == "course")
     assert info["enabled"] is False
+
+
+# ---------------- 插件开发规范 v1.0（docs/04）：specVersion / 单一元数据源 / 旧格式兼容 ----------------
+
+def test_plugin_list_includes_spec_version():
+    plugins = client.get("/api/plugins").json()
+    ids = [p["id"] for p in plugins]
+    assert "core" in ids and "course" in ids and "knowledge_base" in ids
+    for p in plugins:
+        assert "specVersion" in p
+    core = next(p for p in plugins if p["id"] == "core")
+    assert core["specVersion"] == "1.0"
+    course = next(p for p in plugins if p["id"] == "course")
+    assert course["specVersion"] == "1.0"
+
+
+def test_plugin_metadata_source_is_plugin_json():
+    # plugin.json 为唯一元数据源：真实插件元数据来自 plugin.json，类上不再重复声明
+    p = manager.get("course")
+    assert p is not None
+    assert p.name == "课程"
+    assert p.description.startswith("课程包")
+    assert p.author == "MetaPilot"
+    assert p.source == "official"
+    assert p.spec_version == "1.0"
+
+    from plugins.course import CoursePlugin
+
+    assert "name" not in CoursePlugin.__dict__
+    assert "version" not in CoursePlugin.__dict__
+    assert "source" not in CoursePlugin.__dict__
+
+
+def test_apply_metadata_spec_version_defaults(tmp_path):
+    # 旧格式 plugin.json 缺 specVersion / 缺字段：回退默认值（向后兼容）
+    from app.plugins.base import Plugin
+    from app.plugins.loader import _apply_metadata
+
+    class Bare(Plugin):
+        id = "bare"
+
+    meta = tmp_path / "plugin.json"
+    meta.write_text('{"id": "bare", "name": "裸插件", "source": "user"}', encoding="utf-8")
+    p = Bare()
+    _apply_metadata(p, meta)
+    assert p.id == "bare"
+    assert p.name == "裸插件"
+    assert p.source == "user"
+    assert p.spec_version == "1.0"   # 缺省视为 1.0
+    assert p.version == "1.0.0"      # 缺省回退类默认
+    assert p.depends_on == []        # 缺省回退类默认
+
+
+def test_legacy_plugin_without_plugin_json_still_loads():
+    # 旧格式插件（无 plugin.json，元数据在类上）仍能注册与列出（宽松向后兼容）
+    from app.plugins.base import Plugin
+
+    class LegacyPlugin(Plugin):
+        id = "legacy_plugin"
+        name = "旧格式插件"
+        version = "0.9.0"
+        source = "user"
+
+    manager.register(LegacyPlugin())
+    try:
+        info = next(p for p in manager.list() if p["id"] == "legacy_plugin")
+        assert info["name"] == "旧格式插件"
+        assert info["version"] == "0.9.0"
+        assert info["specVersion"] == "1.0"
+        assert client.get("/api/plugins").status_code == 200
+    finally:
+        manager._registry.pop("legacy_plugin", None)

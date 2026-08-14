@@ -1,4 +1,5 @@
 {
+  "specVersion": "1.0",
   "id": "symlink",
   "name": "软链接",
   "version": "1.0.0",
