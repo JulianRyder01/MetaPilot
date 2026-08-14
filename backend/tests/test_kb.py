@@ -127,6 +127,33 @@ def test_sources_list_library_and_symlink():
         assert s["status"]["indexed"] is False
 
 
+def test_sources_exclude_symlink_when_plugin_disabled():
+    """禁用软链接插件后，个人知识库不再列出软链接数据源（软链接支持不写死）。"""
+    t = _make_library()
+    root, mid = _make_symlink_dir()
+    app.state.symlink = FakeSymlink([{"id": mid, "name": "我的笔记", "root": str(root), "type": "dir"}])
+    app.state.kb.symlink = app.state.symlink
+
+    # 默认启用：软链接源可见
+    r = client.get("/api/plugins/knowledge_base/sources").json()
+    assert any(s["type"] == "symlink" for s in r)
+
+    # 禁用软链接插件后：软链接源消失，默认库源保留
+    client.post("/api/plugins/symlink/disable")
+    try:
+        r = client.get("/api/plugins/knowledge_base/sources")
+        assert r.status_code == 200
+        sources = r.json()
+        assert all(s["type"] != "symlink" for s in sources)
+        assert any(s["type"] == "library" and s["id"] == t["lib"]["id"] for s in sources)
+    finally:
+        client.post("/api/plugins/symlink/enable")
+
+    # 重新启用后：软链接源恢复
+    r = client.get("/api/plugins/knowledge_base/sources").json()
+    assert any(s["type"] == "symlink" for s in r)
+
+
 def test_index_library_source_and_status():
     t = _make_library()
     lib_id = t["lib"]["id"]
@@ -226,3 +253,5 @@ def test_embedding_status_models_and_health():
 def test_embedding_start_rejects_unknown_model():
     r = client.post("/api/plugins/knowledge_base/embedding/start", json={"model": "nope/model"})
     assert r.status_code == 400
+
+

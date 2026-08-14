@@ -40,9 +40,14 @@ class ModelIn(BaseModel):
 
 def _kb(request: Request):
     kb = request.app.state.kb
-    # 软链接插件可能注册在后：路由请求时懒注入
-    if kb.symlink is None:
+    # 软链接插件可能注册在后：路由请求时懒注入；但仅当软链接插件处于启用状态时注入，
+    # 禁用后个人知识库不再把软链接挂载列为数据源（避免「关了软链接，知识库里还有软链接」）。
+    from app.plugins.base import manager
+
+    if manager.is_enabled("symlink"):
         kb.symlink = getattr(request.app.state, "symlink", None)
+    else:
+        kb.symlink = None
     return kb
 
 

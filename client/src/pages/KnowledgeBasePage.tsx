@@ -15,6 +15,7 @@ import {
   type KbSourceRef,
 } from "@/plugins/knowledge_base/api"
 import { PluginGate } from "@/components/plugins/PluginGate"
+import { usePluginEnabled } from "@/stores/plugins"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -131,6 +132,7 @@ function SourcePicker({
 }
 
 export default function KnowledgeBasePage() {
+  const symlinkEnabled = usePluginEnabled("symlink")
   const [sources, setSources] = useState<KbSourceItem[]>([])
   const [selectedIndex, setSelectedIndex] = useState<Set<string>>(new Set())
   const [selectedAsk, setSelectedAsk] = useState<Set<string>>(new Set())
@@ -248,7 +250,9 @@ export default function KnowledgeBasePage() {
           AI 知识库
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          对「默认库（含课程）」与「软链接本机目录」多数据源建立向量索引，用 AI 提问并溯源到具体内容。
+          {symlinkEnabled
+            ? "对「默认库（含课程）」与「软链接本机目录」多数据源建立向量索引，用 AI 提问并溯源到具体内容。"
+            : "对「默认库（含课程）」建立向量索引，用 AI 提问并溯源到具体内容。"}
           必须先在<b>第一步 · 建索引</b> 完成索引，才可在第二步提问。
         </p>
       </div>
@@ -320,7 +324,9 @@ export default function KnowledgeBasePage() {
                     选择数据源（可多选）
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    默认库与软链接挂载都可建索引，索引按数据源独立存储。
+                    {symlinkEnabled
+                      ? "默认库与软链接挂载都可建索引，索引按数据源独立存储。"
+                      : "默认库可建索引，索引按数据源独立存储。"}
                   </p>
                 </div>
                 <Button onClick={doIndex} disabled={indexing || selectedIndex.size === 0 || !embedHealthy}>
@@ -336,7 +342,9 @@ export default function KnowledgeBasePage() {
                   </div>
                 ) : sources.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    暂无可用数据源：请先在「我的库」创建库，或在软链接插件中挂载本机目录。
+                    {symlinkEnabled
+                      ? "暂无可用数据源：请先在「我的库」创建库，或在软链接插件中挂载本机目录。"
+                      : "暂无可用数据源：请先在「我的库」创建库。"}
                   </p>
                 ) : (
                   <SourcePicker
@@ -355,7 +363,8 @@ export default function KnowledgeBasePage() {
             {indexedSources.length === 0 ? (
               <Card>
                 <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                  还没有已建立索引的数据源。请先到<b>「第一步 · 建索引」</b>，对选中的库 / 软链接目录建立向量索引后再提问。
+                  还没有已建立索引的数据源。请先到<b>「第一步 · 建索引」</b>，
+                  {symlinkEnabled ? "对选中的库 / 软链接目录建立向量索引后再提问。" : "对选中的库建立向量索引后再提问。"}
                 </CardContent>
               </Card>
             ) : (
