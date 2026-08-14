@@ -34,27 +34,33 @@
 
 块类型与字段见 [02-数据模型.md](02-数据模型.md)。
 
-## 3. 学习进度
+## 3. 学习进度（course 插件）
+
+> 前缀 `/api/plugins/course/progress`（规范 §4 统一前缀）。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/progress/{cid}` | 该课程进度 `{completedSections, lastPosition}` |
-| PUT | `/api/progress/{cid}/toggle/{sid}` | 切换某知识点学完状态，返回 `{completed}` |
-| PUT | `/api/progress/{cid}/completed/{sid}?completed=true` | 显式设置 |
-| PUT | `/api/progress/{cid}/position` | 记录上次位置 `{documentId, sectionId}` |
+| GET | `/api/plugins/course/progress/{cid}` | 该课程进度 `{completedSections, lastPosition}` |
+| PUT | `/api/plugins/course/progress/{cid}/toggle/{sid}` | 切换某知识点学完状态，返回 `{completed}` |
+| PUT | `/api/plugins/course/progress/{cid}/completed/{sid}?completed=true` | 显式设置 |
+| PUT | `/api/plugins/course/progress/{cid}/position` | 记录上次位置 `{documentId, sectionId}` |
 
-## 4. 学习统计
+## 4. 学习统计（course 插件）
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/api/stats/sessions` | 上报学习时长 `{collectionId, documentId, sectionId, durationSec}` |
-| GET | `/api/stats/summary?range=all\|today\|week\|month` | 汇总：总时长、每日分布、每课程分布 |
-
-## 5. AI 判题（MiniMax-M3）
+> 前缀 `/api/plugins/course/stats`。官方核心统计（访问/热力图等）见 `GET /api/stats/core/summary`、`POST /api/stats/core/visit`、`GET /api/stats/widgets`。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/ai/grade` | 主观题判分 `{blockType: fill_blank\|short_answer, question, reference, keywords[], blanks[], userAnswer}` → `{score, feedback, isCorrect}` |
+| POST | `/api/plugins/course/stats/sessions` | 上报学习时长 `{collectionId, documentId, sectionId, durationSec}` |
+| GET | `/api/plugins/course/stats/summary?range=all\|today\|week\|month` | 汇总：总时长、每日分布、每课程分布 |
+
+## 5. AI 判题（course 插件）
+
+> 前缀 `/api/plugins/course/ai`。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/plugins/course/ai/grade` | 主观题判分 `{blockType: fill_blank\|short_answer, question, reference, keywords[], blanks[], userAnswer}` → `{score, feedback, isCorrect}` |
 
 未配置 `MINIMAX_API_KEY` 返回 503。
 
@@ -64,12 +70,12 @@
 |---|---|---|
 | POST | `/api/plugins/course/import` | multipart 上传 zip 课程包（可选 form 字段 `libraryId`）；同 `packageId` 自动替换 |
 | GET | `/api/plugins/course/{cid}/export` | 导出课程 zip |
-| POST | `/api/plugins/notes/import` | multipart 上传 `.md` 笔记；按二级标题分小节 |
-| GET | `/api/assets/courses/{cid}/{file}` | 交互块资产（iframe 加载入口） |
+| POST | `/api/plugins/notes/import` | multipart 上传 `.md` 笔记；按二级标题分小节（核心能力，不属于插件） |
+| GET | `/api/plugins/course/assets/{cid}/{file}` | 交互块资产（iframe 加载入口） |
 
 ## 7. 个人知识库插件（knowledge_base）
 
-见 [05-个人知识库插件.md](05-个人知识库插件.md)：`embedding-status` / `embedding/start` / `{cid}/status` / `{cid}/index` / `{cid}/ask`。
+见 [05-个人知识库插件.md](05-个人知识库插件.md)：`embedding-status` / `embedding/start` / `{cid}/status` / `{cid}/index` / `{cid}/ask`，前缀 `/api/plugins/knowledge_base`。
 
 ## 8. 错误约定
 
