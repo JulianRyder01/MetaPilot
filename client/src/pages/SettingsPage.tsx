@@ -9,8 +9,10 @@ export default function SettingsPage() {
   const {
     showPluginWarnings,
     showPluginErrors,
+    showComponentSource,
     setShowPluginWarnings,
     setShowPluginErrors,
+    setShowComponentSource,
   } = useSettingsStore()
 
   return (
@@ -67,6 +69,19 @@ export default function SettingsPage() {
             </CardDescription>
           </div>
           <Switch checked={showPluginErrors} onCheckedChange={setShowPluginErrors} />
+        </CardHeader>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-base">标记组件来源</CardTitle>
+            <CardDescription>
+              开启后，在库、统计等页面中，由插件提供的组件/内容会标出该插件的图标（悬停可见插件名）；
+              官方核心（MetaPilot 本身）不标记。关闭后不显示来源标记，用户无法看出哪些组件来自第三方插件。
+            </CardDescription>
+          </div>
+          <Switch checked={showComponentSource} onCheckedChange={setShowComponentSource} />
         </CardHeader>
       </Card>
 

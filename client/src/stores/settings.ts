@@ -6,8 +6,11 @@ interface SettingsState {
   showPluginWarnings: boolean
   /** 插件未启用导致的操作报错，是否弹出错误气泡 */
   showPluginErrors: boolean
+  /** 是否标记插件提供的组件/内容来源（官方核心不标记） */
+  showComponentSource: boolean
   setShowPluginWarnings: (v: boolean) => void
   setShowPluginErrors: (v: boolean) => void
+  setShowComponentSource: (v: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -15,8 +18,10 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       showPluginWarnings: true,
       showPluginErrors: true,
+      showComponentSource: true,
       setShowPluginWarnings: (v) => set({ showPluginWarnings: v }),
       setShowPluginErrors: (v) => set({ showPluginErrors: v }),
+      setShowComponentSource: (v) => set({ showComponentSource: v }),
     }),
     { name: "metapilot-settings" },
   ),

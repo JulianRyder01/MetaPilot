@@ -8,7 +8,7 @@ import ThemeToggle from "@/components/layout/ThemeToggle"
 
 const navItems = [
   { to: "/", label: "我的库", icon: Library },
-  { to: "/stats", label: "学习统计", icon: BarChart3 },
+  { to: "/stats", label: "统计", icon: BarChart3 },
   { to: "/kb", label: "知识库", icon: Rocket },
   { to: "/plugins", label: "插件", icon: Puzzle },
   { to: "/settings", label: "设置", icon: Settings2 },

@@ -60,6 +60,20 @@ export default function LearnPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sid, cid, col?.kind, courseEnabled])
 
+  // 官方核心统计：文档访问（core 能力，与课程插件无关，始终上报）
+  const visitRef = useRef<string>("")
+  useEffect(() => {
+    if (!cid || !sid || !col) return
+    const doc = col.documents.find((d) => d.sections.some((s) => s.id === sid))
+    if (!doc) return
+    const visitKey = `${cid}:${doc.id}`
+    if (visitRef.current === visitKey) return
+    visitRef.current = visitKey
+    api
+      .statsCoreVisit({ collectionId: cid, documentId: doc.id, documentName: doc.name })
+      .catch(() => {})
+  }, [sid, cid, col])
+
   // 记录上次学习位置（课程插件能力）
   useEffect(() => {
     if (cid && sid && col?.kind === "course" && courseEnabled) {
