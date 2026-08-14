@@ -99,6 +99,12 @@ export const api = {
     request<Record<string, unknown>>("/stats/sessions", { method: "POST", body: JSON.stringify(data) }),
   statsSummary: (range: string) => request<StatsSummary>(`/stats/summary?range=${range}`),
 
+  // 官方核心统计（统计页组件）
+  statsCoreVisit: (data: { collectionId: string; documentId: string; documentName?: string; durationSec?: number }) =>
+    request<Record<string, unknown>>("/stats/core/visit", { method: "POST", body: JSON.stringify(data) }),
+  statsCoreSummary: () => request<StatsCoreSummary>("/stats/core/summary"),
+  statsWidgets: () => request<StatsWidget[]>(`/stats/widgets`),
+
   // AI 判题
   grade: (data: Record<string, unknown>) =>
     request<GradeResult>("/ai/grade", { method: "POST", body: JSON.stringify(data) }),
@@ -149,6 +155,9 @@ export const api = {
 
   // 软链接插件（文件浏览器）
   symlinkMounts: () => request<SymlinkMount[]>("/plugins/symlink/mounts"),
+  symlinkFsRoots: () => request<string[]>("/plugins/symlink/fs/roots"),
+  symlinkFsList: (path: string) =>
+    request<SymlinkFsList>(`/plugins/symlink/fs/list?path=${encodeURIComponent(path)}`),
   symlinkAddMount: (name: string, root: string) =>
     request<SymlinkMount>("/plugins/symlink/mounts", { method: "POST", body: JSON.stringify({ name, root }) }),
   symlinkRenameMount: (id: string, name: string) =>
@@ -250,6 +259,24 @@ export interface StatsSummary {
   perCollection: { collectionId: string; seconds: number }[]
 }
 
+export interface StatsWidget {
+  id: string
+  title: string
+  source: string // 插件 id（"core" = 官方核心）
+  description: string
+  defaultSize: string
+}
+
+export interface StatsCoreSummary {
+  totalVisits: number
+  totalDurationSec: number
+  topDocs: { docId: string; name: string; visits: number; totalDurationSec: number }[]
+  recentDocs: { docId: string; name: string; at: string; durationSec: number }[]
+  heatmap: { byWeekday: number[]; byHour: number[] }
+  totalWords: number
+  wordsPerCollection: { id: string; name: string; words: number }[]
+}
+
 export interface GradeResult {
   score: number
   feedback: string
@@ -308,7 +335,22 @@ export interface SymlinkMount {
   id: string
   name: string
   root: string
+  type?: "dir" | "file"
   createdAt?: string
+}
+
+export interface SymlinkFsItem {
+  name: string
+  type: "dir" | "file"
+  size: number
+  mtime: number
+  path: string
+}
+
+export interface SymlinkFsList {
+  path: string
+  parent: string
+  items: SymlinkFsItem[]
 }
 
 export interface SymlinkItem {

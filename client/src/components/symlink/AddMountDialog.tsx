@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { HardDrive, Plus } from "lucide-react"
+import { FolderOpen, HardDrive, Link2, Plus } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { api } from "@/lib/api"
@@ -14,11 +14,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { FsPicker } from "@/components/symlink/FsPicker"
 
-/** 添加软链接挂载对话框（我的库 / 文件浏览器共用）。 */
+/** 添加软链接挂载对话框（我的库 / 文件浏览器共用）。
+ *
+ * 链接的是本机磁盘上的文件夹或单个文件（不复制原文件），
+ * 链接后可在文件浏览器中像文档一样浏览、阅读与编辑。
+ */
 export function AddMountDialog({ onAdded }: { onAdded: () => void }) {
   const [name, setName] = useState("")
   const [root, setRoot] = useState("")
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [open, setOpen] = useState(false)
 
   async function add() {
@@ -28,6 +34,7 @@ export function AddMountDialog({ onAdded }: { onAdded: () => void }) {
       toast.success("挂载成功")
       setName("")
       setRoot("")
+      setPickerOpen(false)
       setOpen(false)
       onAdded()
     } catch (e) {
@@ -45,7 +52,14 @@ export function AddMountDialog({ onAdded }: { onAdded: () => void }) {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>挂载本机目录（软链接）</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Link2 className="size-4 text-primary" />
+            链接本地文档（软链接）
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            链接的是本机磁盘上的<strong>文件夹</strong>或<strong>单个文件</strong>，不会复制或移动原文件；
+            链接后可在文件浏览器中像文档一样浏览、阅读与编辑。
+          </p>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
@@ -53,12 +67,32 @@ export function AddMountDialog({ onAdded }: { onAdded: () => void }) {
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：我的笔记" />
           </div>
           <div className="space-y-1.5">
-            <Label>目录路径（Windows/Linux 均支持）</Label>
-            <Input
-              value={root}
-              onChange={(e) => setRoot(e.target.value)}
-              placeholder={'例如：D:/Documents/notes 或 /home/user/notes'}
-            />
+            <Label>本地路径（文件夹或文件）</Label>
+            <div className="flex gap-2">
+              <Input
+                value={root}
+                onChange={(e) => setRoot(e.target.value)}
+                placeholder="点击「浏览」选择，或手动输入（Windows/Linux 均支持）"
+                className="flex-1"
+              />
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => setPickerOpen((v) => !v)}
+                className="shrink-0"
+              >
+                <FolderOpen className="size-4" />
+                {pickerOpen ? "收起" : "浏览"}
+              </Button>
+            </div>
+            {pickerOpen && (
+              <FsPicker
+                onPick={(p) => {
+                  setRoot(p)
+                  setPickerOpen(false)
+                }}
+              />
+            )}
           </div>
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <HardDrive className="size-3.5" />
