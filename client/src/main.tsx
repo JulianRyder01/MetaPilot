@@ -5,11 +5,14 @@ import { BrowserRouter } from "react-router-dom"
 import "./index.css"
 import App from "./App"
 import { Toaster } from "@/components/ui/sonner"
+import { DialogProvider } from "@/components/ui/dialog-provider"
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <DialogProvider>
+        <App />
+      </DialogProvider>
       <Toaster richColors />
     </BrowserRouter>
   </StrictMode>,
