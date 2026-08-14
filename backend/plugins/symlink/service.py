@@ -8,7 +8,9 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import string
 import threading
 import time
 from pathlib import Path
@@ -39,6 +41,50 @@ class SymlinkService:
 
     def _save(self, data: dict) -> None:
         _write_json(self.path, data)
+
+    # ---- 本机文件系统浏览（供前端文件选择器使用）----
+
+    @staticmethod
+    def fs_roots() -> list[str]:
+        """返回文件选择器的顶层入口：Windows 为存在的盘符，Unix 为根目录 /。"""
+        if os.name == "nt":
+            return [f"{c}:\\" for c in string.ascii_uppercase if Path(f"{c}:\\").exists()]
+        return ["/"]
+
+    @staticmethod
+    def fs_list(path: str) -> dict:
+        """列出本机某个绝对目录的内容，供文件选择器导航。
+
+        返回 items 每项带绝对路径 path，前端可直接回填/提交。
+        """
+        if not path or not path.strip():
+            raise MountError("缺少目录路径")
+        target = Path(path).expanduser()
+        if not target.exists():
+            raise MountError(f"路径不存在: {path}")
+        if not target.is_dir():
+            raise MountError(f"不是文件夹: {path}")
+        items = []
+        try:
+            entries = sorted(target.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+        except PermissionError:
+            raise MountError("无权限访问该文件夹")
+        except OSError as e:
+            raise MountError(f"无法访问该文件夹: {e}")
+        for p in entries:
+            try:
+                is_dir = p.is_dir()
+                stat = p.stat()
+                items.append({
+                    "name": p.name,
+                    "type": "dir" if is_dir else "file",
+                    "size": stat.st_size if not is_dir else 0,
+                    "mtime": int(stat.st_mtime),
+                    "path": str(p),
+                })
+            except OSError:
+                continue
+        return {"path": str(target), "parent": str(target.parent), "items": items}
 
     # ---- 挂载管理 ----
 

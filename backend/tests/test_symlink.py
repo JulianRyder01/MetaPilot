@@ -145,6 +145,36 @@ def test_security_symlink_escape():
     assert r.status_code == 400
 
 
+def test_fs_browse_roots_and_list():
+    """文件选择器数据源：顶层入口 + 目录浏览。"""
+    roots = client.get("/api/plugins/symlink/fs/roots").json()
+    assert isinstance(roots, list) and len(roots) >= 1
+
+    base = _root_tmp / "browse"
+    base.mkdir()
+    (base / "sub").mkdir()
+    (base / "a.txt").write_text("hi", encoding="utf-8")
+
+    lst = client.get("/api/plugins/symlink/fs/list", params={"path": str(base)}).json()
+    assert lst["path"] == str(base)
+    assert lst["parent"] == str(_root_tmp)
+    by_name = {i["name"]: i for i in lst["items"]}
+    assert by_name["sub"]["type"] == "dir"
+    assert by_name["a.txt"]["type"] == "file"
+    assert by_name["a.txt"]["path"] == str(base / "a.txt")
+    # 每项都带绝对路径，可直接回填
+    assert Path(by_name["a.txt"]["path"]).is_absolute()
+
+    # 不存在的路径 → 400
+    r = client.get("/api/plugins/symlink/fs/list", params={"path": str(base / "nope")})
+    assert r.status_code == 400
+    # 对文件列出 → 400
+    r = client.get("/api/plugins/symlink/fs/list", params={"path": str(base / "a.txt")})
+    assert r.status_code == 400
+    # 空路径 → 400
+    assert client.get("/api/plugins/symlink/fs/list").status_code == 400
+
+
 def test_disable_symlink_blocks_api():
     client.post("/api/plugins/symlink/disable")
     assert client.get("/api/plugins/symlink/mounts").status_code == 503

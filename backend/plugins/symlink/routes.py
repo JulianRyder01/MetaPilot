@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app.plugins.base import requires_plugin
-from .service import MountError
+from .service import MountError, SymlinkService
 
 router = APIRouter(
     prefix="/api/plugins/symlink",
@@ -39,6 +39,21 @@ def _err(e: Exception):
     if isinstance(e, (MountError, ValueError)):
         raise HTTPException(status_code=400, detail=str(e))
     raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/fs/roots")
+def fs_roots(request: Request):
+    """文件选择器顶层入口：Windows 盘符列表 / Unix 根目录。"""
+    return SymlinkService.fs_roots()
+
+
+@router.get("/fs/list")
+def fs_list(path: str = "", request: Request = None):
+    """列出本机某个绝对目录（文件选择器导航）。"""
+    try:
+        return SymlinkService.fs_list(path)
+    except Exception as e:
+        _err(e)
 
 
 @router.get("/mounts")
