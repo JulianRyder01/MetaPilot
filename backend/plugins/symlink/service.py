@@ -98,17 +98,20 @@ class SymlinkService:
         raise KeyError(f"挂载不存在: {mount_id}")
 
     def add_mount(self, name: str, root: str) -> dict:
+        if not root or not root.strip():
+            raise MountError("路径不能为空")
         root_path = Path(root).expanduser()
         if not root_path.exists():
             raise MountError(f"路径不存在: {root}")
-        if not root_path.is_dir():
-            raise MountError(f"不是目录: {root}")
+        if not (root_path.is_dir() or root_path.is_file()):
+            raise MountError(f"不是文件夹或文件: {root}")
         with self.lock:
             data = self._load()
             mount = {
                 "id": gen_id(),
                 "name": name,
                 "root": str(root_path.resolve()),
+                "type": "dir" if root_path.is_dir() else "file",
                 "createdAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
             }
             data["mounts"].append(mount)
@@ -149,8 +152,20 @@ class SymlinkService:
         target = self._resolve(mount, rel)
         if not target.exists():
             raise MountError(f"路径不存在: {rel or '/'}")
-        if not target.is_dir():
-            raise MountError(f"不是目录: {rel or '/'}")
+        # 挂载根是单个文件时：返回该文件自身作为唯一条目
+        if target.is_file():
+            items = []
+            try:
+                stat = target.stat()
+                items.append({
+                    "name": target.name,
+                    "type": "file",
+                    "size": stat.st_size,
+                    "mtime": int(stat.st_mtime),
+                })
+            except OSError as e:
+                raise MountError(f"读取失败: {e}")
+            return {"path": rel or "/", "items": items}
         items = []
         try:
             entries = sorted(target.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
@@ -182,7 +197,9 @@ class SymlinkService:
             content = target.read_text(encoding="utf-8", errors="replace")
         except (OSError, UnicodeError) as e:
             raise MountError(f"读取失败: {e}")
-        return {"path": str(target.relative_to(Path(mount["root"]))), "content": content}
+        root = Path(mount["root"]).resolve()
+        rel_path = "" if target == root else str(target.relative_to(root))
+        return {"path": rel_path, "content": content}
 
     def write_file(self, mount_id: str, rel: str, content: str) -> dict:
         mount = self.get_mount(mount_id)
@@ -221,6 +238,9 @@ class SymlinkService:
         target = self._resolve(mount, rel)
         if not target.exists():
             raise MountError(f"路径不存在: {rel}")
+        # 不允许删除挂载根本身（目录或文件），防止误删
+        if target == Path(mount["root"]).resolve():
+            raise MountError("不能删除挂载根本身")
         try:
             if target.is_dir():
                 self._rmtree_no_follow(target)

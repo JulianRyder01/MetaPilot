@@ -175,6 +175,48 @@ def test_fs_browse_roots_and_list():
     assert client.get("/api/plugins/symlink/fs/list").status_code == 400
 
 
+def test_mount_single_file():
+    """挂载单个文件：可浏览/读取/编辑该文件，禁止删除挂载根本身。"""
+    f = _root_tmp / "single.md"
+    f.write_text("# 单文件\n正文。", encoding="utf-8")
+    m = client.post("/api/plugins/symlink/mounts", json={"name": "单文件", "root": str(f)}).json()
+    assert m["type"] == "file"
+    assert Path(m["root"]) == f
+
+    # tree：返回该文件自身
+    tree = client.get(f"/api/plugins/symlink/mounts/{m['id']}/tree").json()
+    assert [i["name"] for i in tree["items"]] == ["single.md"]
+    assert tree["items"][0]["type"] == "file"
+
+    # 读取（路径为空 = 根文件自身）
+    r = client.get(f"/api/plugins/symlink/mounts/{m['id']}/file", params={"path": ""})
+    assert r.status_code == 200
+    assert "单文件" in r.json()["content"]
+    assert r.json()["path"] == ""
+
+    # 编辑保存（路径为空）
+    r = client.put(f"/api/plugins/symlink/mounts/{m['id']}/file",
+                   params={"path": ""}, json={"content": "# 已修改"})
+    assert r.status_code == 200
+    assert f.read_text(encoding="utf-8") == "# 已修改"
+
+    # 非文本文件挂载 → 挂载成功但读取被拒
+    bin_f = _root_tmp / "blob.bin"
+    bin_f.write_bytes(b"\x00\x01")
+    mb = client.post("/api/plugins/symlink/mounts", json={"name": "bin", "root": str(bin_f)}).json()
+    assert client.get(f"/api/plugins/symlink/mounts/{mb['id']}/file", params={"path": ""}).status_code == 400
+
+    # 禁止删除挂载根文件本身
+    assert client.delete(f"/api/plugins/symlink/mounts/{m['id']}/path", params={"path": ""}).status_code == 400
+    assert f.exists()
+    # 挂载目录时同样禁止删除根
+    d = _root_tmp / "rootdir"
+    d.mkdir()
+    md = client.post("/api/plugins/symlink/mounts", json={"name": "d", "root": str(d)}).json()
+    assert client.delete(f"/api/plugins/symlink/mounts/{md['id']}/path", params={"path": ""}).status_code == 400
+    assert d.is_dir()
+
+
 def test_disable_symlink_blocks_api():
     client.post("/api/plugins/symlink/disable")
     assert client.get("/api/plugins/symlink/mounts").status_code == 503
