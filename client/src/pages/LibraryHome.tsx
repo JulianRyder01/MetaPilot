@@ -11,6 +11,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Workflow,
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
@@ -42,6 +43,7 @@ const KIND_META: Record<string, { label: string; icon: typeof BookOpen }> = {
   course: { label: "课程", icon: GraduationCap },
   note: { label: "笔记", icon: FileText },
   kb: { label: "知识库", icon: BookOpen },
+  canvas: { label: "图表", icon: Workflow },
 }
 
 export default function LibraryHome() {
@@ -296,7 +298,7 @@ export default function LibraryHome() {
                       const meta = KIND_META[col.kind] ?? KIND_META.course
                       const Icon = meta.icon
                       return (
-                        <Link key={col.id} to={`/course/${col.id}`}>
+                        <Link key={col.id} to={col.kind === "canvas" ? `/canvas/${col.id}` : `/course/${col.id}`}>
                           <Card className="h-full transition-shadow hover:shadow-md">
                             <CardHeader>
                               <CardTitle className="flex items-center gap-2 text-base">
@@ -306,7 +308,7 @@ export default function LibraryHome() {
                             </CardHeader>
                             <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
                               <Badge variant="secondary">{meta.label}</Badge>
-                              <span>{col.kind === "course" ? "章节" : "文档"}</span>
+                              <span>{col.kind === "course" ? "章节" : col.kind === "canvas" ? "画布" : "文档"}</span>
                             </CardContent>
                           </Card>
                         </Link>
@@ -321,14 +323,14 @@ export default function LibraryHome() {
                       return (
                         <Link
                           key={col.id}
-                          to={`/course/${col.id}`}
+                          to={col.kind === "canvas" ? `/canvas/${col.id}` : `/course/${col.id}`}
                           className="flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors hover:bg-accent/40"
                         >
                           <Icon className="size-4 shrink-0 text-primary" />
                           <span className="min-w-0 flex-1 truncate font-medium">{col.name}</span>
                           <Badge variant="secondary">{meta.label}</Badge>
                           <span className="shrink-0 text-xs text-muted-foreground">
-                            {col.kind === "course" ? "章节" : "文档"}
+                            {col.kind === "course" ? "章节" : col.kind === "canvas" ? "画布" : "文档"}
                           </span>
                         </Link>
                       )

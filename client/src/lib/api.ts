@@ -54,6 +54,11 @@ export const api = {
     request<Collection>(`/libraries/${libId}/collections`, { method: "POST", body: JSON.stringify(data) }),
   updateCollection: (id: string, data: Partial<Collection>) =>
     request<Collection>(`/collections/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  updateCollectionCanvas: (id: string, nodes: CanvasNode[], edges: CanvasEdge[]) =>
+    request<Collection>(`/collections/${id}/canvas`, {
+      method: "PUT",
+      body: JSON.stringify({ nodes, edges }),
+    }),
   deleteCollection: (id: string) => request<{ ok: boolean }>(`/collections/${id}`, { method: "DELETE" }),
 
   // 文档（章节）
@@ -95,6 +100,23 @@ export const api = {
   setPluginEnabled: (id: string, enabled: boolean) =>
     request<PluginInfo>(`/plugins/${id}/${enabled ? "enable" : "disable"}`, { method: "POST" }),
   deletePlugin: (id: string) => request<{ ok: boolean }>(`/plugins/${id}`, { method: "DELETE" }),
+
+  // MetaPilot 文件（.mpf）
+  importMpf: (file: File, libraryId = "") => {
+    const fd = new FormData()
+    fd.append("file", file)
+    if (libraryId) fd.append("libraryId", libraryId)
+    return request<{
+      type: string
+      libraryId: string
+      collectionId?: string
+      imported?: { collectionId: string }[]
+      name?: string
+      unresolved: { blockType: string; requiredPlugin: string }[]
+    }>("/mpf/import", { method: "POST", body: fd })
+  },
+  exportMpfUrl: (id: string, kind: "library" | "collection") =>
+    `${BASE}/mpf/${kind === "library" ? "libraries" : "collections"}/${id}/export-mpf`,
 
   // 插件商店（PLUGIN_STORE_URL 配置后可用）
   storeCatalog: () => request<StorePluginItem[]>("/plugins/store/plugins"),
@@ -162,6 +184,30 @@ export interface Document {
   sections: Section[]
 }
 
+export interface CanvasNode {
+  id: string
+  type: "text" | "file" | "link" | "group"
+  x: number
+  y: number
+  width: number
+  height: number
+  color?: string
+  text?: string
+  file?: string
+  url?: string
+  label?: string
+}
+
+export interface CanvasEdge {
+  id: string
+  fromNode: string
+  fromSide?: string
+  toNode: string
+  toSide?: string
+  label?: string
+  color?: string
+}
+
 export interface Collection {
   id: string
   name: string
@@ -172,6 +218,7 @@ export interface Collection {
   packageId?: string
   documents: Document[]
   folders: Folder[]
+  canvas?: { nodes: CanvasNode[]; edges: CanvasEdge[] }
 }
 
 export interface Library {

@@ -1,5 +1,6 @@
 """库与文档集（课程）路由。"""
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 from ..schemas import CollectionIn, LibraryIn
 from ..storage.store import LibraryStore, find_collection
@@ -67,6 +68,20 @@ def get_collection(cid: str, request: Request):
         if col is not None:
             return col
     raise HTTPException(status_code=404, detail=f"文档集不存在: {cid}")
+
+
+class CanvasIn(BaseModel):
+    nodes: list[dict] = []
+    edges: list[dict] = []
+
+
+@router.put("/collections/{cid}/canvas")
+def update_collection_canvas(cid: str, body: CanvasIn, request: Request):
+    """保存图表画布（canvas 集合的 nodes/edges）。"""
+    try:
+        return _store(request).update_collection(cid, {"canvas": {"nodes": body.nodes, "edges": body.edges}})
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.delete("/collections/{cid}")

@@ -11,7 +11,7 @@ class LibraryIn(BaseModel):
 
 class CollectionIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    kind: Literal["course", "note", "kb"] = "course"
+    kind: Literal["course", "note", "kb", "canvas"] = "course"
     description: str = ""
     author: str = ""
     version: str = "1.0.0"
