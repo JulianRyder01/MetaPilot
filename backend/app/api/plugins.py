@@ -1,7 +1,11 @@
-"""插件管理路由（核心）：清单 / 启用 / 禁用。"""
+"""插件管理路由（核心）：清单 / 启用 / 禁用 / 前端 bundle 托管。"""
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse
 
 from ..plugins.base import manager
+from ..plugins.loader import PLUGINS_DIR
 
 router = APIRouter(prefix="/api/plugins", tags=["plugins"])
 
@@ -9,6 +13,19 @@ router = APIRouter(prefix="/api/plugins", tags=["plugins"])
 @router.get("")
 def plugin_list():
     return manager.list()
+
+
+@router.get("/{pid}/frontend.js")
+def plugin_frontend_bundle(pid: str):
+    """托管插件包内 frontend/frontend.js（前端运行时动态加载第三方插件 UI）。
+
+    路径净化：仅允许 PLUGINS_DIR/<pid>/frontend/frontend.js，防任意文件读取。
+    """
+    plugins_root = PLUGINS_DIR.resolve()
+    target = (plugins_root / pid / "frontend" / "frontend.js").resolve()
+    if not target.is_relative_to(plugins_root) or not target.is_file():
+        raise HTTPException(status_code=404, detail=f"插件前端 bundle 不存在: {pid}")
+    return FileResponse(target, media_type="application/javascript")
 
 
 @router.post("/{pid}/enable")

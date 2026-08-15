@@ -1,0 +1,33 @@
+{
+  "specVersion": "1.1",
+  "id": "demo_greeting",
+  "name": "示例问候插件",
+  "version": "1.0.0",
+  "description": "第三方插件示例：提供后端问候 API 与运行时加载的前端页面（frontend/frontend.js），演示「任意第三方插件即插即用」。",
+  "author": "MetaPilot Demo",
+  "depends_on": [],
+  "source": "user",
+  "tags": [
+    "示例",
+    "工具"
+  ],
+  "capabilities": {
+    "demo.greeting": {
+      "label": "问候 API"
+    }
+  },
+  "requires": [],
+  "content_types": [],
+  "features": [
+    "后端问候 API（/api/plugins/demo_greeting/hello）",
+    "前端页面运行时动态加载（frontend.js 注册路由与导航）"
+  ],
+  "icon": "Hand",
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "",
+      "summary": "演示第三方插件：后端 API + 前端 bundle 运行时加载"
+    }
+  ]
+}

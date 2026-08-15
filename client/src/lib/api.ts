@@ -301,6 +301,10 @@ export interface PluginInfo {
   features?: string[]
   /** 图标名（lucide 图标名，来自 plugin.json icon；缺失时前端回退通用图标） */
   icon?: string
+  /** 是否含前端 UI bundle（frontend/frontend.js，第三方插件运行时动态加载） */
+  hasFrontend?: boolean
+  /** 前端 bundle 托管地址（hasFrontend 时有效） */
+  frontendUrl?: string
   /** 更新历史（roadmap）：[{version, date, summary}]，最新在前 */
   changelog?: { version: string; date?: string; summary: string }[]
 }

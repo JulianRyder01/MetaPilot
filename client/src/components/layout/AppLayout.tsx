@@ -1,12 +1,13 @@
 import { Link, NavLink, Outlet } from "react-router-dom"
 import { useEffect, useState } from "react"
 import { BookOpen, Globe, Library, Puzzle, Settings2, type LucideIcon } from "lucide-react"
+import * as Lucide from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useT, LANGS, useI18nStore } from "@/i18n"
 import { useThemeStore } from "@/stores/theme"
 import { usePluginsStore, ensurePluginsLoaded } from "@/stores/plugins"
-import { pluginNavItems } from "@/plugins/registry"
+import { allPluginNavItems, usePluginRuntimeFrontends } from "@/plugins/registry"
 import ThemeToggle from "@/components/layout/ThemeToggle"
 import {
   DropdownMenu,
@@ -24,6 +25,13 @@ interface NavItem {
   icon: LucideIcon
 }
 
+/** 插件导航图标：lucide 组件或字符串名（第三方 bundle 声明），字符串动态解析，未知回退 Puzzle */
+function resolveIcon(icon: LucideIcon | string): LucideIcon {
+  if (typeof icon !== "string") return icon
+  const Cmp = (Lucide as unknown as Record<string, unknown>)[icon]
+  return typeof Cmp === "function" ? (Cmp as LucideIcon) : Puzzle
+}
+
 // 核心导航：文档库（前置）与系统页（后置）；插件导航（统计/知识库等）由注册表贡献并居中
 const leadingNav: NavItem[] = [{ to: "/", label: "nav.library", icon: Library }]
 const trailingNav: NavItem[] = [
@@ -33,6 +41,7 @@ const trailingNav: NavItem[] = [
 
 export default function AppLayout() {
   const plugins = usePluginsStore((s) => s.plugins)
+  const dynamic = usePluginRuntimeFrontends()
   const t = useT()
   const lang = useI18nStore((s) => s.lang)
   const setLang = useI18nStore((s) => s.setLang)
@@ -55,7 +64,9 @@ export default function AppLayout() {
 
   const navItems: NavItem[] = [
     ...leadingNav,
-    ...pluginNavItems.filter((n) => pluginEnabled(n.pluginId)),
+    ...allPluginNavItems(dynamic)
+      .filter((n) => pluginEnabled(n.pluginId))
+      .map((n) => ({ ...n, icon: resolveIcon(n.icon) })),
     ...trailingNav,
   ]
 

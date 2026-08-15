@@ -35,7 +35,7 @@ plugin = StoreDemo()
 '''
 
 
-def make_zip(pid: str = TEST_PID, tags: list | None = None) -> bytes:
+def make_zip(pid: str = TEST_PID, tags: list | None = None, frontend: str | None = None) -> bytes:
     meta = {
         "specVersion": "1.0",
         "id": pid,
@@ -50,6 +50,8 @@ def make_zip(pid: str = TEST_PID, tags: list | None = None) -> bytes:
     with zipfile.ZipFile(buf, "w") as zf:
         zf.writestr("plugin.json", json.dumps(meta, ensure_ascii=False))
         zf.writestr("__init__.py", ZIP_INIT)
+        if frontend is not None:
+            zf.writestr("frontend/frontend.js", frontend)
     return buf.getvalue()
 
 
@@ -137,6 +139,26 @@ def test_upload_local_accepts_arbitrary_tag():
     assert r.json()["id"] == TEST_PID
     assert r.json()["tags"] == ["不存在的tag"]
     assert client.delete(f"/api/plugins/{TEST_PID}").status_code == 200
+
+
+def test_upload_with_frontend_bundle_served():
+    """带 frontend/frontend.js 的插件：安装后清单带 frontendUrl，经托管端点返回 bundle。"""
+    js = 'window.MetaPilotPluginRegistry.register({ id: "store_demo", routes: [] })'
+    r = client.post("/api/plugins/upload", files={"file": ("p.zip", make_zip(frontend=js), "application/zip")})
+    assert r.status_code == 200, r.text
+    info = r.json()
+    assert info["hasFrontend"] is True
+    assert info["frontendUrl"] == "/api/plugins/store_demo/frontend.js"
+
+    r = client.get("/api/plugins/store_demo/frontend.js")
+    assert r.status_code == 200
+    assert r.text == js
+    assert r.headers["content-type"].startswith("application/javascript")
+
+    # 不存在的插件 / 无 bundle 的插件 → 404
+    assert client.get("/api/plugins/nope/frontend.js").status_code == 404
+    assert client.delete(f"/api/plugins/{TEST_PID}").status_code == 200
+    assert client.get("/api/plugins/store_demo/frontend.js").status_code == 404
 
 
 def test_upload_local_rejects_traversal_id():

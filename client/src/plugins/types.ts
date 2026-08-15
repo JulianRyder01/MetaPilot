@@ -8,7 +8,8 @@ export interface PluginNavItem {
   to: string
   /** 导航显示名 */
   label: string
-  icon: LucideIcon
+  /** 图标：lucide 组件或图标名字符串（第三方 bundle 用字符串名，宿主动态解析） */
+  icon: LucideIcon | string
 }
 
 /** 插件贡献的页面路由（渲染在 AppLayout 之下） */

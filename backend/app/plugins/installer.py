@@ -111,6 +111,9 @@ def install_user_plugin(app: FastAPI, data: bytes) -> dict:
             raise PluginInstallError("插件包未定义 plugin 实例")
         _apply_metadata(plugin, PLUGINS_DIR / pid / "plugin.json")
         plugin.source = "user"  # 用户安装的插件一律视为用户自定义（可禁用/删除）
+        # 前端 bundle 检测（与 loader 一致）：frontend/frontend.js 存在则前端运行时动态加载 UI
+        frontend_js = PLUGINS_DIR / pid / "frontend" / "frontend.js"
+        plugin.frontend_path = str(frontend_js) if frontend_js.is_file() else ""
         manager.register(plugin)
         plugin.register(app)
     except PluginInstallError:

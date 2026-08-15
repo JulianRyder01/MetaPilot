@@ -49,6 +49,8 @@ class Plugin:
     # 前端展示元数据（schema v1.2 起）：功能列表 / 图标名（lucide），缺失时前端回退通用展示
     features: list[str] = []
     icon: str = ""
+    # 运行时检测：插件包内 frontend/frontend.js 的物理路径（有则前端可动态加载其 UI bundle）
+    frontend_path: str = ""
 
     def register(self, app: "FastAPI") -> None:
         raise NotImplementedError
@@ -194,6 +196,8 @@ class PluginManager:
             "contentTypes": list(p.content_types),
             "features": list(p.features),
             "icon": p.icon,
+            "hasFrontend": bool(p.frontend_path),
+            "frontendUrl": f"/api/plugins/{p.id}/frontend.js" if p.frontend_path else "",
             "changelog": p.changelog or [],
         }
 

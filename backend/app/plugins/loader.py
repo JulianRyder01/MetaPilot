@@ -85,6 +85,9 @@ def load_plugins(data_dir: str | Path) -> PluginManager:
                 print(f"[plugins] 跳过 {child.name}：未定义 plugin 实例")
                 continue
             _apply_metadata(plugin, child / "plugin.json")
+            # 前端 bundle（frontend/frontend.js）存在性检测：有则前端运行时动态加载其 UI
+            frontend_js = child / "frontend" / "frontend.js"
+            plugin.frontend_path = str(frontend_js) if frontend_js.is_file() else ""
             manager.register(plugin)
             # 插件声明的组件块类型 → 核心 .mpf 解析注册表（不再由核心写死映射）
             for bt in plugin.content_types:

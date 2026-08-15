@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { useEffect } from "react"
 import { api, type PluginInfo } from "@/lib/api"
+import { usePluginRuntime } from "@/plugins/runtime"
 
 interface PluginsState {
   plugins: PluginInfo[]
@@ -19,6 +20,13 @@ export const usePluginsStore = create<PluginsState>((set, get) => ({
   refresh: async () => {
     const plugins = await api.listPlugins()
     set({ plugins, loaded: true })
+    // 第三方插件带前端 bundle（frontendUrl）且启用 → 运行时动态加载 UI，
+    // frontend.js 执行后经 window.MetaPilotPluginRegistry 注册路由/导航
+    for (const p of plugins) {
+      if (p.frontendUrl && p.enabled) {
+        usePluginRuntime.getState().load(p.id, p.frontendUrl).catch(() => {})
+      }
+    }
   },
 
   setEnabled: async (id, enabled) => {
