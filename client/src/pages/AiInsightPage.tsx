@@ -187,7 +187,6 @@ function TreeRow({
 
 export default function AiInsightPage() {
   const t = useT()
-  const symlinkAvailable = resources.sourceTypes?.symlink?.available ?? false
   const [searchParams] = useSearchParams()
 
   const [resources, setResources] = useState<InsightResources>({
@@ -195,6 +194,8 @@ export default function AiInsightPage() {
     symlinks: [],
     sourceTypes: {},
   })
+  // 挂载类数据源可用性（后端能力元数据）：必须在 resources state 声明之后使用
+  const symlinkAvailable = resources.sourceTypes?.symlink?.available ?? false
   const [loadingResources, setLoadingResources] = useState(true)
   const [indexSel, setIndexSel] = useState<Map<string, InsightSourceRef>>(new Map())
   const [askSel, setAskSel] = useState<Map<string, InsightSourceRef>>(new Map())

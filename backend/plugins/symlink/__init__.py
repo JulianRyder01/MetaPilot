@@ -17,7 +17,7 @@ class SymlinkPlugin(Plugin):
         service = SymlinkService(DATA_DIR)
         app.state.symlink = service
         # 能力服务注册：其它插件经 capability 注册表取挂载源服务，不写死插件 id / app.state
-        self.declare_capability("symlink.mounts")
+        # 能力元数据由 plugin.json capabilities 声明（loader 注册），此处仅绑定服务对象，避免覆盖元数据
         manager.register_service("symlink.mounts", service)
         app.include_router(router)
 
