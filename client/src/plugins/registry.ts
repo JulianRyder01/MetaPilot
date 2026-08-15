@@ -6,16 +6,16 @@
  *   由 App.tsx / AppLayout.tsx 合并消费，真正「即插即用」。
  */
 import { coursePlugin } from "./course"
-import { knowledgeBasePlugin } from "./knowledge_base"
+import { aiInsightPlugin } from "./ai_insight"
 import { themesPlugin } from "./themes"
 import { symlinkPlugin } from "./symlink"
 import { usePluginRuntime } from "./runtime"
 import type { PluginFrontend, PluginNavItem } from "./types"
 
-/** 官方内置前端插件（顺序即展示顺序：course → knowledge_base → themes → symlink） */
+/** 官方内置前端插件（顺序即展示顺序：course → ai_insight → themes → symlink） */
 export const builtinFrontends: PluginFrontend[] = [
   coursePlugin,
-  knowledgeBasePlugin,
+  aiInsightPlugin,
   themesPlugin,
   symlinkPlugin,
 ]
