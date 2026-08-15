@@ -1124,10 +1124,10 @@ export default function CanvasPage() {
                 onMouseUp={() => endLinkOn(node.id)}
                 className={cn(
                   "group absolute cursor-grab p-2 active:cursor-grabbing",
-                  // Obsidian：文本节点默认无边框（hover 显示淡边框），文件/链接为带边框卡片，分组为半透明圆角块
+                  // Obsidian：文本节点默认无边框（hover 显示淡边框），文件/链接为带边框卡片，分组为带虚线边界的半透明圆角块
                   node.type === "text" && "rounded-md border border-transparent bg-card shadow-sm transition-colors hover:border-border",
                   (node.type === "file" || node.type === "link") && "rounded-md border bg-card shadow-sm",
-                  node.type === "group" && "rounded-lg",
+                  node.type === "group" && cn("rounded-lg border border-dashed", node.color ? "border-foreground/60" : "border-foreground/25"),
                   isSelected && "ring-2 ring-primary",
                 )}
                 style={{
