@@ -99,6 +99,8 @@ export default function CanvasPage() {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; board: { x: number; y: number } } | null>(null)
   /** 右键手势记录（按下位置 + 是否已移动为拖拽）。 */
   const rightPressRef = useRef<{ startX: number; startY: number; moved: boolean; startPanX: number; startPanY: number } | null>(null)
+  /** 右键拖拽结束后的下一次 contextmenu 应被抑制（拖拽松开也会触发 contextmenu）。 */
+  const suppressCtxMenuRef = useRef(false)
 
   const load = useCallback(async () => {
     if (!cid) return
@@ -436,6 +438,12 @@ export default function CanvasPage() {
   // ---- 拖拽移动节点（支持多选整体移动） ----
   function onNodeMouseDown(e: React.MouseEvent, node: CanvasNode) {
     if (editingId) return
+    // 右键：与空白处一致，记录手势（拖拽平移 / 单击弹菜单）
+    if (e.button === 2) {
+      setCtxMenu(null)
+      rightPressRef.current = { startX: e.clientX, startY: e.clientY, moved: false, startPanX: view.panX, startPanY: view.panY }
+      return
+    }
     // 空格或中键：平移画布
     if (spaceDownRef.current || e.button === 1) {
       startPan(e)
@@ -531,13 +539,11 @@ export default function CanvasPage() {
   }
 
   function onBoardMouseUp() {
-    // 右键释放：未移动 = 弹新建菜单；已移动 = 平移结束
+    // 右键释放：仅结束手势；菜单改由 contextmenu 事件触发（避免遮罩自关）
     if (rightPressRef.current) {
       const rp = rightPressRef.current
       rightPressRef.current = null
-      if (!rp.moved) {
-        setCtxMenu({ x: rp.startX, y: rp.startY, board: screenToBoard(rp.startX, rp.startY) })
-      }
+      if (rp.moved) suppressCtxMenuRef.current = true
       return
     }
     if (dragState) {
@@ -569,6 +575,10 @@ export default function CanvasPage() {
       const target = e.target as HTMLElement | null
       const inField = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
       if (e.code === "Space") return
+      if (e.key === "Escape") {
+        setCtxMenu(null)
+        return
+      }
       if ((e.key === "Delete" || e.key === "Backspace") && !inField) {
         if (selectedEdgeId) {
           e.preventDefault()
@@ -784,7 +794,15 @@ export default function CanvasPage() {
         onMouseMove={onBoardMouseMove}
         onMouseUp={onBoardMouseUp}
         onMouseLeave={onBoardMouseUp}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          // 右键拖拽松开也会触发 contextmenu：拖拽结束后抑制一次
+          if (suppressCtxMenuRef.current) {
+            suppressCtxMenuRef.current = false
+            return
+          }
+          setCtxMenu({ x: e.clientX, y: e.clientY, board: screenToBoard(e.clientX, e.clientY) })
+        }}
         onDragOver={(e) => {
           e.preventDefault()
           e.dataTransfer.dropEffect = "copy"
@@ -1208,7 +1226,11 @@ export default function CanvasPage() {
             onClick={() => setCtxMenu(null)}
             onContextMenu={(e) => {
               e.preventDefault()
-              setCtxMenu(null)
+              if (suppressCtxMenuRef.current) {
+                suppressCtxMenuRef.current = false
+                return
+              }
+              setCtxMenu({ x: e.clientX, y: e.clientY, board: screenToBoard(e.clientX, e.clientY) })
             }}
           />
           <div
