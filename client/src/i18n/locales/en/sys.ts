@@ -118,7 +118,7 @@ export const sysEn: Record<string, string> = {
   "sys.ai.testOk": "Connected: {model} ({in} in / {out} out tokens)",
   "sys.ai.testFailed": "Connection failed",
   "sys.ai.localTitle": "Built-in local models",
-  "sys.ai.localDesc": "One-click download when needed (ModelScope → HF-Mirror → HuggingFace), then start and use",
+  "sys.ai.localDesc": "One-click download when needed (multiple mirrors tried automatically), then start and use",
   "sys.ai.downloaded": "Downloaded",
   "sys.ai.notDownloaded": "Not downloaded",
   "sys.ai.downloading": "Downloading...",

@@ -37,6 +37,11 @@ class FakeGateway:
             "embedding_provider": "local_transformers",
             "embedding_url": "http://127.0.0.1:8760",
             "embedding_model": "Qwen/Qwen3-Embedding-0.6B",
+            "embedding_models": {
+                "Qwen/Qwen3-Embedding-0.6B": "Qwen3-Embedding-0.6B（轻量，默认）",
+                "Qwen/Qwen3-Embedding-4B": "Qwen3-Embedding-4B（更强，需更多显存）",
+            },
+            "embedding_download_hint": "模型下载多路自动尝试，首次下载需等待模型就绪，页面会自动刷新状态。",
         })()
 
     async def embed(self, texts, model="", plugin="core"):
@@ -492,6 +497,9 @@ def test_embedding_status_models_and_health(monkeypatch):
     assert "Qwen/Qwen3-Embedding-0.6B" in data["models"]
     assert "Qwen/Qwen3-Embedding-4B" in data["models"]
     assert data["model"] == "Qwen/Qwen3-Embedding-0.6B"
+    # 下载说明由配置下发（前端不写死），结构必须存在
+    assert data["downloadHint"]
+    assert "自动刷新" in data["downloadHint"]
 
 
 def test_embedding_start_rejects_unknown_model():

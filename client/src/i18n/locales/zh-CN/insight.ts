@@ -16,7 +16,7 @@ export const insightZhCN: Record<string, string> = {
   "insight.selectModelPlaceholder": "选择 embedding 模型",
   "insight.stopService": "停止服务",
   "insight.startService": "启动服务（首次自动下载所选模型）",
-  "insight.modelDownloadHint": "模型下载多路自动尝试（ModelScope → HF-Mirror → HuggingFace），首次下载 0.6B 约 2-3 分钟、4B 需更久，页面会自动刷新状态。",
+  "insight.modelDownloadHint": "模型下载多路自动尝试，首次下载需等待模型就绪，页面会自动刷新状态。具体下载源与模型清单以后端配置为准。",
   "insight.selectSourcesTitle": "选择数据源（可多选）",
   "insight.indexIntro": "支持按库、单个文档集、单个文档选择；索引按数据源独立存储。",
   "insight.indexIntroWithSymlink": "支持按库、文档集、文档选择，也可选整个本机目录或目录内任意路径；索引按数据源独立存储。",

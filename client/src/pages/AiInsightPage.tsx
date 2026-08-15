@@ -949,7 +949,9 @@ export default function AiInsightPage() {
                   </>
                 )}
                 {embedStatus && (
-                  <p className="w-full text-xs text-muted-foreground">{t("insight.modelDownloadHint")}</p>
+                  <p className="w-full text-xs text-muted-foreground">
+                    {embedStatus.downloadHint ?? t("insight.modelDownloadHint")}
+                  </p>
                 )}
               </CardContent>
             </Card>

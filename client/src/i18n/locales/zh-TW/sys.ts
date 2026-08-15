@@ -118,7 +118,7 @@ export const sysZhTW: Record<string, string> = {
   "sys.ai.testOk": "連線成功：{model}（輸入 {in} / 輸出 {out} tokens）",
   "sys.ai.testFailed": "連線失敗",
   "sys.ai.localTitle": "內建本地模型",
-  "sys.ai.localDesc": "需要時一鍵下載（ModelScope → HF-Mirror → HuggingFace 多路嘗試），下載後即可啟動使用",
+  "sys.ai.localDesc": "需要時一鍵下載（多路鏡像自動嘗試），下載後即可啟動使用",
   "sys.ai.downloaded": "已下載",
   "sys.ai.notDownloaded": "未下載",
   "sys.ai.downloading": "下載中...",

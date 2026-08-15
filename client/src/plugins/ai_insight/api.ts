@@ -72,9 +72,11 @@ export interface InsightPlanResult {
   summary?: string
 }
 
-/** embedding 状态（含可选模型清单） */
+/** embedding 状态（含可选模型清单与下载说明） */
 export interface InsightEmbeddingStatus extends KbEmbeddingStatus {
   models: Record<string, string>
+  /** 模型下载说明（后端配置下发，前端不写死具体模型/下载源/耗时） */
+  downloadHint?: string
   autoStart: boolean
 }
 

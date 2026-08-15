@@ -42,6 +42,14 @@ LOCAL_MODELS: dict[str, dict] = {
     },
 }
 
+# 默认 embedding 模型列表（模型 id → 展示名）：可被 .env 的 AI_EMBEDDING_MODELS（JSON）整体覆盖/扩展
+def _default_embedding_models() -> dict[str, str]:
+    out: dict[str, str] = {}
+    for m in LOCAL_MODELS.values():
+        if m["kind"] == "embedding":
+            out[m["id"]] = m["name"] + f"（{m['role']}）"
+    return out
+
 # 默认价格（每百万 token）：给未配置价格的模型一个兜底
 DEFAULT_PRICES: dict[str, dict] = {
     "MiniMax-M3": {"input": 4.0, "cachedInput": 0.0, "output": 12.0, "currency": "¥"},
@@ -100,6 +108,15 @@ class AIConfig:
         for mid, p in DEFAULT_PRICES.items():
             prices.setdefault(mid, dict(p))
 
+        # embedding 模型列表（AI_EMBEDDING_MODELS JSON）与下载说明（AI_EMBEDDING_HINT），
+        # 均为可配置的可变项：未配置时回退内置默认，前端只渲染后端下发的值，不写死
+        models_raw = self._get("AI_EMBEDDING_MODELS", "")
+        try:
+            models = json.loads(models_raw) if models_raw.strip() else {}
+        except json.JSONDecodeError:
+            models = {}
+        embedding_models = models if models else _default_embedding_models()
+
         return {
             "provider": provider,
             "baseUrl": base_url,
@@ -108,6 +125,11 @@ class AIConfig:
             "embeddingProvider": embed_provider,
             "embeddingUrl": embed_url,
             "embeddingModel": embed_model,
+            "embeddingModels": embedding_models,
+            "embeddingDownloadHint": self._get(
+                "AI_EMBEDDING_HINT",
+                "模型下载多路自动尝试（ModelScope → HF-Mirror → HuggingFace），首次下载需等待模型就绪，页面会自动刷新状态。",
+            ),
             "localLlmUrl": self._get("AI_LOCAL_LLM_URL", "http://127.0.0.1:8761"),
             "rerankUrl": self._get("AI_RERANK_URL", "http://127.0.0.1:8762"),
             "localLlmModel": self._get("AI_LOCAL_LLM_MODEL", "Qwen/Qwen3-4B"),
@@ -145,6 +167,16 @@ class AIConfig:
     @property
     def embedding_model(self) -> str:
         return self._cache["embeddingModel"]
+
+    @property
+    def embedding_models(self) -> dict:
+        """可选 embedding 模型列表（模型 id → 展示名）；由 AI_EMBEDDING_MODELS 配置，空则内置默认。"""
+        return dict(self._cache["embeddingModels"])
+
+    @property
+    def embedding_download_hint(self) -> str:
+        """embedding 模型下载说明（前端展示用）；由 AI_EMBEDDING_HINT 配置，空则内置默认。"""
+        return self._cache["embeddingDownloadHint"]
 
     @property
     def local_llm_url(self) -> str:

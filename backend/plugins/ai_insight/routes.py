@@ -14,7 +14,6 @@ from pydantic import BaseModel, Field
 
 from app.plugins.base import requires_plugin
 from app.services.ai_gateway import AIError, NotConfiguredError
-from app.services.embedding import EMBEDDING_MODELS
 from .service import InsightService, MODE_PROMPTS, NotIndexedError
 
 router = APIRouter(
@@ -93,11 +92,14 @@ async def embedding_status(request: Request):
     _ensure_auto_start(request)
     svc = _svc(request)
     st = request.app.state.local_servers.status("embedding")
+    cfg = svc.gateway.config if svc.gateway is not None else None
     return {
-        "provider": svc.gateway.config.embedding_provider,
-        "url": svc.gateway.config.embedding_url,
-        "model": svc.gateway.config.embedding_model,
-        "models": EMBEDDING_MODELS,
+        "provider": cfg.embedding_provider if cfg else "",
+        "url": cfg.embedding_url if cfg else "",
+        "model": cfg.embedding_model if cfg else "",
+        # 模型列表与下载说明来自配置（AI_EMBEDDING_MODELS / AI_EMBEDDING_HINT），可动态变更
+        "models": cfg.embedding_models if cfg else {},
+        "downloadHint": cfg.embedding_download_hint if cfg else "",
         "healthy": st["running"],
         "serverRunning": st["running"],
         "autoStart": True,
@@ -106,10 +108,11 @@ async def embedding_status(request: Request):
 
 @router.post("/embedding/start")
 def embedding_start(body: ModelIn, request: Request):
-    """启动本地向量服务；body.model 可切换 Qwen3 模型（0.6B / 4B），自动多路下载。"""
-    model = body.model or request.app.state.ai_gateway.config.embedding_model
-    if model not in EMBEDDING_MODELS:
-        raise HTTPException(status_code=400, detail=f"不支持的模型: {model}，可选 {list(EMBEDDING_MODELS)}")
+    """启动本地向量服务；body.model 可切换可选模型（清单来自配置），自动多路下载。"""
+    cfg = getattr(request.app.state, "ai_gateway", None).config
+    model = body.model or cfg.embedding_model
+    if model not in cfg.embedding_models:
+        raise HTTPException(status_code=400, detail=f"不支持的模型: {model}，可选 {list(cfg.embedding_models)}")
     return request.app.state.local_servers.start("embedding", model)
 
 

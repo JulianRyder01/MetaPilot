@@ -4,13 +4,22 @@ from __future__ import annotations
 import httpx
 
 from ..config import settings
+from .ai_config import AIConfig
 
 
-# Qwen3 系列两个 embedding 模型（模型 id → 展示名；与 scripts/kb_embedding_server.py 保持一致）
-EMBEDDING_MODELS: dict[str, str] = {
-    "Qwen/Qwen3-Embedding-0.6B": "Qwen3-Embedding-0.6B（轻量，默认）",
-    "Qwen/Qwen3-Embedding-4B": "Qwen3-Embedding-4B（更强，需更多显存）",
-}
+def _config() -> AIConfig:
+    """按需读取 AI 配置（模块级缓存避免重复读 .env）。"""
+    global _ai_config
+    if _ai_config is None:
+        _ai_config = AIConfig()
+    return _ai_config
+
+
+_ai_config: AIConfig | None = None
+
+# 可选 embedding 模型（模型 id → 展示名）：由 .env AI_EMBEDDING_MODELS 配置（JSON），
+# 空则回退内置默认（Qwen3-Embedding 0.6B/4B）；不再在代码里写死模型清单。
+EMBEDDING_MODELS: dict[str, str] = _config().embedding_models
 
 
 class EmbeddingError(RuntimeError):

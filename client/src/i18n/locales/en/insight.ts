@@ -16,7 +16,7 @@ export const insightEn: Record<string, string> = {
   "insight.selectModelPlaceholder": "Choose embedding model",
   "insight.stopService": "Stop service",
   "insight.startService": "Start service (downloads the model on first run)",
-  "insight.modelDownloadHint": "Model download tries ModelScope → HF-Mirror → HuggingFace; first download takes 2-3 min (0.6B) or longer (4B). Status refreshes automatically.",
+  "insight.modelDownloadHint": "Model download tries multiple mirrors automatically; first download waits for the model to be ready. Status refreshes automatically. The actual download sources and model list come from backend config.",
   "insight.selectSourcesTitle": "Select sources (multi-select)",
   "insight.indexIntro": "Select by library, collection, or document. Indexes are stored per source.",
   "insight.indexIntroWithSymlink": "Select by library, collection, document, or any path inside a mounted folder. Indexes are stored per source.",
