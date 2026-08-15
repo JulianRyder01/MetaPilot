@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, Box, Download, FileText, Link2, Maximize, Minus, Plus, Redo2, Save, StickyNote, Trash2, Undo2 } from "lucide-react"
+import { ArrowLeft, Box, Download, FileText, Link2, Maximize, Minus, PanelLeft, Plus, Redo2, Save, StickyNote, Trash2, Undo2, X } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
@@ -92,6 +92,9 @@ export default function CanvasPage() {
   const clipboardRef = useRef<{ nodes: CanvasNode[]; edges: CanvasEdge[] } | null>(null)
   const spaceDownRef = useRef(false)
   const boardRef = useRef<HTMLDivElement>(null)
+  /** 导航抽屉（全屏模式下收缩的全局导航，点击悬浮按钮展开）。 */
+  const [navOpen, setNavOpen] = useState(false)
+  const [drawerLibs, setDrawerLibs] = useState<{ libId: string; libName: string; canvases: { id: string; name: string }[] }[]>([])
 
   const load = useCallback(async () => {
     if (!cid) return
@@ -109,6 +112,28 @@ export default function CanvasPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  // 导航抽屉数据：各库下的图表集合（用于快速切换）
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const libs = await api.listLibraries()
+        const out: { libId: string; libName: string; canvases: { id: string; name: string }[] }[] = []
+        for (const lib of libs) {
+          const full = await api.getLibrary(lib.id)
+          const canvases = (full.collections ?? []).filter((c) => c.kind === "canvas")
+          if (canvases.length) out.push({ libId: lib.id, libName: lib.name, canvases })
+        }
+        if (alive) setDrawerLibs(out)
+      } catch {
+        // 忽略：抽屉仅作导航增强，失败不阻断画布
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [cid])
 
   async function save() {
     if (!cid) return
@@ -625,18 +650,29 @@ export default function CanvasPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-8">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Link to="/" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+    <div className="fixed inset-0 z-50 flex flex-col bg-background">
+      {/* 顶部工具栏（全屏沉浸式画布的自有工具条） */}
+      <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b bg-background/95 px-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            onClick={() => setNavOpen((v) => !v)}
+            title={t("core.canvas.toggleNav")}
+          >
+            <PanelLeft className="size-4" />
+          </Button>
+          <Link to="/" className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-4" />
             {t("core.canvas.backToLibrary")}
           </Link>
-          <h1 className="text-xl font-semibold">{col.name}</h1>
-          <Badge variant="outline">{t("core.canvas.badge")}</Badge>
-          {dirty && <Badge variant="secondary">{t("core.canvas.dirty")}</Badge>}
+          <span className="shrink-0 text-muted-foreground">/</span>
+          <h1 className="truncate text-base font-semibold">{col.name}</h1>
+          <Badge variant="outline" className="shrink-0">{t("core.canvas.badge")}</Badge>
+          {dirty && <Badge variant="secondary" className="shrink-0">{t("core.canvas.dirty")}</Badge>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           <Button variant="ghost" size="icon" onClick={undo} title={t("core.canvas.undo")} disabled={undoStack.current.length === 0}>
             <Undo2 className="size-4" />
           </Button>
@@ -673,16 +709,28 @@ export default function CanvasPage() {
             <Save className="size-4" />
             {t("common.save")}
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Download className="size-4" />
+                {t("core.canvas.export")}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportCanvasFile}>{t("core.canvas.exportCanvas")}</DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={cid ? api.exportMpfUrl(cid, "collection") : "#"}>{t("core.canvas.exportMpf")}</a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      <p className="mb-3 text-xs text-muted-foreground">
-        {t("core.canvas.help")}
-      </p>
-
+      {/* 画布区域（占满剩余空间） */}
+      <div className="relative flex-1 overflow-hidden">
       <div
         ref={boardRef}
-        className="relative h-[560px] select-none overflow-hidden rounded-lg border bg-muted/20"
+        className="absolute inset-0 select-none overflow-hidden bg-muted/20"
         onMouseDown={onBoardMouseDown}
         onMouseMove={onBoardMouseMove}
         onMouseUp={onBoardMouseUp}
@@ -1044,21 +1092,65 @@ export default function CanvasPage() {
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">{t("core.canvas.stats", { nodes: nodes.length, edges: edges.length })}</p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={exportCanvasFile}>
-            <Download className="size-4" />
-            {t("core.canvas.exportCanvas")}
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <a href={cid ? api.exportMpfUrl(cid, "collection") : "#"}>
-              <Download className="size-4" />
-              {t("core.canvas.exportMpf")}
-            </a>
-          </Button>
-        </div>
+        {/* 画布节点统计 */}
+        <p className="pointer-events-none absolute bottom-3 left-3 z-20 text-xs text-muted-foreground">
+          {t("core.canvas.stats", { nodes: nodes.length, edges: edges.length })}
+        </p>
+
+        {/* 操作提示（顶部悬浮） */}
+        <p className="pointer-events-none absolute top-2 left-1/2 z-20 max-w-[90%] -translate-x-1/2 truncate text-xs text-muted-foreground/70">
+          {t("core.canvas.help")}
+        </p>
       </div>
+
+      {/* 导航抽屉：全屏模式下收缩的全局导航，点击左上角按钮展开 */}
+      {navOpen && (
+        <>
+          <div className="absolute inset-0 z-40 bg-black/20" onClick={() => setNavOpen(false)} />
+          <aside className="absolute top-0 left-0 z-50 flex h-full w-72 flex-col border-r bg-background shadow-xl">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <span className="font-semibold tracking-tight">MetaPilot</span>
+              <Button variant="ghost" size="icon" className="size-7" onClick={() => setNavOpen(false)}>
+                <X className="size-4" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3">
+              <Link
+                to="/"
+                onClick={() => setNavOpen(false)}
+                className="mb-3 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <ArrowLeft className="size-4" />
+                {t("core.canvas.backToLibrary")}
+              </Link>
+              {drawerLibs.length === 0 && (
+                <p className="px-2 text-xs text-muted-foreground">{t("core.canvas.noCanvases")}</p>
+              )}
+              {drawerLibs.map((lib) => (
+                <div key={lib.libId} className="mb-4">
+                  <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">{lib.libName}</p>
+                  {lib.canvases.map((c) => (
+                    <Link
+                      key={c.id}
+                      to={`/canvas/${c.id}`}
+                      onClick={() => setNavOpen(false)}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm",
+                        c.id === cid
+                          ? "bg-accent font-medium text-accent-foreground"
+                          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                      )}
+                    >
+                      <Box className="size-3.5 shrink-0 text-primary" />
+                      <span className="truncate">{c.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </aside>
+        </>
+      )}
     </div>
   )
 }
