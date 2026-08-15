@@ -243,6 +243,11 @@ export const coreEn: Record<string, string> = {
   "core.canvas.exportCanvas": "Export .canvas",
   "core.canvas.export": "Export",
   "core.canvas.center": "Center",
+  "core.canvas.dragAddCard": "Drag to add card",
+  "core.canvas.dragAddNote": "Drag to add note",
+  "core.canvas.dragAddNoteVault": "Drag to add note from vault",
+  "core.canvas.dragAddMediaVault": "Drag to add media from vault",
+
   "core.canvas.paste": "Paste",
 
   "core.canvas.toggleNav": "Toggle navigation",

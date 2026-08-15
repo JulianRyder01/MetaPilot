@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, Box, Download, FileText, Focus, Link2, Maximize, Minus, PanelLeft, Plus, Redo2, Save, StickyNote, Trash2, Undo2, X } from "lucide-react"
+import { ArrowLeft, Box, Download, FileText, Focus, Image, Library, Link2, Maximize, Minus, PanelLeft, Plus, Redo2, Save, StickyNote, Trash2, Undo2, X } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
@@ -785,6 +785,18 @@ export default function CanvasPage() {
         onMouseUp={onBoardMouseUp}
         onMouseLeave={onBoardMouseUp}
         onContextMenu={(e) => e.preventDefault()}
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = "copy"
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          const dragType = e.dataTransfer.getData("application/x-canvas-add")
+          if (!dragType) return
+          const p = screenToBoard(e.clientX, e.clientY)
+          const map: Record<string, CanvasNode["type"]> = { card: "text", note: "text", noteVault: "file", mediaVault: "file" }
+          void addNode(map[dragType] ?? "text", p)
+        }}
         onDoubleClick={(e) => {
           // 空白处双击创建文本卡片（Obsidian 风格；节点上的双击为编辑）
           if ((e.target as HTMLElement).closest("[data-node]")) return
@@ -1152,10 +1164,35 @@ export default function CanvasPage() {
         </div>
       </div>
 
-        {/* 画布节点统计 */}
-        <p className="pointer-events-none absolute bottom-3 left-3 z-20 text-xs text-muted-foreground">
-          {t("core.canvas.stats", { nodes: nodes.length, edges: edges.length })}
-        </p>
+        {/* 底部工具栏：节点统计 + Drag to add（Obsidian 风格，可拖拽到画布创建节点） */}
+        <div className="absolute bottom-3 left-1/2 z-20 flex max-w-[96%] -translate-x-1/2 flex-wrap items-center gap-1 rounded-lg border bg-background/95 px-2 py-1.5 shadow-sm">
+          <span className="px-1 text-xs text-muted-foreground">
+            {t("core.canvas.stats", { nodes: nodes.length, edges: edges.length })}
+          </span>
+          <span className="mx-0.5 h-4 w-px bg-border" />
+          {(
+            [
+              { type: "card", label: t("core.canvas.dragAddCard"), icon: StickyNote },
+              { type: "note", label: t("core.canvas.dragAddNote"), icon: FileText },
+              { type: "noteVault", label: t("core.canvas.dragAddNoteVault"), icon: Library },
+              { type: "mediaVault", label: t("core.canvas.dragAddMediaVault"), icon: Image },
+            ]
+          ).map((item) => (
+            <div
+              key={item.type}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData("application/x-canvas-add", item.type)
+                e.dataTransfer.effectAllowed = "copy"
+              }}
+              className="flex cursor-grab items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground active:cursor-grabbing"
+              title={item.label}
+            >
+              <item.icon className="size-3.5" />
+              {item.label}
+            </div>
+          ))}
+        </div>
 
         {/* 操作提示（顶部悬浮） */}
         <p className="pointer-events-none absolute top-2 left-1/2 z-20 max-w-[90%] -translate-x-1/2 truncate text-xs text-muted-foreground/70">

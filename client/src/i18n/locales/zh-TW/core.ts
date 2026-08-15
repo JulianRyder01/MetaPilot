@@ -225,6 +225,11 @@ export const coreZhTW: Record<string, string> = {
   "core.canvas.exportCanvas": "匯出 .canvas",
   "core.canvas.export": "匯出",
   "core.canvas.center": "置中",
+  "core.canvas.dragAddCard": "拖拽新增卡片",
+  "core.canvas.dragAddNote": "拖拽新增筆記",
+  "core.canvas.dragAddNoteVault": "拖拽從庫新增筆記",
+  "core.canvas.dragAddMediaVault": "拖拽從庫新增媒體",
+
   "core.canvas.paste": "貼上",
 
   "core.canvas.toggleNav": "展開/收起導覽",

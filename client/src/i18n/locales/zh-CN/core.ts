@@ -230,6 +230,11 @@ export const coreZhCN: Record<string, string> = {
   "core.canvas.exportCanvas": "导出 .canvas",
   "core.canvas.export": "导出",
   "core.canvas.center": "居中",
+  "core.canvas.dragAddCard": "拖拽添加卡片",
+  "core.canvas.dragAddNote": "拖拽添加笔记",
+  "core.canvas.dragAddNoteVault": "拖拽从库添加笔记",
+  "core.canvas.dragAddMediaVault": "拖拽从库添加媒体",
+
   "core.canvas.paste": "粘贴",
 
   "core.canvas.toggleNav": "展开/收起导航",
