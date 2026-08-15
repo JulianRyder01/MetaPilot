@@ -1,0 +1,35 @@
+{
+  "specVersion": "1.1",
+  "id": "world_languages",
+  "name": "世界语言",
+  "version": "1.0.0",
+  "description": "语言目录页面：按当前界面语言展示全世界主要语言的自称（该语言本国人民的称呼）与其本地化称呼，如中文界面下「英语（English）」。",
+  "author": "MetaPilot Community",
+  "depends_on": [],
+  "source": "user",
+  "tags": [
+    "语言",
+    "i18n",
+    "工具"
+  ],
+  "capabilities": {
+    "world_languages.catalog": {
+      "label": "世界语言目录（多语言称呼）"
+    }
+  },
+  "requires": [],
+  "content_types": [],
+  "features": [
+    "语言目录页面：当前界面语言下的称呼 + 该语言自称，随界面语言切换实时更新",
+    "语言数据由插件后端提供（/api/plugins/world_languages/languages），前端实时拉取，非 mock",
+    "支持按名称搜索与按区域分组浏览"
+  ],
+  "icon": "Languages",
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "",
+      "summary": "首个版本：世界语言目录（多语言称呼展示）"
+    }
+  ]
+}
