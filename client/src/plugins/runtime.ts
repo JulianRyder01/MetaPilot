@@ -11,7 +11,7 @@
  */
 import { create } from "zustand"
 
-import { registerI18n } from "@/i18n"
+import { registerI18n, translate, useI18nStore, type Lang } from "@/i18n"
 import type { PluginFrontend } from "./types"
 
 interface PluginRuntimeState {
@@ -55,6 +55,7 @@ export const usePluginRuntime = create<PluginRuntimeState>((set, get) => ({
 
 /** 全局注册入口：frontend.js 内调用 window.MetaPilotPluginRegistry.register(...) */
 export function ensurePluginRegistry() {
+  ensureI18nBridge()
   if (!window.MetaPilotPluginRegistry) {
     window.MetaPilotPluginRegistry = {
       register: (f) => usePluginRuntime.getState().register(f),
@@ -70,9 +71,32 @@ export function ensurePluginRegistry() {
   }
 }
 
+/** 宿主全局 i18n 桥（通用协议，与任何具体插件解耦）：
+ *
+ * 第三方 frontend.js 无法 import 宿主模块，需要感知当前界面语言/取词条时
+ * 经 window.MetaPilotI18n：
+ * - getLang(): 当前界面语言（zh-CN / zh-TW / en）；
+ * - translate(key, params?): 取词条（含插件经 registerI18n 注入的词典）；
+ * - subscribe(fn): 订阅界面语言变化（返回取消订阅函数）。
+ */
+export function ensureI18nBridge() {
+  if (!window.MetaPilotI18n) {
+    window.MetaPilotI18n = {
+      getLang: () => useI18nStore.getState().lang,
+      translate: (key: string, params?: Record<string, string | number>) => translate(key, params),
+      subscribe: (fn: (lang: Lang) => void) => useI18nStore.subscribe((s) => fn(s.lang)),
+    }
+  }
+}
+
 declare global {
   interface Window {
     MetaPilotPluginRegistry?: { register: (f: PluginFrontend) => void }
+    MetaPilotI18n?: {
+      getLang: () => Lang
+      translate: (key: string, params?: Record<string, string | number>) => string
+      subscribe: (fn: (lang: Lang) => void) => () => void
+    }
     React?: unknown
   }
 }
