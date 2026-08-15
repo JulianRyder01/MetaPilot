@@ -37,15 +37,28 @@ class Plugin:
     spec_version: str = "1.0"
     # 来源分类：core（MetaPilot 本身，不可禁用/删除）| official（官方插件，可禁用不可删除）| user（用户自定义，可删除/禁用）
     source: str = "user"
-    # 依赖的其它插件 id
+    # 依赖的其它插件 id（强依赖：缺失/未启用时不允许启用本插件）
     depends_on: list[str] = []
-    # 功能标签（预定义集合 PLUGIN_TAGS 内取值，可多个）
+    # 功能标签（自由字符串，可多个，用于商店/插件页筛选）
     tags: list[str] = []
     # 更新历史（schema v1.1 起可选）：[{version, date, summary}]，时间倒序（最新在前）
     changelog: list[dict] = []
+    # 本插件提供的能力（schema v1.2 起）：{cap_id: {描述元数据}}，供其它插件能力检测而非写死插件 id
+    capabilities: dict[str, dict] = {}
+    # 本插件需要的能力（可选，缺失不阻止启用，仅对应功能不可用）：[cap_id]
+    requires: list[str] = []
+    # 本插件负责解析/渲染的组件块类型（schema v1.2 起）：核心据此反查 requiredPlugin，不再写死映射
+    content_types: list[str] = []
+    # 前端展示元数据（schema v1.2 起）：功能列表 / 图标名（lucide），缺失时前端回退通用展示
+    features: list[str] = []
+    icon: str = ""
 
     def register(self, app: "FastAPI") -> None:
         raise NotImplementedError
+
+    def declare_capability(self, cap_id: str, meta: dict | None = None) -> None:
+        """声明本插件提供的能力（可在 register 中调用），供其它插件能力检测。"""
+        manager.register_capability(self.id, cap_id, meta or {})
 
 
 class PluginManager:
@@ -56,6 +69,8 @@ class PluginManager:
         self._lock = threading.Lock()
         self._registry: dict[str, Plugin] = {}
         self._state: dict[str, bool] = self._load_state()
+        # 能力注册表：cap_id → {provider: 插件 id, **提供者元数据}
+        self._capabilities: dict[str, dict] = {}
 
     def _load_state(self) -> dict[str, bool]:
         if not self.state_path.exists():
@@ -84,6 +99,35 @@ class PluginManager:
 
     def get(self, plugin_id: str) -> Optional[Plugin]:
         return self._registry.get(plugin_id)
+
+    # ---- 能力注册表（capability）：插件间互操作不写死插件 id ----
+
+    def register_capability(self, provider_id: str, cap_id: str, meta: dict | None = None) -> None:
+        """插件声明自己提供的能力（cap_id → 元数据），供其它插件能力检测。"""
+        with self._lock:
+            self._capabilities[cap_id] = {"provider": provider_id, **(meta or {})}
+
+    def capability(self, cap_id: str) -> Optional[dict]:
+        """能力元数据（含 provider 插件 id）；未注册返回 None。"""
+        return self._capabilities.get(cap_id)
+
+    def capability_available(self, cap_id: str) -> bool:
+        """能力可用 = 已注册且提供方插件处于启用状态。"""
+        cap = self._capabilities.get(cap_id)
+        return bool(cap and self.is_enabled(cap["provider"]))
+
+    def provider_for_capability(self, cap_id: str) -> str:
+        """提供某能力的插件 id；未注册返回空串。"""
+        cap = self._capabilities.get(cap_id)
+        return cap["provider"] if cap else ""
+
+    def plugin_for_block_type(self, block_type: str) -> str:
+        """负责解析某组件块类型的插件 id（从插件声明的 content_types 反查，不写死映射）。"""
+        with self._lock:
+            for p in self._registry.values():
+                if block_type in p.content_types:
+                    return p.id
+        return ""
 
     def list(self) -> list[dict]:
         """插件清单（含启用状态、来源分类、tags 与依赖信息）。
@@ -114,6 +158,12 @@ class PluginManager:
             "removable": False,
             "dependsOn": [],
             "missingDependencies": [],
+            "capabilities": ["core.doc", "core.canvas"],
+            "requires": [],
+            "missingCapabilities": [],
+            "contentTypes": ["markdown"],
+            "features": ["库-文档集-文档-小节浏览与阅读", "Markdown / Obsidian 笔记导入", "插件管理与插件商店", "统一 AI 网关与用量统计", "本地模型管理"],
+            "icon": "BookOpen",
             "changelog": [
                 {"version": "1.1.1", "date": "", "summary": "统一 AI 网关：设置页配置 openai/anthropic 兼容 API 入口（key/地址/模型/价格，全部存 .env），插件经 MetaPilot 中转调用（拿不到密钥）；统计页新增 AI 用量（调用次数/token/成本，按模型分组）；内置本地模型（Qwen3-Embedding 0.6B/4B、Qwen3-4B、Qwen3-Reranker）一键下载与启动"},
                 {"version": "1.1.0", "date": "", "summary": "内置 i18n：界面支持简体中文/繁体中文/English 三语（useT/translate + 域拆分词典），顶栏与设置页可随时切换；插件开发规范升级 1.2.0（新增 §12 i18n 约定）"},
@@ -126,6 +176,7 @@ class PluginManager:
         deps = [d for d in p.depends_on if d in self._registry]
         enabled = self.is_enabled(p.id)
         missing_deps = [d for d in p.depends_on if d not in self._registry or not self.is_enabled(d)]
+        missing_caps = [c for c in p.requires if not self.capability_available(c)]
         return {
             "id": p.id,
             "name": p.name,
@@ -140,6 +191,12 @@ class PluginManager:
             "removable": p.source == "user",
             "dependsOn": deps,
             "missingDependencies": missing_deps,
+            "capabilities": list(p.capabilities.keys()),
+            "requires": list(p.requires),
+            "missingCapabilities": missing_caps,
+            "contentTypes": list(p.content_types),
+            "features": list(p.features),
+            "icon": p.icon,
             "changelog": p.changelog or [],
         }
 

@@ -69,7 +69,8 @@ class AIGrader:
         is_correct = bool(data.get("isCorrect", score >= 60))
         return {"score": score, "feedback": feedback, "isCorrect": is_correct}
 
-    async def grade(self, payload: dict) -> dict:
+    async def grade(self, payload: dict, plugin_id: str = "") -> dict:
+        """AI 判题；plugin_id 为用量归属的插件（由调用方传入，核心不写死插件 id）。"""
         prompt = self._build_prompt(payload)
         if self.gateway is not None:
             result = await self.gateway.chat(
@@ -77,7 +78,7 @@ class AIGrader:
                 temperature=0.2,
                 max_tokens=1024,
                 response_format={"type": "json_object"},
-                plugin="course",
+                plugin=plugin_id,
             )
             return self._parse_response(result["content"])
 

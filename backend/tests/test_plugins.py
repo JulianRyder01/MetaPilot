@@ -190,7 +190,36 @@ def test_plugin_list_includes_spec_version():
     core = next(p for p in plugins if p["id"] == "core")
     assert core["specVersion"] == "1.0"
     course = next(p for p in plugins if p["id"] == "course")
-    assert course["specVersion"] == "1.0"
+    assert course["specVersion"] == "1.1"
+
+
+def test_capability_registry():
+    """能力注册表：插件声明的能力可查询/检测可用性；块类型从插件 content_types 反查，核心不写死映射。"""
+    # 能力由加载器从 plugin.json capabilities 字段注册
+    cap = manager.capability("symlink.mounts")
+    assert cap and cap["provider"] == "symlink"
+    assert manager.capability_available("symlink.mounts") is True
+    assert manager.provider_for_capability("symlink.mounts") == "symlink"
+    assert manager.capability("nope.cap") is None
+    assert manager.capability_available("nope.cap") is False
+
+    # ai_insight 声明需要 symlink.mounts（可选能力），当前可用 → missingCapabilities 为空
+    info = next(p for p in client.get("/api/plugins").json() if p["id"] == "ai_insight")
+    assert "symlink.mounts" in info["requires"]
+    assert info["missingCapabilities"] == []
+
+    # 禁用提供方后能力不可用 → ai_insight 的 missingCapabilities 出现该项
+    client.post("/api/plugins/symlink/disable")
+    try:
+        info = next(p for p in client.get("/api/plugins").json() if p["id"] == "ai_insight")
+        assert "symlink.mounts" in info["missingCapabilities"]
+    finally:
+        client.post("/api/plugins/symlink/enable")
+
+    # 块类型反查：课程插件声明 → course；未声明类型 → 空（核心不再写死映射）
+    assert manager.plugin_for_block_type("single_choice") == "course"
+    assert manager.plugin_for_block_type("interactive") == "course"
+    assert manager.plugin_for_block_type("markdown") == ""
 
 
 def test_plugin_metadata_source_is_plugin_json():
@@ -201,7 +230,11 @@ def test_plugin_metadata_source_is_plugin_json():
     assert p.description.startswith("课程包")
     assert p.author == "MetaPilot"
     assert p.source == "official"
-    assert p.spec_version == "1.0"
+    assert p.spec_version == "1.1"
+    # schema v1.2 元数据字段：能力/块类型/功能列表/图标
+    assert p.content_types == ["single_choice", "multiple_choice", "fill_blank", "short_answer", "interactive"]
+    assert "course.learning" in p.capabilities
+    assert p.features and p.icon == "GraduationCap"
 
     from plugins.course import CoursePlugin
 

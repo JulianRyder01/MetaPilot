@@ -1,9 +1,9 @@
 {
-  "specVersion": "1.0",
+  "specVersion": "1.1",
   "id": "ai_insight",
   "name": "AI 洞察",
   "version": "1.0.0",
-  "description": "对库文档与软链接本机目录建立向量索引，用 AI 查阅资料间的联系：辅助思考、思维漫游、反思归纳，并支持多轮推理生成图表或课程。",
+  "description": "对库文档与挂载的本机目录建立向量索引，用 AI 查阅资料间的联系：辅助思考、思维漫游、反思归纳，并支持多轮推理生成图表或课程。",
   "author": "MetaPilot",
   "depends_on": [],
   "source": "official",
@@ -11,6 +11,21 @@
     "学习",
     "AI"
   ],
+  "capabilities": {
+    "insight.vector": {
+      "label": "向量索引与 AI 洞察"
+    }
+  },
+  "requires": [
+    "symlink.mounts"
+  ],
+  "content_types": [],
+  "features": [
+    "库文档与本机目录多粒度向量索引",
+    "辅助思考 / 思维漫游 / 反思归纳",
+    "多轮推理生成图表或课程"
+  ],
+  "icon": "Rocket",
   "changelog": [
     {
       "version": "1.0.0",

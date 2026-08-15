@@ -1,5 +1,5 @@
 {
-  "specVersion": "1.0",
+  "specVersion": "1.1",
   "id": "symlink",
   "name": "软链接",
   "version": "1.0.0",
@@ -11,11 +11,26 @@
     "工具",
     "存储"
   ],
+  "capabilities": {
+    "symlink.mounts": {
+      "label": "本机目录挂载",
+      "sourceType": "symlink",
+      "sourceTypeLabel": "软链接（本机目录）"
+    }
+  },
+  "requires": [],
+  "content_types": [],
+  "features": [
+    "挂载本机任意目录/文件",
+    "像文件系统一样浏览、读写、新建、删除",
+    "媒体文件内联预览与本地打开"
+  ],
+  "icon": "FolderOpen",
   "changelog": [
     {
       "version": "1.0.0",
       "date": "",
-      "summary": "挂载本机目录/文件，树形浏览与文本读写、媒体预览（图片/PDF/视频/音频）与右键本地打开/定位"
+      "summary": "挂载本机目录/文件，浏览读写、媒体预览与本地打开"
     }
   ]
 }

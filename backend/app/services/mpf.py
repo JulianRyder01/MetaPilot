@@ -16,11 +16,6 @@ from typing import Callable, Optional
 FORMAT = "meta-pilot"
 FORMAT_VERSION = 1
 
-# 课程插件专属的块类型（缺少课程插件时无法渲染）
-COURSE_BLOCK_TYPES = {
-    "single_choice", "multiple_choice", "fill_blank", "short_answer", "interactive",
-}
-
 # ---------------- 类型注册表 ----------------
 
 # type -> {"title": str, "validate": Callable[[dict], list[str]] 错误列表, "requiredPlugins": list[str]}
@@ -167,6 +162,5 @@ def _validate_canvas(data: dict) -> list[str]:
 def register_core_mpf_types() -> None:
     register_mpf_type("doc", "文档/课程", _validate_doc)
     register_mpf_type("canvas", "图表", _validate_canvas)
-    # 课程专属块类型 → 需要课程插件
-    for bt in COURSE_BLOCK_TYPES:
-        register_block_requirement(bt, "course")
+    # 各插件负责的组件块类型（如课程的单选/填空/交互块）由插件在 plugin.json 声明，
+    # 加载器（app.plugins.loader）收集进本注册表，核心不再写死插件映射。

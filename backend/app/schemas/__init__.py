@@ -11,7 +11,8 @@ class LibraryIn(BaseModel):
 
 class CollectionIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    kind: Literal["course", "note", "kb", "canvas"] = "course"
+    # 文档集类型放开为任意字符串（课程/笔记/知识库/画布等由对应插件或核心解释），默认课程
+    kind: str = "course"
     description: str = ""
     author: str = ""
     version: str = "1.0.0"
@@ -41,16 +42,9 @@ class SectionIn(BaseModel):
 
 
 class BlockIn(BaseModel):
-    """组件流单元输入：按 type 使用对应字段。"""
+    """组件流单元输入：按 type 使用对应字段（type 由插件/核心注册表解释，不在此枚举写死）。"""
 
-    type: Literal[
-        "markdown",
-        "single_choice",
-        "multiple_choice",
-        "fill_blank",
-        "short_answer",
-        "interactive",
-    ]
+    type: str
     content: Optional[str] = None          # markdown
     question: Optional[str] = None         # 题目类
     options: Optional[list[str]] = None    # 选择题选项

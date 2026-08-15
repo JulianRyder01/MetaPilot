@@ -1,5 +1,5 @@
 {
-  "specVersion": "1.0",
+  "specVersion": "1.1",
   "id": "themes",
   "name": "主题",
   "version": "1.0.0",
@@ -10,11 +10,23 @@
   "tags": [
     "主题"
   ],
+  "capabilities": {
+    "themes.provider": {
+      "label": "视觉主题"
+    }
+  },
+  "requires": [],
+  "content_types": [],
+  "features": [
+    "多套特色视觉主题一键切换",
+    "主题面板与设置页选装"
+  ],
+  "icon": "Palette",
   "changelog": [
     {
       "version": "1.0.0",
       "date": "",
-      "summary": "多套特色视觉主题（中国风/霓虹蒸汽波/清新绿竹/商务简洁/星夜），随黑夜白天模式自适应"
+      "summary": "多套特色视觉主题与主题面板"
     }
   ]
 }

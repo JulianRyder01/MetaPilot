@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .base import Plugin, PluginManager, manager
+from ..services.mpf import register_block_requirement
 
 if TYPE_CHECKING:
     pass
@@ -20,9 +21,9 @@ if TYPE_CHECKING:
 PLUGINS_DIR = Path(__file__).resolve().parents[2] / "plugins"  # backend/plugins
 
 # 加载器支持的规范版本（docs/04 §0）。高于此版本的插件警告后仍尝试加载（宽松兼容）。
-SUPPORTED_SPEC_VERSION = "1.0"
+SUPPORTED_SPEC_VERSION = "1.1"
 
-# plugin.json 字段 → Plugin 属性 映射（schema v1）
+# plugin.json 字段 → Plugin 属性 映射（schema v1.2）
 _META_FIELDS = (
     ("specVersion", "spec_version"),
     ("id", "id"),
@@ -35,6 +36,12 @@ _META_FIELDS = (
     ("tags", "tags"),
     # 更新历史（schema v1.1 起可选）：[{version, date, summary}]，时间倒序（最新在前）
     ("changelog", "changelog"),
+    # 能力/扩展点与前端展示元数据（schema v1.2 起可选）
+    ("capabilities", "capabilities"),
+    ("requires", "requires"),
+    ("content_types", "content_types"),
+    ("features", "features"),
+    ("icon", "icon"),
 )
 
 
@@ -79,6 +86,12 @@ def load_plugins(data_dir: str | Path) -> PluginManager:
                 continue
             _apply_metadata(plugin, child / "plugin.json")
             manager.register(plugin)
+            # 插件声明的组件块类型 → 核心 .mpf 解析注册表（不再由核心写死映射）
+            for bt in plugin.content_types:
+                register_block_requirement(bt, plugin.id)
+            # 插件声明的能力（plugin.json capabilities 字段）注册进能力注册表
+            for cap_id, cap_meta in plugin.capabilities.items():
+                manager.register_capability(plugin.id, cap_id, cap_meta or {})
             print(f"[plugins] 已加载: {plugin.name} v{plugin.version} (id={plugin.id}, spec={plugin.spec_version})")
         except Exception as e:
             print(f"[plugins] 加载 {child.name} 失败: {e}")

@@ -289,6 +289,18 @@ export interface PluginInfo {
   removable: boolean
   dependsOn: string[]
   missingDependencies: string[]
+  /** 本插件提供的能力 id（plugin.json capabilities 键） */
+  capabilities?: string[]
+  /** 本插件需要的能力（可选，缺失不阻止启用，对应功能不可用） */
+  requires?: string[]
+  /** requires 中当前不可用的能力（提供方插件未安装/未启用） */
+  missingCapabilities?: string[]
+  /** 本插件负责解析的组件块类型（.mpf 解析 requiredPlugin 反查依据） */
+  contentTypes?: string[]
+  /** 功能列表（前端展示，来自 plugin.json features） */
+  features?: string[]
+  /** 图标名（lucide 图标名，来自 plugin.json icon；缺失时前端回退通用图标） */
+  icon?: string
   /** 更新历史（roadmap）：[{version, date, summary}]，最新在前 */
   changelog?: { version: string; date?: string; summary: string }[]
 }

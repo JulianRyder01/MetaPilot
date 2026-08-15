@@ -130,7 +130,8 @@ async def grade(body: GradeIn, request: Request):
     # 统一 AI 网关（核心 1.1.1）：判题经 MetaPilot 中转并统计用量；网关不可用时回退旧直连
     g = AIGrader(gateway=getattr(request.app.state, "ai_gateway", None))
     try:
-        return await g.grade(body.model_dump())
+        # 用量归属本（课程）插件，由插件自身声明，核心不写死
+        return await g.grade(body.model_dump(), plugin_id="course")
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:

@@ -1,5 +1,5 @@
 {
-  "specVersion": "1.0",
+  "specVersion": "1.1",
   "id": "course",
   "name": "课程",
   "version": "1.0.0",
@@ -10,6 +10,27 @@
   "tags": [
     "学习"
   ],
+  "capabilities": {
+    "course.learning": {
+      "label": "课程学习"
+    }
+  },
+  "requires": [],
+  "content_types": [
+    "single_choice",
+    "multiple_choice",
+    "fill_blank",
+    "short_answer",
+    "interactive"
+  ],
+  "features": [
+    "课程包制作与导入/导出",
+    "章节知识点学习（组件流）",
+    "学习进度与时长统计",
+    "主观题 AI 判分",
+    "动态交互块渲染"
+  ],
+  "icon": "GraduationCap",
   "changelog": [
     {
       "version": "1.0.0",

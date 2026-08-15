@@ -31,7 +31,7 @@ async def test_grade_prompt_and_parse():
         "reference": "采样频率应大于信号最高频率的两倍",
         "keywords": ["采样频率", "两倍"],
         "userAnswer": "采样频率要高于最高频率的2倍",
-    })
+    }, plugin_id="course")
     assert result["score"] == 82
     assert result["isCorrect"] is True
     assert "核心要点" in result["feedback"]
