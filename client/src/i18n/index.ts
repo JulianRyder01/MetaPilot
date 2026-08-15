@@ -24,6 +24,16 @@ export const LANGS: { value: Lang; native: string }[] = [
   { value: "en", native: "English" },
 ]
 
+// ---- 运行时词典（插件注册，动态注入；优先级高于内置词典，zh-TW/en 缺失回退 zh-CN） ----
+const extraDicts: Record<Lang, Record<string, string>> = { "zh-CN": {}, "zh-TW": {}, "en": {} }
+
+/** 插件注册词典（内置插件在注册模块内调用；第三方 frontend.js 经 window.MetaPilotPluginRegistry 注入）。 */
+export function registerI18n(dicts: Partial<Record<Lang, Record<string, string>>>): void {
+  for (const l of LANGS) {
+    if (dicts[l.value]) Object.assign(extraDicts[l.value], dicts[l.value])
+  }
+}
+
 interface I18nState {
   lang: Lang
   setLang: (lang: Lang) => void
@@ -46,9 +56,9 @@ type Params = Record<string, string | number>
 export function translate(key: string, params?: Params, lang?: Lang): string {
   const l = lang ?? useI18nStore.getState().lang
   let tmpl: string | undefined
-  if (l === "zh-CN") tmpl = zhCNDict[key]
-  else if (l === "zh-TW") tmpl = zhTWDict[key] ?? zhCNDict[key]
-  else tmpl = enDict[key] ?? zhCNDict[key]
+  if (l === "zh-CN") tmpl = extraDicts["zh-CN"][key] ?? zhCNDict[key]
+  else if (l === "zh-TW") tmpl = extraDicts["zh-TW"][key] ?? extraDicts["zh-CN"][key] ?? zhTWDict[key] ?? zhCNDict[key]
+  else tmpl = extraDicts["en"][key] ?? extraDicts["zh-CN"][key] ?? enDict[key] ?? zhCNDict[key]
   if (tmpl === undefined) return key
   if (!params) return tmpl
   return tmpl.replace(/\{(\w+)\}/g, (_, k: string) => (k in params ? String(params[k]) : `{${k}}`))

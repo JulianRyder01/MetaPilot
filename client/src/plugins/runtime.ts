@@ -11,6 +11,7 @@
  */
 import { create } from "zustand"
 
+import { registerI18n } from "@/i18n"
 import type { PluginFrontend } from "./types"
 
 interface PluginRuntimeState {
@@ -29,6 +30,8 @@ export const usePluginRuntime = create<PluginRuntimeState>((set, get) => ({
 
   register: (f) => {
     if (!f?.id) return
+    // 词典随注册注入宿主 i18n（第三方插件可自带三语词典）
+    if (f.i18n) registerI18n(f.i18n)
     set((s) => ({ frontends: { ...s.frontends, [f.id]: f } }))
   },
 

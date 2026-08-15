@@ -68,6 +68,7 @@ export const coreZhTW: Record<string, string> = {
   "core.learn.submitGrade": "提交判題",
   "core.learn.aiFeedback": "AI 評語：",
   "core.learn.hint": "提示：{text}",
+  "core.plugin.unknown": "未知外掛",
   "core.plugin.course": "課程",
 
   // ---- 文档库 ----

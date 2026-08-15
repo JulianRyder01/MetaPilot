@@ -68,6 +68,7 @@ export const coreZhCN: Record<string, string> = {
   "core.learn.submitGrade": "提交判题",
   "core.learn.aiFeedback": "AI 评语：",
   "core.learn.hint": "提示：{text}",
+  "core.plugin.unknown": "未知插件",
   "core.plugin.course": "课程",
 
   // ---- 文档库 ----

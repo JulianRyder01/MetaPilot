@@ -165,12 +165,10 @@ export default function StatsPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {w.source === "course" ? (
-                    <CourseWidget id={w.id} data={course} enabled={courseEnabled} />
-                  ) : w.id === "aiUsage" ? (
-                    <AiUsageWidget />
+                  {w.source === "core" ? (
+                    w.id === "aiUsage" ? <AiUsageWidget /> : <CoreWidget id={w.id} data={core} />
                   ) : (
-                    <CoreWidget id={w.id} data={core} />
+                    <CourseWidget id={w.id} data={course} enabled={courseEnabled} />
                   )}
                 </CardContent>
               </Card>

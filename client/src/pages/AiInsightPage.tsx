@@ -42,7 +42,6 @@ import {
   type NotIndexedDetail,
 } from "@/plugins/ai_insight/api"
 import { PluginGate } from "@/components/plugins/PluginGate"
-import { usePluginEnabled } from "@/stores/plugins"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -188,7 +187,7 @@ function TreeRow({
 
 export default function AiInsightPage() {
   const t = useT()
-  const symlinkEnabled = usePluginEnabled("symlink")
+  const symlinkAvailable = resources.sourceTypes?.symlink?.available ?? false
   const [searchParams] = useSearchParams()
 
   const [resources, setResources] = useState<InsightResources>({
@@ -643,7 +642,7 @@ export default function AiInsightPage() {
           renderLibraryTree(set, setter)
         )}
       </div>
-      {symlinkEnabled && (
+      {symlinkAvailable && (
         <div>
           <p className="mb-1 text-xs font-medium text-muted-foreground">
             {resources.sourceTypes?.symlink?.label ?? t("insight.groupSymlink")}
@@ -673,7 +672,7 @@ export default function AiInsightPage() {
           {t("insight.pageTitle")}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {t(symlinkEnabled ? "insight.introWithSymlink" : "insight.intro")}
+          {t(symlinkAvailable ? "insight.introWithSymlink" : "insight.intro")}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">{t("insight.mustIndexBefore")}</p>
       </div>
@@ -964,7 +963,7 @@ export default function AiInsightPage() {
                     {t("insight.selectSourcesTitle")}
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    {t(symlinkEnabled ? "insight.indexIntroWithSymlink" : "insight.indexIntro")}
+                    {t(symlinkAvailable ? "insight.indexIntroWithSymlink" : "insight.indexIntro")}
                   </p>
                 </div>
                 <Button onClick={doIndex} disabled={indexing || indexSel.size === 0 || !embedHealthy}>

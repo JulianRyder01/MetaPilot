@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
+import * as Lucide from "lucide-react"
 import {
   BookOpen,
-  FileText,
-  GraduationCap,
   Grid3X3,
-  HardDrive,
-  Link2,
   List,
   Plus,
   Search,
@@ -16,11 +13,11 @@ import {
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
-import { api, type LibraryMeta, type SymlinkMount } from "@/lib/api"
-import { symlinkMounts, symlinkRemoveMount } from "@/plugins/symlink/api"
+import { api, type CollectionKindMeta, type LibraryMeta } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/stores/app"
-import { usePluginEnabled } from "@/stores/plugins"
+import { usePluginsStore } from "@/stores/plugins"
+import { builtinFrontends, usePluginRuntimeFrontends } from "@/plugins/registry"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -40,25 +37,32 @@ import { AddMountDialog } from "@/components/symlink/AddMountDialog"
 import { MountBrowser } from "@/components/symlink/MountBrowser"
 import { useDialogs } from "@/components/ui/dialog-provider"
 
-const KIND_META: Record<string, { labelKey: string; icon: typeof BookOpen }> = {
-  course: { labelKey: "core.library.kindCourse", icon: GraduationCap },
-  note: { labelKey: "core.library.kindNote", icon: FileText },
-  kb: { labelKey: "core.library.kindKb", icon: BookOpen },
-  canvas: { labelKey: "core.library.kindCanvas", icon: Workflow },
+const KIND_ICON_FALLBACK = BookOpen
+
+/** 集合类型图标动态解析：kind 元数据 icon（lucide 名），未知回退 BookOpen */
+function kindIcon(meta?: CollectionKindMeta) {
+  if (!meta?.icon) return KIND_ICON_FALLBACK
+  const Cmp = (Lucide as unknown as Record<string, unknown>)[meta.icon]
+  return typeof Cmp === "function" ? (Cmp as typeof BookOpen) : KIND_ICON_FALLBACK
+}
+
+/** 集合类型打开路由：kind 元数据 openRoute（{id} 占位）；空 = 无独立页 */
+function kindHref(meta: CollectionKindMeta | undefined, id: string): string {
+  return meta?.openRoute ? meta.openRoute.replace("{id}", id) : ""
 }
 
 export default function LibraryHome() {
   const { confirm, prompt } = useDialogs()
   const t = useT()
   const navigate = useNavigate()
+  const plugins = usePluginsStore((s) => s.plugins)
+  const dynamic = usePluginRuntimeFrontends()
   const [libraries, setLibraries] = useState<LibraryMeta[]>([])
   const [loading, setLoading] = useState(true)
-  const [mounts, setMounts] = useState<SymlinkMount[]>([])
-  const [selectedMountId, setSelectedMountId] = useState<string | null>(null)
+  const [kindMeta, setKindMeta] = useState<Record<string, CollectionKindMeta>>({})
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"grid" | "list">("grid")
   const { currentLibraryId, setCurrentLibraryId } = useAppStore()
-  const symlinkEnabled = usePluginEnabled("symlink")
 
   const refresh = useCallback(async () => {
     const list = await api.listLibraries()
@@ -67,25 +71,17 @@ export default function LibraryHome() {
     if (!cur) setCurrentLibraryId(list[0]?.id ?? null)
   }, [setCurrentLibraryId])
 
-  const loadMounts = useCallback(async () => {
-    if (!symlinkEnabled) {
-      setMounts([])
-      return
-    }
-    try {
-      setMounts(await symlinkMounts())
-    } catch {
-      setMounts([])
-    }
-  }, [symlinkEnabled])
-
   useEffect(() => {
     refresh().finally(() => setLoading(false))
+    // 集合类型元数据（核心 + 插件声明），渲染图标/名称/打开路由，不写死 kind 映射
+    api.listCollectionKinds().then(setKindMeta).catch(() => {})
   }, [refresh])
 
-  useEffect(() => {
-    loadMounts()
-  }, [loadMounts])
+  // 「我的库」页分区扩展点（如软链接插件的挂载分区）：仅渲染已启用插件的分区
+  const librarySections = [...builtinFrontends, ...Object.values(dynamic)].flatMap((p) => {
+    const enabled = plugins.find((x) => x.id === p.id)?.enabled ?? true
+    return enabled ? (p.librarySections ?? []) : []
+  })
 
   async function handleDelete(id: string) {
     const ok = await confirm({
@@ -122,22 +118,7 @@ export default function LibraryHome() {
     navigate(`/canvas/${col.id}`)
   }
 
-  async function removeMount(id: string) {
-    const name = mounts.find((m) => m.id === id)?.name ?? t("core.library.unmountNameFallback")
-    const ok = await confirm({
-      title: t("core.library.unmountTitle"),
-      description: t("core.library.unmountDesc", { name }),
-      confirmText: t("core.library.unmount"),
-    })
-    if (!ok) return
-    await symlinkRemoveMount(id)
-    if (selectedMountId === id) setSelectedMountId(null)
-    toast.success(t("core.library.unmounted"))
-    loadMounts()
-  }
-
   const current = libraries.find((l) => l.id === currentLibraryId)
-  const activeMount = mounts.find((m) => m.id === selectedMountId)
 
   // 搜索过滤（仅库内文档集）
   const filteredCollections = current
@@ -146,7 +127,6 @@ export default function LibraryHome() {
 
   function selectLibrary(id: string) {
     setCurrentLibraryId(id)
-    setSelectedMountId(null)
   }
 
   return (
@@ -173,7 +153,7 @@ export default function LibraryHome() {
                 onClick={() => selectLibrary(lib.id)}
                 className={cn(
                   "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors",
-                  lib.id === currentLibraryId && !activeMount
+                  lib.id === currentLibraryId
                     ? "bg-accent font-medium text-accent-foreground"
                     : "hover:bg-accent/60",
                 )}
@@ -190,73 +170,15 @@ export default function LibraryHome() {
           </div>
         )}
 
-        {/* 软链接分区：集成自「软链接」插件；插件禁用时整区隐藏 */}
-        {symlinkEnabled && (
-          <div className="mt-6 border-t pt-3">
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
-                <Link2 className="size-3.5" />
-                {t("core.library.symlink")}
-                <Badge variant="outline" className="text-[10px]">{t("core.library.pluginBadge")}</Badge>
-              </h2>
-              <AddMountDialog onAdded={loadMounts} />
-            </div>
-            <div className="space-y-1">
-              {mounts.map((m) => (
-                <div
-                  key={m.id}
-                  className={cn(
-                    "group flex items-center gap-1.5 rounded-md px-2 py-1.5",
-                    activeMount?.id === m.id ? "bg-accent" : "hover:bg-accent/60",
-                  )}
-                >
-                  <button
-                    onClick={() => {
-                      setSelectedMountId(m.id)
-                      setCurrentLibraryId(null)
-                    }}
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm"
-                    title={`${m.name} → ${m.root}${m.type === "file" ? t("core.library.singleFile") : ""}`}
-                  >
-                    <HardDrive className="size-3.5 shrink-0 text-primary" />
-                    <Link2 className="size-3 shrink-0 text-muted-foreground/60" />
-                    <span className="truncate">{m.name}</span>
-                  </button>
-                  <button
-                    onClick={() => removeMount(m.id)}
-                    className="text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
-                    title={t("core.library.unmountTitle")}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
-                </div>
-              ))}
-              {mounts.length === 0 && (
-                <p className="px-2 text-xs text-muted-foreground">
-                  {t("core.library.noSymlinks")}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
+        {/* 插件分区扩展点（如软链接插件的挂载分区）：核心不内嵌插件 UI，仅渲染插槽 */}
+        {librarySections.map((s) => (
+          <s.Component key={s.id} />
+        ))}
       </aside>
 
-      {/* 右侧：软链接浏览 或 库内容 */}
+      {/* 右侧：库内容 */}
       <section className="min-w-0 flex-1">
-        {activeMount ? (
-          <>
-            <div className="mb-4 flex items-center gap-2">
-              <h1 className="text-xl font-semibold">{activeMount.name}</h1>
-              <Badge variant="outline" className="gap-1">
-                <Link2 className="size-3" />
-                {t("core.library.symlink")}
-              </Badge>
-              <p className="truncate text-xs text-muted-foreground">{activeMount.root}</p>
-            </div>
-            <MountBrowser mount={activeMount} />
-          </>
-        ) : (
-          <>
+        <>
             {/* 库头：搜索 + 视图切换 */}
             <div className="mb-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -324,44 +246,54 @@ export default function LibraryHome() {
                 view === "grid" ? (
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {filteredCollections.map((col) => {
-                      const meta = KIND_META[col.kind] ?? KIND_META.course
-                      const Icon = meta.icon
-                      return (
-                        <Link key={col.id} to={col.kind === "canvas" ? `/canvas/${col.id}` : `/course/${col.id}`}>
-                          <Card className="h-full transition-shadow hover:shadow-md">
-                            <CardHeader>
-                              <CardTitle className="flex items-center gap-2 text-base">
-                                <Icon className="size-4 text-primary" />
-                                <span className="truncate">{col.name}</span>
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
-                              <Badge variant="secondary">{t(meta.labelKey)}</Badge>
-                              <span>{col.kind === "course" ? "core.library.unitChapter" : col.kind === "canvas" ? "core.library.unitCanvas" : "core.library.unitDoc"}</span>
-                            </CardContent>
-                          </Card>
+                      const meta = kindMeta[col.kind]
+                      const Icon = kindIcon(meta)
+                      const href = kindHref(meta, col.id)
+                      const card = (
+                        <Card className="h-full transition-shadow hover:shadow-md">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-base">
+                              <Icon className="size-4 text-primary" />
+                              <span className="truncate">{col.name}</span>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
+                            <Badge variant="secondary">{t(meta?.labelKey ?? "core.library.kindNote")}</Badge>
+                            <span>{t(meta?.unitLabelKey ?? "core.library.unitDoc")}</span>
+                          </CardContent>
+                        </Card>
+                      )
+                      return href ? (
+                        <Link key={col.id} to={href}>
+                          {card}
                         </Link>
+                      ) : (
+                        <div key={col.id}>{card}</div>
                       )
                     })}
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {filteredCollections.map((col) => {
-                      const meta = KIND_META[col.kind] ?? KIND_META.course
-                      const Icon = meta.icon
-                      return (
-                        <Link
-                          key={col.id}
-                          to={col.kind === "canvas" ? `/canvas/${col.id}` : `/course/${col.id}`}
-                          className="flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors hover:bg-accent/40"
-                        >
+                      const meta = kindMeta[col.kind]
+                      const Icon = kindIcon(meta)
+                      const href = kindHref(meta, col.id)
+                      const row = (
+                        <div className="flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors hover:bg-accent/40">
                           <Icon className="size-4 shrink-0 text-primary" />
                           <span className="min-w-0 flex-1 truncate font-medium">{col.name}</span>
-                          <Badge variant="secondary">{t(meta.labelKey)}</Badge>
+                          <Badge variant="secondary">{t(meta?.labelKey ?? "core.library.kindNote")}</Badge>
                           <span className="shrink-0 text-xs text-muted-foreground">
-                            {col.kind === "course" ? "core.library.unitChapter" : col.kind === "canvas" ? "core.library.unitCanvas" : "core.library.unitDoc"}
+                            {t(meta?.unitLabelKey ?? "core.library.unitDoc")}
                           </span>
+                        </div>
+                      )
+                      return href ? (
+                        <Link key={col.id} to={href} className="block">
+                          {row}
                         </Link>
+                      ) : (
+                        <div key={col.id}>{row}</div>
                       )
                     })}
                   </div>
@@ -375,7 +307,6 @@ export default function LibraryHome() {
               <p className="text-sm text-muted-foreground">{t("core.library.selectPlaceholder")}</p>
             )}
           </>
-        )}
       </section>
     </div>
   )

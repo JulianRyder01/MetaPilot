@@ -1,19 +1,21 @@
-import { GraduationCap, Lightbulb, Palette, Puzzle } from "lucide-react"
+import * as Lucide from "lucide-react"
+import { Puzzle } from "lucide-react"
 
 import { useT } from "@/i18n"
 import { useSettingsStore } from "@/stores/settings"
 import { usePluginsStore, ensurePluginsLoaded } from "@/stores/plugins"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
-const PLUGIN_ICONS: Record<string, typeof Puzzle> = {
-  course: GraduationCap,
-  ai_insight: Lightbulb,
-  themes: Palette,
+/** 插件图标动态解析：icon 元数据为 lucide 图标名（plugin.json 声明），未知回退 Puzzle */
+function pluginIcon(name?: string): typeof Puzzle {
+  if (!name) return Puzzle
+  const Cmp = (Lucide as unknown as Record<string, unknown>)[name]
+  return typeof Cmp === "function" ? (Cmp as typeof Puzzle) : Puzzle
 }
 
 /**
  * 组件来源标记：官方核心（source="core"）不标记；
- * 插件提供的组件在「标记组件来源」开启时显示该插件的图标，悬停可见插件名。
+ * 插件提供的组件在「标记组件来源」开启时显示该插件的图标（经插件元数据 icon 动态解析），悬停可见插件名。
  */
 export function SourceBadge({ source }: { source: string }) {
   const t = useT()
@@ -25,7 +27,7 @@ export function SourceBadge({ source }: { source: string }) {
   }
   ensurePluginsLoaded()
   const plugin = plugins.find((p) => p.id === source)
-  const Icon = PLUGIN_ICONS[source] ?? Puzzle
+  const Icon = pluginIcon(plugin?.icon)
   const name = plugin?.name ?? source
 
   return (

@@ -1,12 +1,12 @@
 import { useState } from "react"
-import { FileUp, FolderUp, Upload } from "lucide-react"
+import { FileUp, Upload } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
 import { api } from "@/lib/api"
 import { usePluginsStore } from "@/stores/plugins"
 import { useSettingsStore } from "@/stores/settings"
-import { importCourse as importCourseApi } from "@/plugins/course/api"
+import { builtinFrontends, usePluginRuntimeFrontends } from "@/plugins/registry"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -20,7 +20,6 @@ import {
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PluginGate } from "@/components/plugins/PluginGate"
 
 interface Props {
   libraryId?: string
@@ -29,25 +28,17 @@ interface Props {
 
 export function ImportDialog({ libraryId, onImported }: Props) {
   const t = useT()
-  const [courseFile, setCourseFile] = useState<File | null>(null)
+  const plugins = usePluginsStore((s) => s.plugins)
+  const dynamic = usePluginRuntimeFrontends()
   const [noteFile, setNoteFile] = useState<File | null>(null)
   const [mpfFile, setMpfFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
 
-  async function importCourse() {
-    if (!courseFile) return
-    setBusy(true)
-    try {
-      const res = await importCourseApi(courseFile, libraryId || "")
-      toast.success(t("core.library.importedCourse", { names: res.imported.map((c) => c.name).join("、") }))
-      setCourseFile(null)
-      onImported?.()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("core.library.importFailed"))
-    } finally {
-      setBusy(false)
-    }
-  }
+  // 插件贡献的导入 tab（如课程插件的课程包导入）：仅渲染已启用插件的扩展点
+  const importTabs = [...builtinFrontends, ...Object.values(dynamic)].flatMap((p) => {
+    const enabled = plugins.find((x) => x.id === p.id)?.enabled ?? true
+    return enabled ? (p.importTabs ?? []) : []
+  })
 
   async function importNote() {
     if (!noteFile) return
@@ -69,7 +60,6 @@ export function ImportDialog({ libraryId, onImported }: Props) {
     setBusy(true)
     try {
       const res = await api.importMpf(mpfFile, libraryId || "")
-      const plugins = usePluginsStore.getState().plugins
       const missing = res.unresolved.filter((u) => {
         const p = plugins.find((x) => x.id === u.requiredPlugin)
         return p ? !p.enabled : false
@@ -106,8 +96,12 @@ export function ImportDialog({ libraryId, onImported }: Props) {
         <Tabs defaultValue="mpf">
           <TabsList className="w-full">
             <TabsTrigger value="mpf" className="flex-1">{t("core.library.tabMpf")}</TabsTrigger>
-            <TabsTrigger value="course" className="flex-1">{t("core.library.tabCourse")}</TabsTrigger>
             <TabsTrigger value="note" className="flex-1">Markdown</TabsTrigger>
+            {importTabs.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id} className="flex-1">
+                {t(tab.label)}
+              </TabsTrigger>
+            ))}
           </TabsList>
           {/* .mpf / .canvas 是系统底层格式（官方核心能力），无需任何插件门禁 */}
           <TabsContent value="mpf" className="space-y-3">
@@ -128,45 +122,28 @@ export function ImportDialog({ libraryId, onImported }: Props) {
               {t("core.library.mpfHint")}
             </p>
           </TabsContent>
-          {/* 课程包与笔记导入依赖「课程」插件 */}
-          <TabsContent value="course">
-            <PluginGate pluginId="course" hint={t("core.library.courseGateHint")}>
-              <div className="space-y-3">
-                <Label htmlFor="course-file">{t("core.library.courseFileLabel")}</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="course-file"
-                    type="file"
-                    accept=".zip"
-                    onChange={(e) => setCourseFile(e.target.files?.[0] ?? null)}
-                  />
-                  <Button onClick={importCourse} disabled={!courseFile || busy}>
-                    <FolderUp className="size-4" />
-                    导入
-                  </Button>
-                </div>
-              </div>
-            </PluginGate>
+          {/* Markdown 笔记导入是文档库核心能力，不依赖任何插件 */}
+          <TabsContent value="note" className="space-y-3">
+            <Label htmlFor="note-file">{t("core.library.noteFileLabel")}</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="note-file"
+                type="file"
+                accept=".md,.markdown"
+                onChange={(e) => setNoteFile(e.target.files?.[0] ?? null)}
+              />
+              <Button onClick={importNote} disabled={!noteFile || busy}>
+                <FileUp className="size-4" />
+                {t("core.library.import")}
+              </Button>
+            </div>
           </TabsContent>
-          <TabsContent value="note">
-            <PluginGate pluginId="course" hint={t("core.library.noteGateHint")}>
-              <div className="space-y-3">
-                <Label htmlFor="note-file">{t("core.library.noteFileLabel")}</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="note-file"
-                    type="file"
-                    accept=".md,.markdown"
-                    onChange={(e) => setNoteFile(e.target.files?.[0] ?? null)}
-                  />
-                  <Button onClick={importNote} disabled={!noteFile || busy}>
-                    <FileUp className="size-4" />
-                    导入
-                  </Button>
-                </div>
-              </div>
-            </PluginGate>
-          </TabsContent>
+          {/* 插件贡献的导入 tab（课程包等），由插件注册 importTabs 扩展点 */}
+          {importTabs.map((tab) => (
+            <TabsContent key={tab.id} value={tab.id}>
+              <tab.Component libraryId={libraryId} onImported={onImported} />
+            </TabsContent>
+          ))}
         </Tabs>
         <DialogFooter />
       </DialogContent>

@@ -107,6 +107,8 @@ export const api = {
   setPluginEnabled: (id: string, enabled: boolean) =>
     request<PluginInfo>(`/plugins/${id}/${enabled ? "enable" : "disable"}`, { method: "POST" }),
   deletePlugin: (id: string) => request<{ ok: boolean }>(`/plugins/${id}`, { method: "DELETE" }),
+  // 集合类型（kind）元数据：核心 + 插件声明（kind → 打开路由/图标/文案）
+  listCollectionKinds: () => request<Record<string, CollectionKindMeta>>("/collection-kinds"),
 
   // MetaPilot 文件（.mpf）
   importMpf: (file: File, libraryId = "") => {
@@ -311,6 +313,20 @@ export interface PluginInfo {
   frontendUrl?: string
   /** 更新历史（roadmap）：[{version, date, summary}]，最新在前 */
   changelog?: { version: string; date?: string; summary: string }[]
+}
+
+/** 集合类型（kind）元数据：由核心注册 + 插件声明（GET /api/collection-kinds） */
+export interface CollectionKindMeta {
+  /** 类型名 i18n key */
+  labelKey: string
+  /** lucide 图标名 */
+  icon: string
+  /** 打开路由模板（{id} 占位）；空 = 无独立页（在库详情内查看） */
+  openRoute: string
+  /** 内容单元标签 i18n key（章节/画布/文档） */
+  unitLabelKey: string
+  /** 声明该 kind 的插件 id（核心类型无） */
+  pluginId?: string
 }
 
 /** 插件商店清单项（GET /api/plugins/store/plugins） */

@@ -68,6 +68,7 @@ export const coreEn: Record<string, string> = {
   "core.learn.submitGrade": "Submit for grading",
   "core.learn.aiFeedback": "AI feedback: ",
   "core.learn.hint": "Hint: {text}",
+  "core.plugin.unknown": "Unknown plugin",
   "core.plugin.course": "Course",
 
   // ---- Library ----

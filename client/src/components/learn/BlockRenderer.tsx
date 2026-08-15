@@ -1,46 +1,41 @@
 import { useT } from "@/i18n"
 import type { Block } from "@/lib/api"
-import { usePluginEnabled } from "@/stores/plugins"
+import { usePluginsStore, ensurePluginsLoaded } from "@/stores/plugins"
 import { MarkdownBlock } from "@/components/learn/blocks/MarkdownBlock"
-import { ChoiceBlock } from "@/components/learn/blocks/ChoiceBlock"
-import { FillBlankBlock } from "@/components/learn/blocks/FillBlankBlock"
-import { ShortAnswerBlock } from "@/components/learn/blocks/ShortAnswerBlock"
-import { InteractiveBlock } from "@/components/learn/blocks/InteractiveBlock"
 import { PluginBlockPlaceholder } from "@/components/learn/blocks/PluginBlockPlaceholder"
+import { builtinFrontends, usePluginRuntimeFrontends } from "@/plugins/registry"
 
 /**
  * 组件流渲染器。
  *
- * 课程组件（题目/交互块）依赖「课程」插件：插件未启用时，
- * Markdown 仍正常渲染（文档库阅读），其余组件以原始数据占位展示。
+ * - markdown 是文档库核心块类型，始终渲染；
+ * - 其余块类型由插件经扩展点注册块渲染器（如课程插件注册题目/交互块），核心不写死插件 id；
+ * - 无渲染器（插件未启用）时按插件声明的 content_types 反查所需插件，以原始数据占位展示。
  */
 export function BlockRenderer({ block, collectionId }: { block: Block; collectionId: string }) {
   const t = useT()
-  const courseEnabled = usePluginEnabled("course")
-  const isMarkdown = block.type === "markdown"
-  const renderable = isMarkdown || courseEnabled
+  const plugins = usePluginsStore((s) => s.plugins)
+  const dynamic = usePluginRuntimeFrontends()
+  const frontends = [...builtinFrontends, ...Object.values(dynamic)]
 
-  if (!renderable) {
-    return <PluginBlockPlaceholder block={block} pluginId="course" pluginName={t("core.plugin.course")} />
+  if (block.type === "markdown") {
+    return <MarkdownBlock content={block.content as string | undefined} />
   }
 
-  switch (block.type) {
-    case "markdown":
-      return <MarkdownBlock content={block.content as string | undefined} />
-    case "single_choice":
-    case "multiple_choice":
-      return <ChoiceBlock block={block as never} />
-    case "fill_blank":
-      return <FillBlankBlock block={block as never} />
-    case "short_answer":
-      return <ShortAnswerBlock block={block as never} />
-    case "interactive":
-      return <InteractiveBlock collectionId={collectionId} block={block as never} />
-    default:
-      return (
-        <p className="text-sm text-muted-foreground">
-          {t("core.learn.unsupportedBlock", { type: String(block.type) })}
-        </p>
-      )
+  // 块渲染器：插件经扩展点（PluginFrontend.blockRenderers）注册，按块类型查
+  const Renderer = frontends.map((p) => p.blockRenderers?.[block.type]).find(Boolean)
+  if (Renderer) {
+    return <Renderer block={block} collectionId={collectionId} />
   }
+
+  // 无渲染器：按插件声明的 content_types 反查所需插件（不写死插件 id 映射）
+  ensurePluginsLoaded()
+  const provider = plugins.find((p) => p.contentTypes?.includes(block.type))
+  return (
+    <PluginBlockPlaceholder
+      block={block}
+      pluginId={provider?.id ?? ""}
+      pluginName={provider ? provider.name : t("core.plugin.unknown")}
+    />
+  )
 }
