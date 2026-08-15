@@ -194,6 +194,14 @@ class LibraryStore:
 
     def delete_library(self, lid: str) -> None:
         with self.lock:
+            # 清理该库下所有图表的 .canvas 文件
+            try:
+                lib = self._load_lib(lid)
+                for col in lib.get("collections", []):
+                    if col.get("kind") == "canvas":
+                        self._canvas_path(col["id"]).unlink(missing_ok=True)
+            except KeyError:
+                pass
             path = self._lib_path(lid)
             if path.exists():
                 path.unlink()
@@ -239,8 +247,23 @@ class LibraryStore:
                 col["updatedAt"] = now_iso()
                 lib["updatedAt"] = now_iso()
                 self._save_lib(lib)
+                # 图表保存时同步落盘 Obsidian 原生 .canvas 文件（与 .mpf 兼容双向）
+                if data.get("canvas") is not None and col.get("kind") == "canvas":
+                    self._save_canvas_file(cid, data["canvas"])
                 return col
-            raise KeyError(f"文档集不存在: {cid}")
+
+    # ---- 图表 .canvas 文件（Obsidian 兼容：保存/导入同步写回原生 .canvas） ----
+
+    def _canvas_path(self, cid: str) -> Path:
+        return self.root / "canvases" / f"{cid}.canvas"
+
+    def _save_canvas_file(self, cid: str, canvas: dict) -> None:
+        path = self._canvas_path(cid)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _write_json(path, {
+            "nodes": canvas.get("nodes", []),
+            "edges": canvas.get("edges", []),
+        })
 
     def delete_collection(self, cid: str) -> None:
         with self.lock:
@@ -251,6 +274,7 @@ class LibraryStore:
                         del cols[i]
                         lib["updatedAt"] = now_iso()
                         self._save_lib(lib)
+                        self._canvas_path(cid).unlink(missing_ok=True)
                         return
             raise KeyError(f"文档集不存在: {cid}")
 
