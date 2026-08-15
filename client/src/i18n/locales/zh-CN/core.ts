@@ -237,6 +237,9 @@ export const coreZhCN: Record<string, string> = {
   "core.canvas.pathSmooth": "平滑曲线",
   "core.canvas.pathStraight": "直线",
   "core.canvas.pathSquare": "直角折线",
+  "core.canvas.resize": "调整大小",
+  "core.canvas.groupSelection": "编组",
+
 
   "core.canvas.dragAddCard": "拖拽添加卡片",
   "core.canvas.dragAddNote": "拖拽添加笔记",

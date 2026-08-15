@@ -29,6 +29,18 @@ const SIDES = [
   { key: "left", dx: 0, dy: 0.5 },
 ]
 
+/** 节点尺寸调整手柄（四角，Obsidian 风格）。 */
+type ResizeDir = "nw" | "ne" | "se" | "sw"
+const RESIZE_DIRS: ResizeDir[] = ["nw", "ne", "se", "sw"]
+const RESIZE_STYLE: Record<ResizeDir, { style: React.CSSProperties; cursor: string }> = {
+  nw: { style: { left: -5, top: -5 }, cursor: "nwse-resize" },
+  ne: { style: { right: -5, top: -5 }, cursor: "nesw-resize" },
+  se: { style: { right: -5, bottom: -5 }, cursor: "nwse-resize" },
+  sw: { style: { left: -5, bottom: -5 }, cursor: "nesw-resize" },
+}
+const MIN_NODE_W = 60
+const MIN_NODE_H = 40
+
 /** 画布内容层尺寸（board 坐标空间），超出部分随平移可见。 */
 const BOARD_SIZE = 8000
 const MIN_ZOOM = 0.2
@@ -103,6 +115,8 @@ export default function CanvasPage() {
   const [dragState, setDragState] = useState<{ startX: number; startY: number; ids: string[]; origins: Record<string, { x: number; y: number }> } | null>(null)
   /** 拖拽期间是否真的发生了位移（用于区分「点击选中」与「移动」）。 */
   const dragMovedRef = useRef(false)
+  /** 节点尺寸调整（四角手柄拖拽）。 */
+  const [resizing, setResizing] = useState<{ id: string; dir: ResizeDir; startX: number; startY: number; orig: { x: number; y: number; width: number; height: number } } | null>(null)
   /** 撤销/重做历史栈。 */
   const undoStack = useRef<{ nodes: CanvasNode[]; edges: CanvasEdge[] }[]>([])
   const redoStack = useRef<{ nodes: CanvasNode[]; edges: CanvasEdge[] }[]>([])
@@ -253,6 +267,46 @@ export default function CanvasPage() {
     pushHistory()
     const idSet = new Set(selectedIds)
     setNodes((ns) => ns.map((n) => (idSet.has(n.id) ? { ...n, color } : n)))
+    setDirty(true)
+  }
+
+  /** 开始拖拽调整节点尺寸（四角手柄）。 */
+  function startResize(e: React.MouseEvent, node: CanvasNode, dir: ResizeDir) {
+    e.stopPropagation()
+    if (editingId) return
+    pushHistory()
+    const p = screenToBoard(e.clientX, e.clientY)
+    setResizing({
+      id: node.id,
+      dir,
+      startX: p.x,
+      startY: p.y,
+      orig: { x: node.x, y: node.y, width: node.width, height: node.height },
+    })
+  }
+
+  /** 把选中节点编组：创建覆盖它们包围盒的分组（Obsidian Create group）。 */
+  function groupSelection() {
+    if (selectedIds.length < 1) return
+    pushHistory()
+    const idSet = new Set(selectedIds)
+    const ns = nodes.filter((n) => idSet.has(n.id))
+    if (ns.length === 0) return
+    const pad = 32
+    const minX = Math.min(...ns.map((n) => n.x)) - pad
+    const minY = Math.min(...ns.map((n) => n.y)) - pad
+    const maxX = Math.max(...ns.map((n) => n.x + n.width)) + pad
+    const maxY = Math.max(...ns.map((n) => n.y + n.height)) + pad
+    const group: CanvasNode = {
+      id: genId("n"),
+      type: "group",
+      x: Math.max(-BOARD_SIZE / 2, minX),
+      y: Math.max(-BOARD_SIZE / 2, minY),
+      width: Math.max(MIN_NODE_W, maxX - minX),
+      height: Math.max(MIN_NODE_H, maxY - minY),
+    }
+    setNodes((n) => [...n, group])
+    setSelectedIds([group.id])
     setDirty(true)
   }
 
@@ -537,6 +591,35 @@ export default function CanvasPage() {
       return
     }
     const p = screenToBoard(e.clientX, e.clientY)
+    if (resizing) {
+      const dx = p.x - resizing.startX
+      const dy = p.y - resizing.startY
+      const dir = resizing.dir
+      setNodes((ns) =>
+        ns.map((n) => {
+          if (n.id !== resizing.id) return n
+          const o = resizing.orig
+          let x = o.x
+          let y = o.y
+          let width = o.width
+          let height = o.height
+          if (dir.includes("e")) width = Math.max(MIN_NODE_W, o.width + dx)
+          if (dir.includes("s")) height = Math.max(MIN_NODE_H, o.height + dy)
+          if (dir.includes("w")) {
+            const w = Math.max(MIN_NODE_W, o.width - dx)
+            x = o.x + (o.width - w)
+            width = w
+          }
+          if (dir.includes("n")) {
+            const h = Math.max(MIN_NODE_H, o.height - dy)
+            y = o.y + (o.height - h)
+            height = h
+          }
+          return { ...n, x, y, width, height }
+        }),
+      )
+      return
+    }
     if (dragState) {
       const dx = p.x - dragState.startX
       const dy = p.y - dragState.startY
@@ -562,6 +645,11 @@ export default function CanvasPage() {
       const rp = rightPressRef.current
       rightPressRef.current = null
       if (rp.moved) suppressCtxMenuRef.current = true
+      return
+    }
+    if (resizing) {
+      setDirty(true)
+      setResizing(null)
       return
     }
     if (dragState) {
@@ -1004,6 +1092,21 @@ export default function CanvasPage() {
                   </div>
                 )}
 
+                {/* 尺寸调整手柄（选中节点显示四角，Obsidian 风格） */}
+                {isSelected && !isEditing && (
+                  <>
+                    {RESIZE_DIRS.map((dir) => (
+                      <div
+                        key={dir}
+                        onMouseDown={(e) => startResize(e, node, dir)}
+                        className="absolute z-20 size-2.5 rounded-full border border-primary bg-background shadow-sm hover:scale-125"
+                        style={RESIZE_STYLE[dir].style}
+                        title={t("core.canvas.resize")}
+                      />
+                    ))}
+                  </>
+                )}
+
                 {/* 连接点 */}
                 {!isEditing && (
                   <>
@@ -1132,6 +1235,9 @@ export default function CanvasPage() {
                 )
               })()}
             <span className="mx-1 h-4 w-px bg-border" />
+            <Button variant="ghost" size="icon" className="size-6" onClick={groupSelection} title={t("core.canvas.groupSelection")}>
+              <Box className="size-3.5" />
+            </Button>
             <Button variant="ghost" size="icon" className="size-6" onClick={centerSelection} title={t("core.canvas.center")}>
               <Focus className="size-3.5" />
             </Button>

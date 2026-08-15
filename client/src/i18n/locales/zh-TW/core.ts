@@ -232,6 +232,9 @@ export const coreZhTW: Record<string, string> = {
   "core.canvas.pathSmooth": "平滑曲線",
   "core.canvas.pathStraight": "直線",
   "core.canvas.pathSquare": "直角折線",
+  "core.canvas.resize": "調整大小",
+  "core.canvas.groupSelection": "建立群組",
+
 
   "core.canvas.dragAddCard": "拖拽新增卡片",
   "core.canvas.dragAddNote": "拖拽新增筆記",

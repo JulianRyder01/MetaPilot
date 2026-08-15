@@ -250,6 +250,9 @@ export const coreEn: Record<string, string> = {
   "core.canvas.pathSmooth": "Smooth curve",
   "core.canvas.pathStraight": "Straight line",
   "core.canvas.pathSquare": "Right angle",
+  "core.canvas.resize": "Resize",
+  "core.canvas.groupSelection": "Group selection",
+
 
   "core.canvas.dragAddCard": "Drag to add card",
   "core.canvas.dragAddNote": "Drag to add note",
