@@ -23,6 +23,14 @@
     "short_answer",
     "interactive"
   ],
+  "collection_kinds": {
+    "course": {
+      "labelKey": "core.library.kindCourse",
+      "icon": "GraduationCap",
+      "openRoute": "/course/{id}",
+      "unitLabelKey": "core.library.unitChapter"
+    }
+  },
   "features": [
     "课程包制作与导入/导出",
     "章节知识点学习（组件流）",

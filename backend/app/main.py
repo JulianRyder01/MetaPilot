@@ -14,7 +14,7 @@ from .services.ai_config import AIConfig
 from .services.ai_gateway import AIGateway
 from .services.local_servers import LocalServersManager
 from .storage.store import LibraryStore
-from .api import ai_settings, documents, folders, libraries, mpf, notes, plugin_store, plugins, stats_core
+from .api import ai_settings, documents, folders, kinds, libraries, mpf, notes, plugin_store, plugins, stats_core
 from .plugins.base import manager
 from .plugins.loader import load_plugins
 from .services.importer import CourseImporter
@@ -73,6 +73,7 @@ app.include_router(plugins.router)
 app.include_router(plugin_store.router)
 app.include_router(stats_core.router)
 app.include_router(mpf.router)
+app.include_router(kinds.router)
 app.include_router(ai_settings.router)
 
 # 插件系统：扫描 backend/plugins/ 物理目录加载全部插件并挂载路由。

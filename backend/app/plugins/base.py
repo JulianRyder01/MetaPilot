@@ -21,6 +21,23 @@ if TYPE_CHECKING:
 # 插件清单排序：用户自定义 → 官方插件 → 官方核心
 _SOURCE_ORDER = {"user": 0, "official": 1, "core": 2}
 
+# 官方核心集合类型（kind）元数据：kind → {labelKey, icon, openRoute, unitLabelKey}
+# 插件的 kind（如 course）由插件在 plugin.json collection_kinds 声明，核心不写死
+CORE_COLLECTION_KINDS: dict[str, dict] = {
+    "note": {
+        "labelKey": "core.library.kindNote", "icon": "FileText",
+        "openRoute": "", "unitLabelKey": "core.library.unitDoc",
+    },
+    "kb": {
+        "labelKey": "core.library.kindKb", "icon": "BookMarked",
+        "openRoute": "", "unitLabelKey": "core.library.unitDoc",
+    },
+    "canvas": {
+        "labelKey": "core.library.kindCanvas", "icon": "LayoutGrid",
+        "openRoute": "/canvas/{id}", "unitLabelKey": "core.library.unitCanvas",
+    },
+}
+
 
 class Plugin:
     # 元数据唯一来源是 plugin.json（docs/04-插件开发规范.md §3）；
@@ -46,6 +63,9 @@ class Plugin:
     requires: list[str] = []
     # 本插件负责解析/渲染的组件块类型（schema v1.2 起）：核心据此反查 requiredPlugin，不再写死映射
     content_types: list[str] = []
+    # 本插件负责的集合类型（kind → 元数据 {labelKey, icon, openRoute, unitLabelKey}）
+    # （schema v1.3 起）：kind→打开路由等由插件声明，核心不写死插件 kind 的映射
+    collection_kinds: dict[str, dict] = {}
     # 前端展示元数据（schema v1.2 起）：功能列表 / 图标名（lucide），缺失时前端回退通用展示
     features: list[str] = []
     icon: str = ""
@@ -70,6 +90,8 @@ class PluginManager:
         self._state: dict[str, bool] = self._load_state()
         # 能力注册表：cap_id → {provider: 插件 id, **提供者元数据}
         self._capabilities: dict[str, dict] = {}
+        # 能力服务注册表：cap_id → 服务对象（插件 register 时注入，供其它插件经能力取用，不写死 app.state）
+        self._services: dict[str, object] = {}
 
     def _load_state(self) -> dict[str, bool]:
         if not self.state_path.exists():
@@ -120,6 +142,17 @@ class PluginManager:
         cap = self._capabilities.get(cap_id)
         return cap["provider"] if cap else ""
 
+    def register_service(self, cap_id: str, service: object) -> None:
+        """插件 register 时把能力对应的服务对象注册进能力注册表（供其它插件经能力取用）。"""
+        with self._lock:
+            self._services[cap_id] = service
+
+    def service_for_capability(self, cap_id: str):
+        """取某能力的服务对象（能力不可用/未注册服务返回 None）。"""
+        if not self.capability_available(cap_id):
+            return None
+        return self._services.get(cap_id)
+
     def plugin_for_block_type(self, block_type: str) -> str:
         """负责解析某组件块类型的插件 id（从插件声明的 content_types 反查，不写死映射）。"""
         with self._lock:
@@ -127,6 +160,15 @@ class PluginManager:
                 if block_type in p.content_types:
                     return p.id
         return ""
+
+    def collection_kinds(self) -> dict:
+        """全部集合类型（kind）元数据：官方核心类型 + 插件声明的类型（插件优先同名覆盖）。"""
+        kinds = {k: dict(v) for k, v in CORE_COLLECTION_KINDS.items()}
+        with self._lock:
+            for p in self._registry.values():
+                for k, meta in p.collection_kinds.items():
+                    kinds[k] = {**meta, "pluginId": p.id}
+        return kinds
 
     def list(self) -> list[dict]:
         """插件清单（含启用状态、来源分类、tags 与依赖信息）。

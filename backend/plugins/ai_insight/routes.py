@@ -64,14 +64,11 @@ def _svc(request: Request) -> InsightService:
     # AI 统一网关：核心 1.1.1 起注入（测试可预置替身，优先保留）
     if svc.gateway is None:
         svc.gateway = getattr(request.app.state, "ai_gateway", None)
-    # 挂载类数据源（symlink）由「软链接」插件的能力提供：仅当能力可用（插件已启用）时注入，
-    # 能力检测替代写死插件 id，禁用后不再把本机目录列为数据源。
+    # 挂载类数据源（symlink）由「软链接」插件的能力提供：经能力注册表取服务对象，
+    # 不写死插件 id 也不直接读 app.state.symlink；能力不可用（插件禁用）时为 None。
     from app.plugins.base import manager
 
-    if manager.capability_available("symlink.mounts"):
-        svc.symlink = getattr(request.app.state, "symlink", None)
-    else:
-        svc.symlink = None
+    svc.symlink = manager.service_for_capability("symlink.mounts")
     return svc
 
 

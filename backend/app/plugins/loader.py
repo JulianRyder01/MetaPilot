@@ -42,6 +42,8 @@ _META_FIELDS = (
     ("content_types", "content_types"),
     ("features", "features"),
     ("icon", "icon"),
+    # 插件负责的集合类型（schema v1.3 起可选）：kind → {labelKey, icon, openRoute, unitLabelKey}
+    ("collection_kinds", "collection_kinds"),
 )
 
 

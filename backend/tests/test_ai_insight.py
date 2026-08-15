@@ -107,6 +107,8 @@ def _reset():
     GW = FakeGateway()
     app.state.ai_insight = InsightService(app.state.store, tmp / "ai_insight", gateway=GW)
     app.state.symlink = None
+    # 挂载源服务经能力注册表注入（与生产一致：ai_insight 经 capability 取用，不读 app.state）
+    manager._services.pop("symlink.mounts", None)
 
 
 # 当前测试的网关替身（_reset 重建）
@@ -169,8 +171,7 @@ def test_plugins_list_contains_ai_insight():
 def test_resources_tree_library_and_symlink():
     t = _make_library()
     root, mid = _make_symlink_dir()
-    app.state.symlink = FakeSymlink([{"id": mid, "name": "我的笔记", "root": str(root), "type": "dir"}])
-    app.state.ai_insight.symlink = app.state.symlink
+    manager.register_service("symlink.mounts", FakeSymlink([{"id": mid, "name": "我的笔记", "root": str(root), "type": "dir"}]))
 
     r = client.get("/api/plugins/ai_insight/resources")
     assert r.status_code == 200
@@ -189,8 +190,7 @@ def test_resources_tree_library_and_symlink():
 def test_resources_exclude_symlink_when_plugin_disabled():
     t = _make_library()
     root, mid = _make_symlink_dir()
-    app.state.symlink = FakeSymlink([{"id": mid, "name": "我的笔记", "root": str(root), "type": "dir"}])
-    app.state.ai_insight.symlink = app.state.symlink
+    manager.register_service("symlink.mounts", FakeSymlink([{"id": mid, "name": "我的笔记", "root": str(root), "type": "dir"}]))
 
     r = client.get("/api/plugins/ai_insight/resources").json()
     assert any(s["type"] == "dir" for s in r["symlinks"])
@@ -206,8 +206,7 @@ def test_resources_exclude_symlink_when_plugin_disabled():
 
 def test_symlink_tree_browse():
     root, mid = _make_symlink_dir()
-    app.state.symlink = FakeSymlink([{"id": mid, "name": "我的笔记", "root": str(root), "type": "dir"}])
-    app.state.ai_insight.symlink = app.state.symlink
+    manager.register_service("symlink.mounts", FakeSymlink([{"id": mid, "name": "我的笔记", "root": str(root), "type": "dir"}]))
 
     r = client.get(f"/api/plugins/ai_insight/resources/symlink/{mid}/tree")
     assert r.status_code == 200
@@ -248,8 +247,7 @@ def test_index_granularity_library_collection_document():
 
 def test_index_symlink_mount_and_inner_path():
     root, mid = _make_symlink_dir()
-    app.state.symlink = FakeSymlink([{"id": mid, "name": "我的笔记", "root": str(root), "type": "dir"}])
-    app.state.ai_insight.symlink = app.state.symlink
+    manager.register_service("symlink.mounts", FakeSymlink([{"id": mid, "name": "我的笔记", "root": str(root), "type": "dir"}]))
 
     # 整个挂载：a.md 两段 + b.txt 一段 + notes/c.md 一段
     client.post("/api/plugins/ai_insight/index", json={

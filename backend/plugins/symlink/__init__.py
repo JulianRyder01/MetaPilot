@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from app.config import DATA_DIR
-from app.plugins.base import Plugin
+from app.plugins.base import Plugin, manager
 from .service import SymlinkService
 
 
@@ -14,7 +14,11 @@ class SymlinkPlugin(Plugin):
     def register(self, app: FastAPI) -> None:
         from .routes import router
 
-        app.state.symlink = SymlinkService(DATA_DIR)
+        service = SymlinkService(DATA_DIR)
+        app.state.symlink = service
+        # 能力服务注册：其它插件经 capability 注册表取挂载源服务，不写死插件 id / app.state
+        self.declare_capability("symlink.mounts")
+        manager.register_service("symlink.mounts", service)
         app.include_router(router)
 
 

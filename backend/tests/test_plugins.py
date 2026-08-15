@@ -222,6 +222,32 @@ def test_capability_registry():
     assert manager.plugin_for_block_type("markdown") == ""
 
 
+def test_capability_service_registry():
+    """能力服务注册表：插件可把服务对象注册进能力，经 capability 取用而非 app.state 属性。"""
+    # 自包含测试（不依赖其它测试文件的全局服务残留）
+    manager.register_service("symlink.mounts", object())
+    try:
+        assert manager.service_for_capability("symlink.mounts") is not None
+    finally:
+        manager._services.pop("symlink.mounts", None)
+    assert manager.service_for_capability("nope.cap") is None
+
+
+def test_collection_kinds_registry():
+    """kind 元数据注册表：核心类型 + 插件声明合并，kind→打开路由由插件声明不写死。"""
+    r = client.get("/api/collection-kinds")
+    assert r.status_code == 200, r.text
+    kinds = r.json()
+    # 核心类型
+    assert kinds["canvas"]["openRoute"] == "/canvas/{id}"
+    assert kinds["note"]["openRoute"] == ""
+    assert "icon" in kinds["canvas"]
+    # course 类型由课程插件声明（含打开路由与归属插件）
+    assert kinds["course"]["openRoute"] == "/course/{id}"
+    assert kinds["course"]["pluginId"] == "course"
+    assert kinds["course"]["icon"] == "GraduationCap"
+
+
 def test_plugin_metadata_source_is_plugin_json():
     # plugin.json 为唯一元数据源：真实插件元数据来自 plugin.json，类上不再重复声明
     p = manager.get("course")
