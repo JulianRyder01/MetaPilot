@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useParams } from "react-router-dom"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { AlignCenter, AlignLeft, AlignRight, ArrowLeft, Box, CornerDownRight, Download, FileText, Focus, Image, Library, Link2, Maximize, Minus, MoveHorizontal, PanelLeft, Plus, Redo2, Save, Spline, StickyNote, Trash2, Undo2, X } from "lucide-react"
 import { toast } from "@/lib/toast"
 
@@ -29,17 +31,24 @@ const SIDES = [
   { key: "left", dx: 0, dy: 0.5 },
 ]
 
-/** 节点尺寸调整手柄（四角，Obsidian 风格）。 */
-type ResizeDir = "nw" | "ne" | "se" | "sw"
+/** 节点尺寸调整手柄（四角 + 四边中点，Obsidian 风格；边中点向外拖=连线、向内拖=单向缩放）。 */
+type ResizeDir = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w"
 const RESIZE_DIRS: ResizeDir[] = ["nw", "ne", "se", "sw"]
 const RESIZE_STYLE: Record<ResizeDir, { style: React.CSSProperties; cursor: string }> = {
   nw: { style: { left: -5, top: -5 }, cursor: "nwse-resize" },
   ne: { style: { right: -5, top: -5 }, cursor: "nesw-resize" },
   se: { style: { right: -5, bottom: -5 }, cursor: "nwse-resize" },
   sw: { style: { left: -5, bottom: -5 }, cursor: "nesw-resize" },
+  n: { style: { left: "50%", top: -5, transform: "translateX(-50%)" }, cursor: "ns-resize" },
+  s: { style: { left: "50%", bottom: -5, transform: "translateX(-50%)" }, cursor: "ns-resize" },
+  e: { style: { right: -5, top: "50%", transform: "translateY(-50%)" }, cursor: "ew-resize" },
+  w: { style: { left: -5, top: "50%", transform: "translateY(-50%)" }, cursor: "ew-resize" },
 }
 const MIN_NODE_W = 60
 const MIN_NODE_H = 40
+
+/** 连接点所在边 → 单向缩放方向。 */
+const SIDE_TO_DIR: Record<string, ResizeDir> = { top: "n", right: "e", bottom: "s", left: "w" }
 
 /** 画布内容层尺寸（board 坐标空间），超出部分随平移可见。 */
 const BOARD_SIZE = 8000
@@ -117,6 +126,8 @@ export default function CanvasPage() {
   const dragMovedRef = useRef(false)
   /** 节点尺寸调整（四角手柄拖拽）。 */
   const [resizing, setResizing] = useState<{ id: string; dir: ResizeDir; startX: number; startY: number; orig: { x: number; y: number; width: number; height: number } } | null>(null)
+  /** 边中点手柄按下待定（向外拖=连线，向内拖=单向缩放）。 */
+  const [pendingHandle, setPendingHandle] = useState<{ id: string; side: string; startX: number; startY: number } | null>(null)
   /** 撤销/重做历史栈。 */
   const undoStack = useRef<{ nodes: CanvasNode[]; edges: CanvasEdge[] }[]>([])
   const redoStack = useRef<{ nodes: CanvasNode[]; edges: CanvasEdge[] }[]>([])
@@ -176,7 +187,9 @@ export default function CanvasPage() {
   async function save() {
     if (!cid) return
     try {
-      await api.updateCollectionCanvas(cid, nodes, edges)
+      // 若正在编辑文本节点，先将其提交进节点数据再保存（Ctrl+Enter 保存）
+      const finalNodes = editingId ? nodes.map((n) => (n.id === editingId ? { ...n, text: editText } : n)) : nodes
+      await api.updateCollectionCanvas(cid, finalNodes, edges)
       setDirty(false)
       toast.success(t("core.canvas.saved"))
     } catch (e) {
@@ -591,6 +604,37 @@ export default function CanvasPage() {
       return
     }
     const p = screenToBoard(e.clientX, e.clientY)
+    // 边中点手柄：向外拖 = 创建连线，向内拖 = 单向缩放（Obsidian 同点双功能）
+    if (pendingHandle) {
+      const hn = nodes.find((n) => n.id === pendingHandle.id)
+      if (!hn) {
+        setPendingHandle(null)
+        return
+      }
+      const dx = p.x - pendingHandle.startX
+      const dy = p.y - pendingHandle.startY
+      if (Math.hypot(dx, dy) < 4) return
+      const mid = centerOf(hn, pendingHandle.side)
+      // 位移方向与「节点中心→边中点」同向 = 向外
+      const outward = (mid.x - hn.x - hn.width / 2) * dx + (mid.y - hn.y - hn.height / 2) * dy
+      if (outward > 0) {
+        // 向外：连线
+        setLinking({ fromId: hn.id, fromSide: pendingHandle.side })
+        setLinkPos(p)
+      } else {
+        // 向内：单向缩放
+        pushHistory()
+        setResizing({
+          id: hn.id,
+          dir: SIDE_TO_DIR[pendingHandle.side] ?? "e",
+          startX: pendingHandle.startX,
+          startY: pendingHandle.startY,
+          orig: { x: hn.x, y: hn.y, width: hn.width, height: hn.height },
+        })
+      }
+      setPendingHandle(null)
+      return
+    }
     if (resizing) {
       const dx = p.x - resizing.startX
       const dy = p.y - resizing.startY
@@ -647,6 +691,10 @@ export default function CanvasPage() {
       if (rp.moved) suppressCtxMenuRef.current = true
       return
     }
+    if (pendingHandle) {
+      setPendingHandle(null)
+      return
+    }
     if (resizing) {
       setDirty(true)
       setResizing(null)
@@ -685,6 +733,13 @@ export default function CanvasPage() {
         setCtxMenu(null)
         return
       }
+      // Ctrl+Enter：提交文本编辑并保存画布
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault()
+        commitEdit()
+        void save()
+        return
+      }
       if ((e.key === "Delete" || e.key === "Backspace") && !inField) {
         if (selectedEdgeId) {
           e.preventDefault()
@@ -717,10 +772,7 @@ export default function CanvasPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, edges, selectedIds])
 
-  // ---- 连线：从节点连接点拖到目标节点 ----
-  function startLink(nodeId: string, side: string) {
-    setLinking({ fromId: nodeId, fromSide: side })
-  }
+  // ---- 连线：从节点边中点拖到目标节点（向外拖），向内拖为单向缩放 ----
   function endLinkOn(targetId: string) {
     if (linking && linking.fromId !== targetId) {
       pushHistory()
@@ -1063,10 +1115,14 @@ export default function CanvasPage() {
                   ) : (
                     <div
                       onDoubleClick={() => startEdit(node)}
-                      className="h-full w-full overflow-auto whitespace-pre-wrap text-xs"
+                      className="markdown-body h-full w-full overflow-auto text-xs"
                       style={{ textAlign: node.styleAttributes?.textAlign }}
                     >
-                      {node.text || t("core.canvas.empty")}
+                      {node.text ? (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{node.text}</ReactMarkdown>
+                      ) : (
+                        <span className="text-muted-foreground">{t("core.canvas.empty")}</span>
+                      )}
                     </div>
                   )
                 ) : node.type === "file" ? (
@@ -1107,7 +1163,7 @@ export default function CanvasPage() {
                   </>
                 )}
 
-                {/* 连接点 */}
+                {/* 连接点 / 边中点手柄（向外拖=连线，向内拖=单向缩放） */}
                 {!isEditing && (
                   <>
                     {SIDES.map((s) => (
@@ -1115,7 +1171,8 @@ export default function CanvasPage() {
                         key={s.key}
                         onMouseDown={(e) => {
                           e.stopPropagation()
-                          startLink(node.id, s.key)
+                          const p = screenToBoard(e.clientX, e.clientY)
+                          setPendingHandle({ id: node.id, side: s.key, startX: p.x, startY: p.y })
                         }}
                         className={cn(
                           "absolute z-10 size-2.5 rounded-full border border-primary bg-background opacity-0 transition-opacity hover:opacity-100",
