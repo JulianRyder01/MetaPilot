@@ -126,6 +126,40 @@
   color: var(--foreground);
   word-break: break-word;
 }
+/* 画布卡片内的 Markdown：紧凑排版，首元素贴顶（Obsidian 卡片样式） */
+.canvas-node-md {
+  line-height: 1.5;
+}
+.canvas-node-md > :first-child {
+  margin-top: 0;
+}
+.canvas-node-md > :last-child {
+  margin-bottom: 0;
+}
+.canvas-node-md h1,
+.canvas-node-md h2,
+.canvas-node-md h3,
+.canvas-node-md h4 {
+  margin: 0.25em 0 0.15em;
+}
+.canvas-node-md h1 {
+  font-size: 1.2rem;
+  line-height: 1.3;
+}
+.canvas-node-md h2 {
+  font-size: 1.1rem;
+}
+.canvas-node-md h3 {
+  font-size: 1rem;
+}
+.canvas-node-md p,
+.canvas-node-md ul,
+.canvas-node-md ol {
+  margin: 0.2em 0;
+}
+.canvas-node-md code {
+  font-size: 0.85em;
+}
 .markdown-body h1 {
   font-size: 1.5rem;
   font-weight: 700;

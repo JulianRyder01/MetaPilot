@@ -80,20 +80,31 @@ function arrowPoints(px: number, py: number, angle: number, size = 8) {
 }
 
 /** 边的连接路径（Obsidian pathfindingMethod：smooth 平滑曲线 / straight 直线 / square 直角折线）。 */
-function edgePath(p1: { x: number; y: number }, p2: { x: number; y: number }, method?: string): { d: string; endAngle: number } {
+function edgePath(p1: { x: number; y: number }, p2: { x: number; y: number }, method?: string): string {
   if (method === "straight") {
-    return { d: `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`, endAngle: Math.atan2(p2.y - p1.y, p2.x - p1.x) }
+    return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`
   }
   if (method === "square") {
     const mx = (p1.x + p2.x) / 2
-    // 水平 → 垂直 → 水平；末端为水平段，箭头方向取决于 p2 相对中间折点
-    const endAngle = p2.x >= mx ? 0 : Math.PI
-    return { d: `M ${p1.x} ${p1.y} L ${mx} ${p1.y} L ${mx} ${p2.y} L ${p2.x} ${p2.y}`, endAngle }
+    return `M ${p1.x} ${p1.y} L ${mx} ${p1.y} L ${mx} ${p2.y} L ${p2.x} ${p2.y}`
   }
   // smooth（默认）：三次贝塞尔曲线，控制点在水平方向
-  return {
-    d: `M ${p1.x} ${p1.y} C ${p1.x + (p2.x - p1.x) / 2} ${p1.y}, ${p2.x - (p2.x - p1.x) / 2} ${p2.y}, ${p2.x} ${p2.y}`,
-    endAngle: Math.atan2(p2.y - p1.y, p2.x - p1.x),
+  return `M ${p1.x} ${p1.y} C ${p1.x + (p2.x - p1.x) / 2} ${p1.y}, ${p2.x - (p2.x - p1.x) / 2} ${p2.y}, ${p2.x} ${p2.y}`
+}
+
+/** 附着边 → 箭头指向节点内部的方向（垂直于卡片边沿）。 */
+function sideAngle(side?: string): number {
+  switch (side) {
+    case "right":
+      return Math.PI // 右边缘进入 → 指向左（节点内部）
+    case "left":
+      return 0
+    case "top":
+      return Math.PI / 2
+    case "bottom":
+      return -Math.PI / 2
+    default:
+      return 0
   }
 }
 
@@ -1040,10 +1051,12 @@ export default function CanvasPage() {
               const p2 = centerOf(b, e.toSide)
               const color = resolveColor(e.color) ?? "#94a3b8"
               const selected = selectedEdgeId === e.id
-              const { d, endAngle } = edgePath(p1, p2, e.styleAttributes?.pathfindingMethod)
-              // JSON Canvas 默认：fromEnd=none、toEnd=arrow
+              const d = edgePath(p1, p2, e.styleAttributes?.pathfindingMethod)
+              // JSON Canvas 默认：fromEnd=none、toEnd=arrow；箭头垂直于卡片边沿
               const fromEnd = e.fromEnd === "arrow"
               const toEnd = e.toEnd === "arrow" || e.toEnd == null
+              const toAngle = sideAngle(e.toSide)
+              const fromAngle = sideAngle(e.fromSide) + Math.PI
               return (
                 <g key={e.id}>
                   {/* 连线路径：smooth 曲线 / straight 直线 / square 直角折线（Obsidian pathfindingMethod） */}
@@ -1060,8 +1073,8 @@ export default function CanvasPage() {
                       attachPressRef.current = { edgeId: e.id, startX: bp.x, startY: bp.y }
                     }}
                   />
-                  {toEnd && <polygon points={arrowPoints(p2.x, p2.y, endAngle)} fill={color} className="pointer-events-none" />}
-                  {fromEnd && <polygon points={arrowPoints(p1.x, p1.y, endAngle + Math.PI)} fill={color} className="pointer-events-none" />}
+                  {toEnd && <polygon points={arrowPoints(p2.x, p2.y, toAngle)} fill={color} className="pointer-events-none" />}
+                  {fromEnd && <polygon points={arrowPoints(p1.x, p1.y, fromAngle)} fill={color} className="pointer-events-none" />}
                 </g>
               )
             })}
@@ -1154,7 +1167,7 @@ export default function CanvasPage() {
                   ) : (
                     <div
                       onDoubleClick={() => startEdit(node)}
-                      className="markdown-body h-full w-full overflow-auto text-xs"
+                      className="markdown-body canvas-node-md h-full w-full overflow-auto text-xs"
                       style={{ textAlign: node.styleAttributes?.textAlign }}
                     >
                       {node.text ? (
@@ -1187,14 +1200,17 @@ export default function CanvasPage() {
                   </div>
                 )}
 
-                {/* 尺寸调整手柄（选中节点显示四角，Obsidian 风格） */}
-                {isSelected && !isEditing && (
+                {/* 尺寸调整手柄（hover/选中节点显示四角；Obsidian：无需先点击即可拖拽调整） */}
+                {!isEditing && (
                   <>
                     {RESIZE_DIRS.map((dir) => (
                       <div
                         key={dir}
                         onMouseDown={(e) => startResize(e, node, dir)}
-                        className="absolute z-20 size-2.5 rounded-full border border-primary bg-background shadow-sm hover:scale-125"
+                        className={cn(
+                          "absolute z-20 size-2.5 rounded-full border border-primary bg-background opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:scale-125",
+                          isSelected && "opacity-100",
+                        )}
                         style={RESIZE_STYLE[dir].style}
                         title={t("core.canvas.resize")}
                       />
@@ -1214,7 +1230,7 @@ export default function CanvasPage() {
                           setPendingHandle({ id: node.id, side: s.key, startX: p.x, startY: p.y })
                         }}
                         className={cn(
-                          "absolute z-10 size-2.5 rounded-full border border-primary bg-background opacity-0 transition-opacity hover:opacity-100",
+                          "absolute z-10 size-2.5 rounded-full border border-primary bg-background opacity-0 transition-opacity group-hover:opacity-100",
                           isSelected && "opacity-100",
                         )}
                         style={{ left: `calc(${s.dx * 100}% - 5px)`, top: `calc(${s.dy * 100}% - 5px)` }}
