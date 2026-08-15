@@ -6,20 +6,15 @@ import CoursePage from "@/pages/CoursePage"
 import LearnPage from "@/pages/LearnPage"
 import EditPage from "@/pages/EditPage"
 import StatsPage from "@/pages/StatsPage"
-import { ChoiceBlock } from "@/components/learn/blocks/ChoiceBlock"
-import { FillBlankBlock } from "@/components/learn/blocks/FillBlankBlock"
-import { ShortAnswerBlock } from "@/components/learn/blocks/ShortAnswerBlock"
-import { InteractiveBlock } from "@/components/learn/blocks/InteractiveBlock"
 import { CourseImportTab } from "./course/importTab"
+import {
+  renderChoice,
+  renderFillBlank,
+  renderShortAnswer,
+  renderInteractive,
+} from "./course/renderers"
 
 import type { PluginBlockRendererProps, PluginFrontend } from "./types"
-
-const renderChoice = ({ block }: PluginBlockRendererProps) => <ChoiceBlock block={block as never} />
-const renderFillBlank = ({ block }: PluginBlockRendererProps) => <FillBlankBlock block={block as never} />
-const renderShortAnswer = ({ block }: PluginBlockRendererProps) => <ShortAnswerBlock block={block as never} />
-const renderInteractive = ({ block, collectionId }: PluginBlockRendererProps) => (
-  <InteractiveBlock collectionId={collectionId} block={block as never} />
-)
 
 export const coursePlugin: PluginFrontend = {
   id: "course",

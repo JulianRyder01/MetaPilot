@@ -34,6 +34,12 @@
   window.MetaPilotPluginRegistry.register({
     id: "demo_greeting",
     routes: [{ path: "/demo", Component: DemoPage }],
-    navItems: [{ to: "/demo", label: "示例插件", icon: "Hand" }],
+    navItems: [{ to: "/demo", label: "demo.nav", icon: "Hand" }],
+    // 词典随注册注入宿主 i18n（覆盖/补充，key 前缀建议用插件 id）
+    i18n: {
+      "zh-CN": { "demo.nav": "示例插件" },
+      "zh-TW": { "demo.nav": "範例外掛" },
+      "en": { "demo.nav": "Demo Plugin" },
+    },
   })
 })()
