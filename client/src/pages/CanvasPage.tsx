@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, Box, Download, FileText, Focus, Image, Library, Link2, Maximize, Minus, PanelLeft, Plus, Redo2, Save, StickyNote, Trash2, Undo2, X } from "lucide-react"
+import { AlignCenter, AlignLeft, AlignRight, ArrowLeft, Box, CornerDownRight, Download, FileText, Focus, Image, Library, Link2, Maximize, Minus, MoveHorizontal, PanelLeft, Plus, Redo2, Save, Spline, StickyNote, Trash2, Undo2, X } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
@@ -56,6 +56,24 @@ function arrowPoints(px: number, py: number, angle: number, size = 8) {
   const a1 = angle + Math.PI / 6
   const a2 = angle - Math.PI / 6
   return `${px},${py} ${px - size * Math.cos(a1)},${py - size * Math.sin(a1)} ${px - size * Math.cos(a2)},${py - size * Math.sin(a2)}`
+}
+
+/** 边的连接路径（Obsidian pathfindingMethod：smooth 平滑曲线 / straight 直线 / square 直角折线）。 */
+function edgePath(p1: { x: number; y: number }, p2: { x: number; y: number }, method?: string): { d: string; endAngle: number } {
+  if (method === "straight") {
+    return { d: `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`, endAngle: Math.atan2(p2.y - p1.y, p2.x - p1.x) }
+  }
+  if (method === "square") {
+    const mx = (p1.x + p2.x) / 2
+    // 水平 → 垂直 → 水平；末端为水平段，箭头方向取决于 p2 相对中间折点
+    const endAngle = p2.x >= mx ? 0 : Math.PI
+    return { d: `M ${p1.x} ${p1.y} L ${mx} ${p1.y} L ${mx} ${p2.y} L ${p2.x} ${p2.y}`, endAngle }
+  }
+  // smooth（默认）：三次贝塞尔曲线，控制点在水平方向
+  return {
+    d: `M ${p1.x} ${p1.y} C ${p1.x + (p2.x - p1.x) / 2} ${p1.y}, ${p2.x - (p2.x - p1.x) / 2} ${p2.y}, ${p2.x} ${p2.y}`,
+    endAngle: Math.atan2(p2.y - p1.y, p2.x - p1.x),
+  }
 }
 
 export default function CanvasPage() {
@@ -845,15 +863,15 @@ export default function CanvasPage() {
               const p2 = centerOf(b, e.toSide)
               const color = resolveColor(e.color) ?? "#94a3b8"
               const selected = selectedEdgeId === e.id
-              const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x)
+              const { d, endAngle } = edgePath(p1, p2, e.styleAttributes?.pathfindingMethod)
               // JSON Canvas 默认：fromEnd=none、toEnd=arrow
               const fromEnd = e.fromEnd === "arrow"
               const toEnd = e.toEnd === "arrow" || e.toEnd == null
               return (
                 <g key={e.id}>
-                  {/* Obsidian 风格：三次贝塞尔曲线连接节点，控制点在水平方向 */}
+                  {/* 连线路径：smooth 曲线 / straight 直线 / square 直角折线（Obsidian pathfindingMethod） */}
                   <path
-                    d={`M ${p1.x} ${p1.y} C ${p1.x + (p2.x - p1.x) / 2} ${p1.y}, ${p2.x - (p2.x - p1.x) / 2} ${p2.y}, ${p2.x} ${p2.y}`}
+                    d={d}
                     fill="none"
                     stroke={color}
                     strokeWidth={selected ? 3 : 1.5}
@@ -863,8 +881,8 @@ export default function CanvasPage() {
                       selectEdge(e)
                     }}
                   />
-                  {toEnd && <polygon points={arrowPoints(p2.x, p2.y, angle)} fill={color} className="pointer-events-none" />}
-                  {fromEnd && <polygon points={arrowPoints(p1.x, p1.y, angle + Math.PI)} fill={color} className="pointer-events-none" />}
+                  {toEnd && <polygon points={arrowPoints(p2.x, p2.y, endAngle)} fill={color} className="pointer-events-none" />}
+                  {fromEnd && <polygon points={arrowPoints(p1.x, p1.y, endAngle + Math.PI)} fill={color} className="pointer-events-none" />}
                 </g>
               )
             })}
@@ -955,7 +973,11 @@ export default function CanvasPage() {
                       className="h-full w-full resize-none bg-transparent text-xs outline-none"
                     />
                   ) : (
-                    <div onDoubleClick={() => startEdit(node)} className="h-full w-full overflow-auto whitespace-pre-wrap text-xs">
+                    <div
+                      onDoubleClick={() => startEdit(node)}
+                      className="h-full w-full overflow-auto whitespace-pre-wrap text-xs"
+                      style={{ textAlign: node.styleAttributes?.textAlign }}
+                    >
                       {node.text || t("core.canvas.empty")}
                     </div>
                   )
@@ -1072,6 +1094,43 @@ export default function CanvasPage() {
                   </>
                 )
               })()}
+            {selectedIds.length === 1 &&
+              nodes.find((n) => n.id === selectedIds[0])?.type === "text" &&
+              (() => {
+                const tn = nodes.find((n) => n.id === selectedIds[0])!
+                const align = tn.styleAttributes?.textAlign ?? "left"
+                return (
+                  <>
+                    <span className="mx-1 h-4 w-px bg-border" />
+                    {(
+                      [
+                        { v: "left" as const, icon: AlignLeft, label: t("core.canvas.alignLeft") },
+                        { v: "center" as const, icon: AlignCenter, label: t("core.canvas.alignCenter") },
+                        { v: "right" as const, icon: AlignRight, label: t("core.canvas.alignRight") },
+                      ]
+                    ).map((a) => (
+                      <Button
+                        key={a.v}
+                        variant={align === a.v ? "default" : "ghost"}
+                        size="icon"
+                        className="size-6"
+                        onClick={() => {
+                          pushHistory()
+                          updateNode(tn.id, {
+                            styleAttributes: {
+                              ...(tn.styleAttributes ?? {}),
+                              textAlign: a.v === "left" ? undefined : a.v,
+                            },
+                          })
+                        }}
+                        title={a.label}
+                      >
+                        <a.icon className="size-3.5" />
+                      </Button>
+                    ))}
+                  </>
+                )
+              })()}
             <span className="mx-1 h-4 w-px bg-border" />
             <Button variant="ghost" size="icon" className="size-6" onClick={centerSelection} title={t("core.canvas.center")}>
               <Focus className="size-3.5" />
@@ -1125,6 +1184,34 @@ export default function CanvasPage() {
               placeholder={t("core.canvas.edgeLabel")}
               className="h-6 w-24 rounded border bg-transparent px-1.5 outline-none placeholder:text-muted-foreground"
             />
+            <span className="mx-1 h-4 w-px bg-border" />
+            <span className="pl-1 text-muted-foreground">{t("core.canvas.edgePath")}</span>
+            {(
+              [
+                { v: "smooth" as const, icon: Spline, label: t("core.canvas.pathSmooth") },
+                { v: "straight" as const, icon: MoveHorizontal, label: t("core.canvas.pathStraight") },
+                { v: "square" as const, icon: CornerDownRight, label: t("core.canvas.pathSquare") },
+              ]
+            ).map((p) => (
+              <Button
+                key={p.v}
+                variant={selectedEdge.styleAttributes?.pathfindingMethod === p.v ? "default" : "ghost"}
+                size="icon"
+                className="size-6"
+                onClick={() => {
+                  pushHistory()
+                  updateEdge(selectedEdge.id, {
+                    styleAttributes: {
+                      ...(selectedEdge.styleAttributes ?? {}),
+                      pathfindingMethod: p.v === "smooth" ? undefined : p.v,
+                    },
+                  })
+                }}
+                title={p.label}
+              >
+                <p.icon className="size-3.5" />
+              </Button>
+            ))}
             <span className="mx-1 h-4 w-px bg-border" />
             {Object.entries(PRESET_COLORS).map(([k, v]) => (
               <button

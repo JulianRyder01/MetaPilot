@@ -203,6 +203,8 @@ export interface CanvasNode {
   file?: string
   url?: string
   label?: string
+  /** Obsidian 节点扩展样式（新版 .canvas 字段）。 */
+  styleAttributes?: { textAlign?: "left" | "center" | "right" }
 }
 
 export interface CanvasEdge {
@@ -216,6 +218,8 @@ export interface CanvasEdge {
   /** JSON Canvas：起点端点（none 默认 / arrow），与 toEnd 默认相反。 */
   fromEnd?: "none" | "arrow"
   toEnd?: "none" | "arrow"
+  /** Obsidian 边扩展样式（新版 .canvas 字段）：连线路径形状。 */
+  styleAttributes?: { pathfindingMethod?: "smooth" | "straight" | "square" }
 }
 
 export interface Collection {
