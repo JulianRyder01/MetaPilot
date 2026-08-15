@@ -21,6 +21,7 @@ from typing import Optional
 import numpy as np
 
 from app.config import settings
+from app.plugins.base import manager
 from app.services.ai_gateway import AIGateway
 from app.storage.store import LibraryStore
 
@@ -109,7 +110,11 @@ class InsightService:
     # ---------------- 资源树 ----------------
 
     def resources(self) -> dict:
-        """可选择的资源树：库 → 文档集 → 文档；软链接挂载（仅软链接插件启用时）。"""
+        """可选择的资源树：库 → 文档集 → 文档；挂载类数据源（软链接插件提供）。
+
+        sourceTypes 携带可用挂载类数据源的展示元数据（label/链接模板来自能力提供方声明），
+        本插件不写死其它插件的描述与跳转路径。
+        """
         libraries = []
         for lib in self.store.list_libraries():
             lib_info = self.store.get_library(lib["id"])
@@ -139,7 +144,32 @@ class InsightService:
                     "type": m.get("type", "dir"),
                     "status": self.status(_key_for({"type": "symlink", "id": m["id"]})),
                 })
-        return {"libraries": libraries, "symlinks": symlinks}
+        return {"libraries": libraries, "symlinks": symlinks,
+                "sourceTypes": self._source_type_meta()}
+
+    def _source_type_meta(self) -> dict:
+        """挂载类数据源元数据：label / 链接模板来自能力提供方（软链接插件）的声明，不写死描述。"""
+        cap = manager.capability("symlink.mounts") if self.symlink is not None else None
+        if cap is None:
+            return {}
+        return {
+            "symlink": {
+                "available": True,
+                "label": cap.get("sourceTypeLabel", "本机目录"),
+                "linkTemplate": cap.get("linkTemplate", "/files?mount={mountId}"),
+            }
+        }
+
+    def _symlink_link(self, mount_id: str, rel: str) -> dict:
+        """挂载类源跳转链接：href 由能力元数据声明的模板填充，不写死跳转路径。"""
+        cap = manager.capability("symlink.mounts") or {}
+        template = cap.get("linkTemplate", "/files?mount={mountId}")
+        return {
+            "kind": "symlink",
+            "mountId": mount_id,
+            "path": rel,
+            "href": template.format(mountId=mount_id),
+        }
 
     def symlink_tree(self, mount_id: str, rel: str = "") -> dict:
         """浏览软链接挂载内目录（代理软链接插件的目录列表能力）。"""
@@ -289,7 +319,7 @@ class InsightService:
                         "docName": p.name,
                         "collectionName": mount["name"],
                         "collectionId": mount["id"],
-                        "link": {"kind": "symlink", "mountId": mount["id"], "path": rel},
+                        "link": self._symlink_link(mount["id"], rel),
                         "text": text,
                     })
         else:

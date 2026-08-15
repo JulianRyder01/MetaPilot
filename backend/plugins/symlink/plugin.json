@@ -15,7 +15,8 @@
     "symlink.mounts": {
       "label": "本机目录挂载",
       "sourceType": "symlink",
-      "sourceTypeLabel": "软链接（本机目录）"
+      "sourceTypeLabel": "软链接（本机目录）",
+      "linkTemplate": "/files?mount={mountId}"
     }
   },
   "requires": [],

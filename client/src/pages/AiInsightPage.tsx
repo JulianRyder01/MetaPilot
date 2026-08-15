@@ -36,6 +36,7 @@ import {
   type InsightMode,
   type InsightOutput,
   type InsightResourceNode,
+  type InsightResources,
   type InsightSourceRef,
   type InsightStatus,
   type NotIndexedDetail,
@@ -69,8 +70,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 /** 数据源 → 选择集 key */
 const srcKey = (r: InsightSourceRef) => `${r.type}:${r.id}:${r.path ?? ""}`
 
-/** 来源跳转：learn → 学习页；symlink → 文件浏览器 */
+/** 来源跳转：优先用后端下发的链接（能力提供方元数据生成）；旧数据回退 learn/symlink 规则 */
 function sourceHref(src: KbSource): string | null {
+  if (src.link?.kind === "symlink" && src.link.href) return src.link.href
   if (src.link?.kind === "learn") return `/learn/${src.link.collectionId}/${src.link.sectionId}`
   if (src.link?.kind === "symlink") return `/files?mount=${src.link.mountId}`
   return null
@@ -189,9 +191,10 @@ export default function AiInsightPage() {
   const symlinkEnabled = usePluginEnabled("symlink")
   const [searchParams] = useSearchParams()
 
-  const [resources, setResources] = useState<{ libraries: InsightResourceNode[]; symlinks: InsightResourceNode[] }>({
+  const [resources, setResources] = useState<InsightResources>({
     libraries: [],
     symlinks: [],
+    sourceTypes: {},
   })
   const [loadingResources, setLoadingResources] = useState(true)
   const [indexSel, setIndexSel] = useState<Map<string, InsightSourceRef>>(new Map())
@@ -642,7 +645,9 @@ export default function AiInsightPage() {
       </div>
       {symlinkEnabled && (
         <div>
-          <p className="mb-1 text-xs font-medium text-muted-foreground">{t("insight.groupSymlink")}</p>
+          <p className="mb-1 text-xs font-medium text-muted-foreground">
+            {resources.sourceTypes?.symlink?.label ?? t("insight.groupSymlink")}
+          </p>
           {resources.symlinks.length === 0 ? (
             <p className="text-xs text-muted-foreground">{t("insight.noSourcesWithSymlink")}</p>
           ) : (

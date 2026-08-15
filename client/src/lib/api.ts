@@ -335,10 +335,10 @@ export interface ThemeDef {
   variables: { light: Record<string, string>; dark: Record<string, string> }
 }
 
-/** 知识库来源跳转信息（learn=学习页；symlink=文件浏览器） */
+/** 知识库来源跳转信息（learn=学习页；symlink=文件浏览器，href 由能力提供方元数据生成） */
 export type KbSourceLink =
   | { kind: "learn"; collectionId: string; sectionId: string }
-  | { kind: "symlink"; mountId: string; path: string }
+  | { kind: "symlink"; mountId: string; path: string; href?: string }
 
 export interface KbSource {
   sectionId: string

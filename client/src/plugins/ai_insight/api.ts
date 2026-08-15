@@ -37,9 +37,18 @@ export interface InsightResourceNode {
   documents?: InsightResourceNode[]
 }
 
+/** 挂载类数据源元数据（label/链接模板来自能力提供方声明，ai_insight 不写死其它插件描述） */
+export interface InsightSourceTypeMeta {
+  available: boolean
+  label: string
+  linkTemplate: string
+}
+
 export interface InsightResources {
   libraries: InsightResourceNode[]
   symlinks: InsightResourceNode[]
+  /** 可用挂载类数据源（如 symlink）的展示元数据，键为数据源类型 */
+  sourceTypes?: Record<string, InsightSourceTypeMeta>
 }
 
 /** 思考模式 */

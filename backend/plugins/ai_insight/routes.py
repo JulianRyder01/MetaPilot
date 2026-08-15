@@ -25,10 +25,10 @@ router = APIRouter(
 
 
 class SourceIn(BaseModel):
-    """数据源：library（库）/ collection（文档集）/ document（文档）/ symlink（软链接挂载或挂载内路径）。"""
-    type: Literal["library", "collection", "document", "symlink"]
+    """数据源：library（库）/ collection（文档集）/ document（文档）/ 挂载类源（由提供方能力定义，如 symlink）。"""
+    type: str
     id: str
-    path: str = ""  # symlink 专用：挂载内相对路径（空 = 整个挂载）
+    path: str = ""  # 挂载类源专用：挂载内相对路径（空 = 整个挂载）
 
 
 class IndexIn(BaseModel):
@@ -65,11 +65,11 @@ def _svc(request: Request) -> InsightService:
     # AI 统一网关：核心 1.1.1 起注入（测试可预置替身，优先保留）
     if svc.gateway is None:
         svc.gateway = getattr(request.app.state, "ai_gateway", None)
-    # 软链接插件可能注册在后：路由请求时懒注入；仅当软链接插件启用时才注入，
-    # 禁用后不再把本机目录列为数据源（软链接支持不写死）。
+    # 挂载类数据源（symlink）由「软链接」插件的能力提供：仅当能力可用（插件已启用）时注入，
+    # 能力检测替代写死插件 id，禁用后不再把本机目录列为数据源。
     from app.plugins.base import manager
 
-    if manager.is_enabled("symlink"):
+    if manager.capability_available("symlink.mounts"):
         svc.symlink = getattr(request.app.state, "symlink", None)
     else:
         svc.symlink = None
