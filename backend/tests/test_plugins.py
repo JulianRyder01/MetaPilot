@@ -306,20 +306,32 @@ def test_plugin_list_ordered_user_official_core():
 
 
 def test_plugin_list_includes_tags():
-    from app.plugins.base import PLUGIN_TAGS
-
+    # tags 为自由字符串（无白名单），第三方插件可自带任意标签
     plugins = client.get("/api/plugins").json()
     for p in plugins:
         assert "tags" in p, f"插件 {p['id']} 缺少 tags 字段"
         assert isinstance(p["tags"], list)
         for t in p["tags"]:
-            assert t in PLUGIN_TAGS, f"插件 {p['id']} 的 tag {t} 不在预定义集合 {PLUGIN_TAGS}"
+            assert isinstance(t, str) and t
     by_id = {p["id"]: p for p in plugins}
     assert by_id["course"]["tags"] == ["学习"]
     assert by_id["ai_insight"]["tags"] == ["学习", "AI"]
     assert by_id["themes"]["tags"] == ["主题"]
     assert by_id["symlink"]["tags"] == ["工具", "存储"]
     assert by_id["core"]["tags"] == []
+
+
+def test_plugin_info_includes_metadata_v12():
+    """/api/plugins 清单透传 v1.2 元数据：features/icon/capabilities/requires/contentTypes。"""
+    by_id = {p["id"]: p for p in client.get("/api/plugins").json()}
+    course = by_id["course"]
+    assert course["icon"] == "GraduationCap"
+    assert course["features"] and all(isinstance(f, str) for f in course["features"])
+    assert "course.learning" in course["capabilities"]
+    assert "single_choice" in course["contentTypes"]
+    assert by_id["symlink"]["icon"] == "FolderOpen"
+    assert "symlink.mounts" in by_id["symlink"]["capabilities"]
+    assert "symlink.mounts" in by_id["ai_insight"]["requires"]
 
 
 def test_plugin_list_includes_changelog():

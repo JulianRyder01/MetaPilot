@@ -4,7 +4,6 @@ import { CloudDownload, FileUp, RefreshCw, Send, Store } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { api, type StorePluginItem } from "@/lib/api"
-import { PLUGIN_TAGS } from "@/plugins/types"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -57,6 +56,12 @@ export function StorePanel({ installedIds, onChanged }: Props) {
   const filtered = useMemo(
     () => (tagFilter ? items.filter((i) => i.tags?.includes(tagFilter)) : items),
     [items, tagFilter],
+  )
+
+  // 商店标签筛选项从商店清单动态生成（不写死白名单）
+  const allTags = useMemo(
+    () => Array.from(new Set(items.flatMap((i) => i.tags ?? []))).sort(),
+    [items],
   )
 
   async function install(item: StorePluginItem) {
@@ -128,7 +133,7 @@ export function StorePanel({ installedIds, onChanged }: Props) {
             >
               {t("common.all")}
             </Button>
-            {PLUGIN_TAGS.map((t) => (
+            {allTags.map((t) => (
               <Button
                 key={t}
                 variant={tagFilter === t ? "secondary" : "outline"}

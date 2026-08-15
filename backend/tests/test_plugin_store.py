@@ -130,9 +130,13 @@ def test_upload_local_install():
     assert client.delete(f"/api/plugins/{TEST_PID}").status_code == 200
 
 
-def test_upload_local_rejects_bad_tag():
+def test_upload_local_accepts_arbitrary_tag():
+    # tags 为自由字符串（无白名单），第三方插件可自带任意标签
     r = client.post("/api/plugins/upload", files={"file": ("p.zip", make_zip(tags=["不存在的tag"]), "application/zip")})
-    assert r.status_code == 400
+    assert r.status_code == 200
+    assert r.json()["id"] == TEST_PID
+    assert r.json()["tags"] == ["不存在的tag"]
+    assert client.delete(f"/api/plugins/{TEST_PID}").status_code == 200
 
 
 def test_upload_local_rejects_traversal_id():

@@ -9,10 +9,7 @@ import json
 import re
 import zipfile
 
-# 插件 tags 预定义集合（与主后端 app/plugins/base.py 的 PLUGIN_TAGS 一致）
-PLUGIN_TAGS = ["效率", "学习", "工具", "主题", "存储", "AI"]
-
-# id：小写下划线，防路径穿越
+# 插件 tags 为自由字符串（无白名单），第三方插件可自带任意标签
 _ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 _REQUIRED = ("id", "name", "version", "description", "author")
@@ -72,9 +69,7 @@ def _normalize_meta(meta: dict) -> dict:
     tags = meta.get("tags", [])
     if not isinstance(tags, list):
         raise ValidationError("tags 必须是数组")
-    for t in tags:
-        if t not in PLUGIN_TAGS:
-            raise ValidationError(f"tag 不在预定义集合内: {t}")
+    # tags 为自由字符串（无白名单），第三方插件可自带任意标签
 
     # 规范化缺省字段
     meta.setdefault("source", "user")

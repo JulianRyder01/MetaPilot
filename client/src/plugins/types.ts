@@ -2,10 +2,6 @@
 import type { ComponentType } from "react"
 import type { LucideIcon } from "lucide-react"
 
-/** 插件 tags 预定义集合（docs/04-插件开发规范.md §3.2）：单插件可多 tag，用于商店/插件页筛选 */
-export const PLUGIN_TAGS = ["效率", "学习", "工具", "主题", "存储", "AI"] as const
-export type PluginTag = (typeof PLUGIN_TAGS)[number]
-
 /** 插件贡献的顶栏导航项（仅插件启用时显示） */
 export interface PluginNavItem {
   /** 导航目标路由 */

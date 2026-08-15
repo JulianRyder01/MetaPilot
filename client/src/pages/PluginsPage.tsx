@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
-import { GraduationCap, History, Lightbulb, Lock, Puzzle, Trash2, Palette } from "lucide-react"
+import { History, Lock, Puzzle, Trash2 } from "lucide-react"
+import * as Lucide from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { api, type PluginInfo } from "@/lib/api"
-import { PLUGIN_TAGS } from "@/plugins/types"
 import { usePluginsStore, ensurePluginsLoaded } from "@/stores/plugins"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -23,27 +23,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { StorePanel } from "@/components/plugins/StorePanel"
 import { useDialogs } from "@/components/ui/dialog-provider"
 import { useT } from "@/i18n"
-
-const PLUGIN_ICONS: Record<string, typeof Puzzle> = {
-  course: GraduationCap,
-  ai_insight: Lightbulb,
-  themes: Palette,
-}
-
-const PLUGIN_FEATURES: Record<string, string[]> = {
-  course: [
-    "sys.plugins.featureCourseImport",
-    "sys.plugins.featureCourseFlow",
-    "sys.plugins.featureCourseProgress",
-    "sys.plugins.featureCourseGrading",
-    "sys.plugins.featureCourseInteractive",
-  ],
-  ai_insight: [
-    "sys.plugins.featureInsightIndex",
-    "sys.plugins.featureInsightModes",
-    "sys.plugins.featureInsightPlan",
-  ],
-}
 
 // 分组展示顺序：用户自定义 → 官方插件 → 官方核心（与后端 /api/plugins 清单顺序一致）
 const SOURCE_META: { source: PluginSource; labelKey: string; descKey: string }[] = [
@@ -66,6 +45,13 @@ const SOURCE_META: { source: PluginSource; labelKey: string; descKey: string }[]
 
 type PluginSource = "core" | "official" | "user"
 
+/** 插件图标：icon 名为 lucide 图标名（plugin.json 声明），动态解析；未知回退通用 Puzzle */
+function pluginIcon(name?: string): typeof Puzzle {
+  if (!name) return Puzzle
+  const Cmp = (Lucide as unknown as Record<string, unknown>)[name]
+  return typeof Cmp === "function" ? (Cmp as typeof Puzzle) : Puzzle
+}
+
 export default function PluginsPage() {
   const t = useT()
   const { confirm } = useDialogs()
@@ -81,6 +67,12 @@ export default function PluginsPage() {
   const filtered = useMemo(
     () => (tagFilter ? plugins.filter((p) => p.tags?.includes(tagFilter)) : plugins),
     [plugins, tagFilter],
+  )
+
+  // 标签筛选项从已加载插件的 tags 动态生成（不写死白名单，第三方插件可自带任意 tag）
+  const allTags = useMemo(
+    () => Array.from(new Set(plugins.flatMap((p) => p.tags ?? []))).sort(),
+    [plugins],
   )
 
   async function toggle(id: string, enabled: boolean) {
@@ -140,7 +132,7 @@ export default function PluginsPage() {
             >
               {t("common.all")}
             </Button>
-            {PLUGIN_TAGS.map((t) => (
+            {allTags.map((t) => (
               <Button
                 key={t}
                 variant={tagFilter === t ? "secondary" : "outline"}
@@ -173,8 +165,8 @@ export default function PluginsPage() {
                   </div>
                   <div className="space-y-3">
                     {groupPlugins.map((p) => {
-                      const Icon = PLUGIN_ICONS[p.id] ?? Puzzle
-                      const features = PLUGIN_FEATURES[p.id] ?? []
+                      const Icon = pluginIcon(p.icon)
+                      const features = p.features ?? []
                       return (
                         <Card key={p.id}>
                           <CardHeader className="flex-row items-center justify-between gap-4">

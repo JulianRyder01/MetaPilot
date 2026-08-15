@@ -18,9 +18,6 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
 
 
-# 插件 tags 预定义集合（docs/04-插件开发规范.md §3.2）：单插件可多 tag，用于商店/插件页筛选
-PLUGIN_TAGS = ["效率", "学习", "工具", "主题", "存储", "AI"]
-
 # 插件清单排序：用户自定义 → 官方插件 → 官方核心
 _SOURCE_ORDER = {"user": 0, "official": 1, "core": 2}
 

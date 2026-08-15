@@ -15,7 +15,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from .base import PLUGIN_TAGS, Plugin, manager
+from .base import Plugin, manager
 from .loader import PLUGINS_DIR, _apply_metadata
 
 _ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -61,9 +61,7 @@ def parse_plugin_meta(data: bytes) -> dict:
     if src not in ("core", "official", "user"):
         raise PluginInstallError("source 必须是 core/official/user")
 
-    for t in meta.get("tags", []):
-        if t not in PLUGIN_TAGS:
-            raise PluginInstallError(f"tag 不在预定义集合内: {t}")
+    # tags 为自由字符串（无白名单），第三方插件可自带任意标签
 
     meta.setdefault("source", "user")
     meta.setdefault("specVersion", "1.0")
