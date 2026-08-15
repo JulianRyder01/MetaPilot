@@ -97,6 +97,14 @@ function edgePath(p1: { x: number; y: number }, p2: { x: number; y: number }, me
   }
 }
 
+/** 点相对节点中心的方位 → 附着边（top/right/bottom/left）。 */
+function sideOfNode(node: CanvasNode, p: { x: number; y: number }): string {
+  const dx = p.x - (node.x + node.width / 2)
+  const dy = p.y - (node.y + node.height / 2)
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "right" : "left"
+  return dy > 0 ? "bottom" : "top"
+}
+
 export default function CanvasPage() {
   const { cid } = useParams()
   const t = useT()
@@ -128,6 +136,9 @@ export default function CanvasPage() {
   const [resizing, setResizing] = useState<{ id: string; dir: ResizeDir; startX: number; startY: number; orig: { x: number; y: number; width: number; height: number } } | null>(null)
   /** 边中点手柄按下待定（向外拖=连线，向内拖=单向缩放）。 */
   const [pendingHandle, setPendingHandle] = useState<{ id: string; side: string; startX: number; startY: number } | null>(null)
+  /** 连线中段按下（拖动改变靠近一侧的附着点，Obsidian 重新锚定）。 */
+  const attachPressRef = useRef<{ edgeId: string; startX: number; startY: number } | null>(null)
+  const attachDragRef = useRef<{ edgeId: string } | null>(null)
   /** 撤销/重做历史栈。 */
   const undoStack = useRef<{ nodes: CanvasNode[]; edges: CanvasEdge[] }[]>([])
   const redoStack = useRef<{ nodes: CanvasNode[]; edges: CanvasEdge[] }[]>([])
@@ -635,6 +646,27 @@ export default function CanvasPage() {
       setPendingHandle(null)
       return
     }
+    // 拖动连线中段：实时把靠近一侧的附着点吸到鼠标方位（Obsidian 重新锚定）
+    const ap = attachPressRef.current
+    if (ap) {
+      if (!attachDragRef.current) {
+        if (Math.hypot(p.x - ap.startX, p.y - ap.startY) < 5) return
+        pushHistory()
+        attachDragRef.current = { edgeId: ap.edgeId }
+      }
+      const edge = edges.find((x) => x.id === ap.edgeId)
+      if (edge) {
+        const na = nodes.find((n) => n.id === edge.fromNode)
+        const nb = nodes.find((n) => n.id === edge.toNode)
+        if (na && nb) {
+          const da = Math.hypot(p.x - (na.x + na.width / 2), p.y - (na.y + na.height / 2))
+          const db = Math.hypot(p.x - (nb.x + nb.width / 2), p.y - (nb.y + nb.height / 2))
+          if (da <= db) updateEdge(edge.id, { fromSide: sideOfNode(na, p) })
+          else updateEdge(edge.id, { toSide: sideOfNode(nb, p) })
+        }
+      }
+      return
+    }
     if (resizing) {
       const dx = p.x - resizing.startX
       const dy = p.y - resizing.startY
@@ -693,6 +725,11 @@ export default function CanvasPage() {
     }
     if (pendingHandle) {
       setPendingHandle(null)
+      return
+    }
+    if (attachPressRef.current || attachDragRef.current) {
+      attachPressRef.current = null
+      attachDragRef.current = null
       return
     }
     if (resizing) {
@@ -1019,6 +1056,8 @@ export default function CanvasPage() {
                     onMouseDown={(ev) => {
                       ev.stopPropagation()
                       selectEdge(e)
+                      const bp = screenToBoard(ev.clientX, ev.clientY)
+                      attachPressRef.current = { edgeId: e.id, startX: bp.x, startY: bp.y }
                     }}
                   />
                   {toEnd && <polygon points={arrowPoints(p2.x, p2.y, endAngle)} fill={color} className="pointer-events-none" />}
