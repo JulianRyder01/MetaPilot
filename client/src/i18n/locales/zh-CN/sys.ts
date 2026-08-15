@@ -49,6 +49,12 @@ export const sysZhCN: Record<string, string> = {
   "sys.plugins.needEnableSuffix": "」插件才可使用",
   "sys.plugins.thisFeature": "此功能",
   "sys.plugins.goEnable": "去插件管理页启用",
+  "sys.plugins.uploadTitle": "上传插件（本地安装）",
+  "sys.plugins.uploadDescPrefix": "选择按规范打包的插件 zip（含根目录 ",
+  "sys.plugins.uploadDescSuffix": "，见插件开发规范 §3）；安装后立即出现在下方列表，可禁用或删除。",
+  "sys.plugins.uploadInstall": "本地安装",
+  "sys.plugins.uploadSuccess": "插件已安装",
+  "sys.plugins.uploadFailed": "安装失败",
 
   // 插件商店
   "sys.store.storeUnavailable": "无法访问插件商店",

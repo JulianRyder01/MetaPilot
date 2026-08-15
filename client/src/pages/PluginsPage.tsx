@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { StorePanel } from "@/components/plugins/StorePanel"
+import { LocalUploadCard } from "@/components/plugins/LocalUploadCard"
 import { useDialogs } from "@/components/ui/dialog-provider"
 import { useT } from "@/i18n"
 
@@ -121,6 +122,9 @@ export default function PluginsPage() {
         </TabsList>
 
         <TabsContent value="local" className="space-y-6">
+          {/* 上传插件（本地安装）：与插件商店解耦，只走 POST /api/plugins/upload */}
+          <LocalUploadCard onInstalled={refresh} />
+
           {/* tag 筛选栏 */}
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="mr-1 text-xs text-muted-foreground">{t("sys.plugins.filterByTag")}</span>

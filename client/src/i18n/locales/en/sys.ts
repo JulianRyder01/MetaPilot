@@ -49,6 +49,12 @@ export const sysEn: Record<string, string> = {
   "sys.plugins.needEnableSuffix": "” plugin to use ",
   "sys.plugins.thisFeature": "this feature",
   "sys.plugins.goEnable": "Enable in plugin manager",
+  "sys.plugins.uploadTitle": "Upload plugin (install locally)",
+  "sys.plugins.uploadDescPrefix": "Select a plugin zip packaged per the spec (containing a root ",
+  "sys.plugins.uploadDescSuffix": " file; see plugin dev spec §3). It appears in the list below right after install, and can be disabled or deleted.",
+  "sys.plugins.uploadInstall": "Install locally",
+  "sys.plugins.uploadSuccess": "Plugin installed",
+  "sys.plugins.uploadFailed": "Install failed",
 
   // Plugin store
   "sys.store.storeUnavailable": "Cannot reach the plugin store",

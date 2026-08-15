@@ -49,6 +49,12 @@ export const sysZhTW: Record<string, string> = {
   "sys.plugins.needEnableSuffix": "」外掛才能使用",
   "sys.plugins.thisFeature": "此功能",
   "sys.plugins.goEnable": "前往外掛管理頁啟用",
+  "sys.plugins.uploadTitle": "上傳外掛（本機安裝）",
+  "sys.plugins.uploadDescPrefix": "選擇依規範打包的外掛 zip（含根目錄 ",
+  "sys.plugins.uploadDescSuffix": "，見外掛開發規範 §3）；安裝後立即出現在下方清單，可停用或刪除。",
+  "sys.plugins.uploadInstall": "本機安裝",
+  "sys.plugins.uploadSuccess": "外掛已安裝",
+  "sys.plugins.uploadFailed": "安裝失敗",
 
   // 外掛商店
   "sys.store.storeUnavailable": "無法存取外掛商店",
