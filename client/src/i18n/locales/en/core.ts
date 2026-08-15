@@ -242,6 +242,9 @@ export const coreEn: Record<string, string> = {
   "core.canvas.exportMpf": "Export .mpf",
   "core.canvas.exportCanvas": "Export .canvas",
   "core.canvas.export": "Export",
+  "core.canvas.center": "Center",
+  "core.canvas.paste": "Paste",
+
   "core.canvas.toggleNav": "Toggle navigation",
   "core.canvas.noCanvases": "No canvases yet",
   "core.canvas.edgeStart": "Start",

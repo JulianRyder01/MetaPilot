@@ -224,6 +224,9 @@ export const coreZhTW: Record<string, string> = {
   "core.canvas.exportMpf": "匯出 .mpf",
   "core.canvas.exportCanvas": "匯出 .canvas",
   "core.canvas.export": "匯出",
+  "core.canvas.center": "置中",
+  "core.canvas.paste": "貼上",
+
   "core.canvas.toggleNav": "展開/收起導覽",
   "core.canvas.noCanvases": "暫無圖表",
   "core.canvas.edgeStart": "起點",

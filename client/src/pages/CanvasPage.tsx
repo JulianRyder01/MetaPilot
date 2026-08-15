@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, Box, Download, FileText, Link2, Maximize, Minus, PanelLeft, Plus, Redo2, Save, StickyNote, Trash2, Undo2, X } from "lucide-react"
+import { ArrowLeft, Box, Download, FileText, Focus, Link2, Maximize, Minus, PanelLeft, Plus, Redo2, Save, StickyNote, Trash2, Undo2, X } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
@@ -95,6 +95,10 @@ export default function CanvasPage() {
   /** 导航抽屉（全屏模式下收缩的全局导航，点击悬浮按钮展开）。 */
   const [navOpen, setNavOpen] = useState(false)
   const [drawerLibs, setDrawerLibs] = useState<{ libId: string; libName: string; canvases: { id: string; name: string }[] }[]>([])
+  /** 右键菜单（Obsidian 风格：空白处右键单击弹出新建菜单，右键拖拽为平移）。 */
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; board: { x: number; y: number } } | null>(null)
+  /** 右键手势记录（按下位置 + 是否已移动为拖拽）。 */
+  const rightPressRef = useRef<{ startX: number; startY: number; moved: boolean; startPanX: number; startPanY: number } | null>(null)
 
   const load = useCallback(async () => {
     if (!cid) return
@@ -172,13 +176,13 @@ export default function CanvasPage() {
     setDirty(true)
   }
 
-  /** 新建节点（text/file/link/group），文件/链接/分组需弹窗输入（Obsidian 兼容字段）。 */
-  async function addNode(type: CanvasNode["type"]) {
+  /** 新建节点（text/file/link/group），文件/链接/分组需弹窗输入（Obsidian 兼容字段）；pos 为画布坐标（右键/双击指定位置）。 */
+  async function addNode(type: CanvasNode["type"], pos?: { x: number; y: number }) {
     const base = {
       id: genId("n"),
       type,
-      x: 40 + Math.random() * 200,
-      y: 40 + Math.random() * 120,
+      x: pos ? Math.max(0, pos.x - 100) : 40 + Math.random() * 200,
+      y: pos ? Math.max(0, pos.y - 40) : 40 + Math.random() * 120,
       width: 200,
       height: 80,
     }
@@ -368,6 +372,23 @@ export default function CanvasPage() {
     })
   }
 
+  /** 把选中的节点居中到视口（Obsidian「居中卡片」）。 */
+  function centerSelection() {
+    if (selectedIds.length === 0) return
+    const idSet = new Set(selectedIds)
+    const ns = nodes.filter((n) => idSet.has(n.id))
+    if (ns.length === 0) return
+    const cx = ns.reduce((s, n) => s + n.x + n.width / 2, 0) / ns.length
+    const cy = ns.reduce((s, n) => s + n.y + n.height / 2, 0) / ns.length
+    const rect = boardRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setView((v) => ({
+      ...v,
+      panX: rect.width / 2 - cx * v.zoom,
+      panY: rect.height / 2 - cy * v.zoom,
+    }))
+  }
+
   // 滚轮：Ctrl/⌘+滚轮缩放（以鼠标为锚），普通滚轮平移（Obsidian 风格）
   useEffect(() => {
     const board = boardRef.current
@@ -450,6 +471,12 @@ export default function CanvasPage() {
   }
 
   function onBoardMouseDown(e: React.MouseEvent) {
+    // 右键：按下记录手势，拖拽 = 平移，单击 = 弹新建菜单（Obsidian 风格）
+    if (e.button === 2) {
+      setCtxMenu(null)
+      rightPressRef.current = { startX: e.clientX, startY: e.clientY, moved: false, startPanX: view.panX, startPanY: view.panY }
+      return
+    }
     // 空格/中键：平移；左键空白：框选（Obsidian 风格）
     if (spaceDownRef.current || e.button === 1) {
       startPan(e)
@@ -462,6 +489,19 @@ export default function CanvasPage() {
   }
 
   function onBoardMouseMove(e: React.MouseEvent) {
+    // 右键拖拽平移（超过阈值后视为拖拽）
+    const rp = rightPressRef.current
+    if (rp) {
+      if (!rp.moved && Math.hypot(e.clientX - rp.startX, e.clientY - rp.startY) > 4) rp.moved = true
+      if (rp.moved) {
+        setView((v) => ({
+          ...v,
+          panX: rp.startPanX + (e.clientX - rp.startX),
+          panY: rp.startPanY + (e.clientY - rp.startY),
+        }))
+      }
+      return
+    }
     if (panning) {
       setView((v) => ({
         ...v,
@@ -491,6 +531,15 @@ export default function CanvasPage() {
   }
 
   function onBoardMouseUp() {
+    // 右键释放：未移动 = 弹新建菜单；已移动 = 平移结束
+    if (rightPressRef.current) {
+      const rp = rightPressRef.current
+      rightPressRef.current = null
+      if (!rp.moved) {
+        setCtxMenu({ x: rp.startX, y: rp.startY, board: screenToBoard(rp.startX, rp.startY) })
+      }
+      return
+    }
     if (dragState) {
       if (dragMovedRef.current) setDirty(true)
       setDragState(null)
@@ -735,6 +784,13 @@ export default function CanvasPage() {
         onMouseMove={onBoardMouseMove}
         onMouseUp={onBoardMouseUp}
         onMouseLeave={onBoardMouseUp}
+        onContextMenu={(e) => e.preventDefault()}
+        onDoubleClick={(e) => {
+          // 空白处双击创建文本卡片（Obsidian 风格；节点上的双击为编辑）
+          if ((e.target as HTMLElement).closest("[data-node]")) return
+          const p = screenToBoard(e.clientX, e.clientY)
+          void addNode("text", p)
+        }}
       >
         {/* 内容层（board 坐标空间，随视图变换平移缩放） */}
         <div
@@ -823,6 +879,7 @@ export default function CanvasPage() {
             return (
               <div
                 key={node.id}
+                data-node
                 onMouseDown={(e) => onNodeMouseDown(e, node)}
                 onMouseUp={() => endLinkOn(node.id)}
                 className={cn(
@@ -986,6 +1043,9 @@ export default function CanvasPage() {
                 )
               })()}
             <span className="mx-1 h-4 w-px bg-border" />
+            <Button variant="ghost" size="icon" className="size-6" onClick={centerSelection} title={t("core.canvas.center")}>
+              <Focus className="size-3.5" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -1102,6 +1162,64 @@ export default function CanvasPage() {
           {t("core.canvas.help")}
         </p>
       </div>
+
+      {/* 右键菜单（空白处右键单击弹出；右键拖拽为平移） */}
+      {ctxMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setCtxMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setCtxMenu(null)
+            }}
+          />
+          <div
+            className="fixed z-50 w-44 rounded-lg border bg-popover p-1 text-sm shadow-md"
+            style={{
+              left: Math.min(ctxMenu.x, window.innerWidth - 190),
+              top: Math.min(ctxMenu.y, window.innerHeight - 240),
+            }}
+          >
+            <div className="px-2 py-1 text-xs text-muted-foreground">{t("core.canvas.addNode")}</div>
+            {(
+              [
+                { type: "text" as const, label: t("core.canvas.addNodeText"), icon: StickyNote },
+                { type: "file" as const, label: t("core.canvas.addNodeFile"), icon: FileText },
+                { type: "link" as const, label: t("core.canvas.addNodeLink"), icon: Link2 },
+                { type: "group" as const, label: t("core.canvas.addNodeGroup"), icon: Box },
+              ]
+            ).map((item) => (
+              <button
+                key={item.type}
+                onClick={() => {
+                  const pos = ctxMenu.board
+                  setCtxMenu(null)
+                  void addNode(item.type, pos)
+                }}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent hover:text-accent-foreground"
+              >
+                <item.icon className="size-4 text-muted-foreground" />
+                {item.label}
+              </button>
+            ))}
+            {clipboardRef.current && (
+              <>
+                <div className="my-1 h-px bg-border" />
+                <button
+                  onClick={() => {
+                    setCtxMenu(null)
+                    pasteClipboard()
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent hover:text-accent-foreground"
+                >
+                  {t("core.canvas.paste")}
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
 
       {/* 导航抽屉：全屏模式下收缩的全局导航，点击左上角按钮展开 */}
       {navOpen && (
