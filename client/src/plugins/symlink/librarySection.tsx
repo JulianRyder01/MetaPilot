@@ -6,11 +6,11 @@
  * 本组件自包含（挂载数据/添加/卸载），插件被禁用时 LibraryHome 按启用状态过滤不渲染。
  */
 import { useCallback, useEffect, useState } from "react"
-import { useNavigate } from "react-router-dom"
 import { HardDrive, Link2, MoreHorizontal, Pin, Plus, Star, Trash2 } from "lucide-react"
 
 import { useT } from "@/i18n"
 import { toast } from "@/lib/toast"
+import { useAppStore } from "@/stores/app"
 import {
   symlinkMounts,
   symlinkPinMount,
@@ -28,12 +28,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
 
 export function SymlinkLibrarySection() {
   const t = useT()
-  const navigate = useNavigate()
   const { confirm, prompt } = useDialogs()
   const [mounts, setMounts] = useState<SymlinkMount[]>([])
+  const { setCurrentLibraryId, currentMountId, setCurrentMountId } = useAppStore()
 
   const loadMounts = useCallback(async () => {
     try {
@@ -46,6 +47,12 @@ export function SymlinkLibrarySection() {
   useEffect(() => {
     loadMounts()
   }, [loadMounts])
+
+  /** 打开软链接：软链接视为库，直接在「我的库」右侧浏览（不跳独立文件浏览器页） */
+  function openMount(m: SymlinkMount) {
+    setCurrentLibraryId(null)
+    setCurrentMountId(m.id)
+  }
 
   async function removeMount(id: string) {
     const name = mounts.find((m) => m.id === id)?.name ?? t("core.library.unmountNameFallback")
@@ -90,9 +97,15 @@ export function SymlinkLibrarySection() {
   return (
     <div className="space-y-1">
       {mounts.map((m) => (
-        <div key={m.id} className="group flex items-center gap-1 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60">
+        <div
+          key={m.id}
+          className={cn(
+            "group flex items-center gap-1 rounded-md px-2 py-1.5 transition-colors",
+            currentMountId === m.id ? "bg-accent font-medium text-accent-foreground" : "hover:bg-accent/60",
+          )}
+        >
           <button
-            onClick={() => navigate(`/files?mount=${m.id}`)}
+            onClick={() => openMount(m)}
             className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm"
             title={`${m.name} → ${m.root}${m.type === "file" ? t("core.library.singleFile") : ""}`}
           >

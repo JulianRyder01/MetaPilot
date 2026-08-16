@@ -17,7 +17,7 @@ import {
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
-import { api, type FolderKindMeta, type LibraryMeta } from "@/lib/api"
+import { api, type FolderKindMeta, type LibraryMeta, type SymlinkMount } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/stores/app"
 import { usePluginsStore } from "@/stores/plugins"
@@ -45,6 +45,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ImportDialog } from "@/components/library/ImportDialog"
+import { MountBrowser } from "@/components/symlink/MountBrowser"
+import { symlinkMounts } from "@/plugins/symlink/api"
 import { useDialogs } from "@/components/ui/dialog-provider"
 
 const KIND_ICON_FALLBACK = BookOpen
@@ -79,13 +81,21 @@ export default function LibraryHome() {
   const [kindMeta, setKindMeta] = useState<Record<string, FolderKindMeta>>({})
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"grid" | "list">("grid")
-  const { currentLibraryId, setCurrentLibraryId } = useAppStore()
+  const { currentLibraryId, setCurrentLibraryId, currentMountId, setCurrentMountId } = useAppStore()
+  // 当前软链接（软链接视为库，在右侧直接浏览；不再跳独立文件浏览器页）
+  const [mounts, setMounts] = useState<SymlinkMount[]>([])
 
   const refresh = useCallback(async () => {
     const list = await api.listLibraries()
     setLibraries(list)
     const { currentLibraryId: cur } = useAppStore.getState()
     if (!cur) setCurrentLibraryId(list[0]?.id ?? null)
+    // 软链接挂载列表（右侧浏览当前挂载用）
+    try {
+      setMounts(await symlinkMounts())
+    } catch {
+      setMounts([])
+    }
   }, [setCurrentLibraryId])
 
   useEffect(() => {
@@ -93,6 +103,13 @@ export default function LibraryHome() {
     // 集合类型元数据（核心 + 插件声明），渲染图标/名称/打开路由，不写死 kind 映射
     api.listFolderKinds().then(setKindMeta).catch(() => {})
   }, [refresh])
+
+  const currentMount = mounts.find((m) => m.id === currentMountId) ?? null
+
+  function selectLibrary(id: string) {
+    setCurrentMountId(null) // 切回库视角
+    setCurrentLibraryId(id)
+  }
 
   // 「我的库」页分区扩展点（如软链接插件的挂载分区）：仅渲染已启用插件的分区
   const librarySections = [...builtinFrontends, ...Object.values(dynamic)].flatMap((p) => {
@@ -207,9 +224,6 @@ export default function LibraryHome() {
     ? current.folders.filter((c) => c.name.toLowerCase().includes(search.trim().toLowerCase()))
     : []
 
-  function selectLibrary(id: string) {
-    setCurrentLibraryId(id)
-  }
 
   return (
     <div className="mx-auto flex max-w-6xl gap-6 px-4 py-6 sm:px-6">
@@ -302,8 +316,11 @@ export default function LibraryHome() {
         ))}
       </aside>
 
-      {/* 右侧：库内容 */}
+      {/* 右侧：库内容 / 软链接内容（软链接视为库，直接在此浏览） */}
       <section className="min-w-0 flex-1">
+        {currentMount ? (
+          <MountBrowser mount={currentMount} />
+        ) : (
         <>
             {/* 库头：搜索 + 视图切换 */}
             <div className="mb-4 space-y-3">
@@ -508,6 +525,7 @@ export default function LibraryHome() {
               <p className="text-sm text-muted-foreground">{t("core.library.selectPlaceholder")}</p>
             )}
           </>
+        )}
       </section>
     </div>
   )

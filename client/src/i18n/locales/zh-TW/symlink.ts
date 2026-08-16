@@ -80,4 +80,13 @@ export const symlinkZhTW: Record<string, string> = {
   "symlink.selectHint": "單擊選擇資料夾或檔案，雙擊資料夾進入",
   "symlink.selectThisFolder": "選擇此資料夾",
   "symlink.selectThisFile": "選擇此檔案",
+  "symlink.mpf": "MetaPilot 文件",
+  "symlink.mpfInvalid": "不是有效的 MetaPilot 文件",
+  "symlink.mpfUnknownType": "未知的 MetaPilot 文件類型",
+  "symlink.loadingMpf": "正在載入文件...",
+  "symlink.mpfDocOutline": "內容大綱",
+  "symlink.mpfCanvasNodes": "節點",
+  "symlink.mpfCanvasEdges": "連線",
+  "symlink.mpfEmpty": "（無內容）",
+  "symlink.mpfNoSection": "選擇左側小節查看內容",
 }

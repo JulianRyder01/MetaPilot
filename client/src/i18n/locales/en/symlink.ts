@@ -80,4 +80,13 @@ export const symlinkEn: Record<string, string> = {
   "symlink.selectHint": "Click to select a folder or file; double-click a folder to enter",
   "symlink.selectThisFolder": "Select this folder",
   "symlink.selectThisFile": "Select this file",
+  "symlink.mpf": "MetaPilot document",
+  "symlink.mpfInvalid": "Not a valid MetaPilot document",
+  "symlink.mpfUnknownType": "Unknown MetaPilot document type",
+  "symlink.loadingMpf": "Loading document...",
+  "symlink.mpfDocOutline": "Outline",
+  "symlink.mpfCanvasNodes": "Nodes",
+  "symlink.mpfCanvasEdges": "Edges",
+  "symlink.mpfEmpty": "(empty)",
+  "symlink.mpfNoSection": "Select a section from the outline",
 }

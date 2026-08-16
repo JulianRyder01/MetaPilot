@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   ChevronRight,
+  Circle,
   ExternalLink,
   FileAudio,
   FileImage,
@@ -48,8 +49,8 @@ function joinPath(base: string, name: string) {
   return base ? `${base}/${name}` : name
 }
 
-/** 文件分类：文本（内联编辑）/ 媒体（内联预览）/ 其它（仅本地打开） */
-type FileKind = "text" | "image" | "pdf" | "video" | "audio" | "other"
+/** 文件分类：文本（内联编辑）/ 媒体（内联预览）/ MetaPilot 文档（.mpf）/ 其它（仅本地打开） */
+type FileKind = "text" | "image" | "pdf" | "video" | "audio" | "mpf" | "other"
 
 const TEXT_EXT = new Set([
   ".md", ".markdown", ".txt", ".text", ".json", ".yaml", ".yml",
@@ -68,6 +69,7 @@ const MEDIA_EXT: Record<string, FileKind> = {
 function kindOf(name: string): FileKind {
   const i = name.lastIndexOf(".")
   const ext = (i >= 0 ? name.slice(i) : "").toLowerCase()
+  if (ext === ".mpf") return "mpf"
   if (TEXT_EXT.has(ext)) return "text"
   return MEDIA_EXT[ext] ?? "other"
 }
@@ -147,7 +149,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
     if (mount?.type === "file") {
       const name = baseName(mount.root)
       const kind = kindOf(name)
-      if (kind === "text") {
+      if (kind === "text" || kind === "mpf") {
         symlinkReadFile(mount.id, "")
           .then((f) => setFile({ path: f.path, name, kind, content: f.content }))
           .catch(() => {})
@@ -164,7 +166,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
       return
     }
     const kind = kindOf(item.name)
-    if (kind === "text") {
+    if (kind === "text" || kind === "mpf") {
       try {
         const f = await symlinkReadFile(mount.id, p)
         setFile({ path: f.path, name: item.name, kind, content: f.content })
@@ -413,7 +415,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                 <span className="truncate">{file.path || baseName(mount.root)}</span>
               </span>
               <div className="flex shrink-0 items-center gap-1">
-                <Badge variant="outline">{t("common.preview")}</Badge>
+                <Badge variant="outline">{t(file.kind === "mpf" ? "symlink.mpf" : "common.preview")}</Badge>
                 {mount.type !== "file" && (
                   <Button size="sm" variant="outline" className="h-7" onClick={() => setFile(null)}>
                     <X className="size-3.5" />
@@ -465,6 +467,8 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                 <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-4 text-xs">{file.content}</pre>
               )}
             </div>
+          ) : file && !editing && file.kind === "mpf" ? (
+            <MpfViewer mount={mount} path={file.path} />
           ) : file && !editing && file.kind !== "text" ? (
             <MediaViewer mount={mount} file={file} />
           ) : editing ? (
@@ -615,6 +619,182 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
         document.body,
       )}
     </>
+  )
+}
+
+/** MetaPilot 文档（.mpf）阅读视图：doc 类型渲染内容大纲 + Markdown；canvas 类型渲染只读概览。 */
+interface MpfBlock {
+  type: string
+  content?: string
+  [k: string]: unknown
+}
+interface MpfSection {
+  id?: string
+  name: string
+  blocks: MpfBlock[]
+}
+interface MpfDocument {
+  id?: string
+  name: string
+  sections?: MpfSection[]
+}
+interface MpfFolder {
+  id?: string
+  name: string
+  documents?: MpfDocument[]
+  folders?: MpfFolder[]
+}
+
+function firstSection(folders: MpfFolder[]): { docName: string; secName: string; blocks: MpfBlock[] } | null {
+  for (const f of folders) {
+    const sub = firstSection(f.folders ?? [])
+    if (sub) return sub
+    for (const d of f.documents ?? []) {
+      const s = (d.sections ?? [])[0]
+      if (s) return { docName: d.name, secName: s.name, blocks: s.blocks ?? [] }
+    }
+  }
+  return null
+}
+
+function MpfViewer({ mount, path }: { mount: SymlinkMount; path: string }) {
+  const t = useT()
+  const [parsed, setParsed] = useState<{
+    kind: "doc" | "canvas"
+    name: string
+    folders?: MpfFolder[]
+    nodes?: { id: string; type: string; text?: string }[]
+    edges?: { id: string; fromNode: string; toNode: string; label?: string }[]
+  } | null>(null)
+  const [error, setError] = useState("")
+  const [active, setActive] = useState<{ docName: string; secName: string; blocks: MpfBlock[] } | null>(null)
+
+  useEffect(() => {
+    symlinkReadFile(mount.id, path)
+      .then((f) => {
+        try {
+          const data = JSON.parse(f.content) as { type?: string; name?: string; canvas?: { nodes?: unknown[]; edges?: unknown[] }; folders?: MpfFolder[]; collections?: MpfFolder[] }
+          if (data.type === "canvas") {
+            setParsed({
+              kind: "canvas",
+              name: data.name || path,
+              nodes: (data.canvas?.nodes ?? []) as { id: string; type: string; text?: string }[],
+              edges: (data.canvas?.edges ?? []) as { id: string; fromNode: string; toNode: string; label?: string }[],
+            })
+          } else if (data.type === "doc") {
+            const folders = data.folders ?? data.collections ?? []
+            setParsed({ kind: "doc", name: data.name || path, folders })
+            setActive(firstSection(folders))
+          } else {
+            setError(t("symlink.mpfUnknownType"))
+          }
+        } catch {
+          setError(t("symlink.mpfInvalid"))
+        }
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : t("symlink.mpfInvalid")))
+  }, [mount, path, t])
+
+  if (error) return <p className="p-6 text-sm text-muted-foreground">{error}</p>
+  if (!parsed) return <p className="p-6 text-sm text-muted-foreground">{t("symlink.loadingMpf")}</p>
+
+  if (parsed.kind === "canvas") {
+    return (
+      <div className="space-y-4 p-4">
+        <div>
+          <p className="mb-2 text-sm font-medium">{t("symlink.mpfCanvasNodes")}（{parsed.nodes?.length ?? 0}）</p>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            {(parsed.nodes ?? []).map((n) => (
+              <div key={n.id} className="rounded-md border bg-muted/40 px-3 py-1.5 text-xs">
+                <span className="font-medium">{n.text || n.id}</span>
+                <span className="text-muted-foreground"> · {n.type}</span>
+              </div>
+            ))}
+            {(parsed.nodes?.length ?? 0) === 0 && <p className="text-xs text-muted-foreground">{t("symlink.mpfEmpty")}</p>}
+          </div>
+        </div>
+        <div>
+          <p className="mb-2 text-sm font-medium">{t("symlink.mpfCanvasEdges")}（{parsed.edges?.length ?? 0}）</p>
+          <div className="space-y-1">
+            {(parsed.edges ?? []).map((e) => (
+              <p key={e.id} className="rounded-md border bg-muted/40 px-3 py-1.5 text-xs">
+                {e.fromNode} → {e.toNode}
+                {e.label ? ` · ${e.label}` : ""}
+              </p>
+            ))}
+            {(parsed.edges?.length ?? 0) === 0 && <p className="text-xs text-muted-foreground">{t("symlink.mpfEmpty")}</p>}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // doc：左侧内容大纲 + 右侧小节内容（与库文档一致的阅读方式）
+  const renderFolder = (f: MpfFolder, depth: number): React.ReactNode => (
+    <div key={f.id ?? f.name}>
+      <p
+        className="flex items-center gap-1 truncate px-1 py-0.5 text-xs font-medium text-muted-foreground"
+        style={{ paddingLeft: `${8 + depth * 12}px` }}
+      >
+        <FolderOpen className="size-3 shrink-0" />
+        <span className="truncate">{f.name}</span>
+      </p>
+      {(f.folders ?? []).map((sf) => renderFolder(sf, depth + 1))}
+      {(f.documents ?? []).map((d) => (
+        <div key={d.id ?? d.name}>
+          <p
+            className="flex items-center gap-1 truncate px-1 py-0.5 text-xs font-medium"
+            style={{ paddingLeft: `${8 + (depth + 1) * 12}px` }}
+          >
+            <FileText className="size-3 shrink-0 text-primary" />
+            <span className="truncate">{d.name}</span>
+          </p>
+          {(d.sections ?? []).map((s) => {
+            const sel = active?.docName === d.name && active?.secName === s.name
+            return (
+              <button
+                key={s.id ?? s.name}
+                onClick={() => setActive({ docName: d.name, secName: s.name, blocks: s.blocks ?? [] })}
+                className={cn(
+                  "flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-xs",
+                  sel ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+                style={{ paddingLeft: `${8 + (depth + 2) * 12}px` }}
+              >
+                <Circle className="size-1.5 shrink-0" />
+                <span className="truncate">{s.name}</span>
+              </button>
+            )
+          })}
+        </div>
+      ))}
+    </div>
+  )
+
+  return (
+    <div className="flex min-h-[50vh]">
+      <aside className="w-56 shrink-0 overflow-y-auto border-r p-2">
+        <p className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">{t("symlink.mpfDocOutline")}</p>
+        {(parsed.folders ?? []).map((f) => renderFolder(f, 0))}
+      </aside>
+      <div className="min-w-0 flex-1 overflow-y-auto p-4">
+        {active ? (
+          <div className="space-y-3">
+            <p className="text-sm font-medium">
+              {active.docName} · {active.secName}
+            </p>
+            {active.blocks
+              .filter((b) => b.type === "markdown" && b.content)
+              .map((b, i) => (
+                <MarkdownBlock key={i} content={b.content} />
+              ))}
+            {active.blocks.length === 0 && <p className="text-xs text-muted-foreground">{t("symlink.mpfEmpty")}</p>}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("symlink.mpfNoSection")}</p>
+        )}
+      </div>
+    </div>
   )
 }
 
