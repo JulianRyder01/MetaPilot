@@ -25,8 +25,9 @@ PACK_FILES = [
     "__init__.py",
     "routes.py",
     "languages.py",
+    "ui_langs.py",
     "frontend/frontend.js",
-]
+] + [f"ui_dicts/{n.name}" for n in sorted((PLUGIN_SRC / "ui_dicts").iterdir()) if n.name.endswith(".py")]
 
 
 def make_zip() -> bytes:
@@ -90,9 +91,26 @@ def test_install_catalog_and_delete():
     assert ja["autonym"] == "日本語"
     assert by["eo"]["names"]["en"] == "Esperanto"
 
+    # 界面语言：插件注册的界面语言 + 全量界面词典（真实数据，前端经 i18n 桥 registerLang 消费）
+    r = client.get(f"/api/plugins/{PID}/ui-langs")
+    assert r.status_code == 200
+    ui = r.json()
+    ui_by = {l["value"]: l for l in ui["langs"]}
+    assert ui["count"] == len(ui["langs"]) >= 3
+    # 每语言必须携带核心词典 key（抽查 common/core 域）与自述名
+    for l in ui["langs"]:
+        assert l["native"].strip()
+        assert "common.save" in l["dict"]
+        assert "nav.library" in l["dict"]
+        assert "core.library.pin" in l["dict"], f"{l['value']} 缺少新增 core.library 词条"
+    # 日语等常见语言存在
+    for want in ("ja", "ko", "fr", "de", "es", "ru"):
+        assert want in ui_by, f"缺少界面语言 {want}"
+
     # 删除用户插件 → 物理移除，接口 404
     assert client.delete(f"/api/plugins/{PID}").status_code == 200
     assert client.get(f"/api/plugins/{PID}/languages").status_code == 404
+    assert client.get(f"/api/plugins/{PID}/ui-langs").status_code == 404
     assert not (PLUGINS_DIR / PID).exists()
 
 
@@ -104,8 +122,10 @@ def test_disabled_plugin_gate_returns_503():
     r = client.get(f"/api/plugins/{PID}/languages")
     assert r.status_code == 503
     assert "启用" in r.json()["detail"]
+    assert client.get(f"/api/plugins/{PID}/ui-langs").status_code == 503
 
     assert client.post(f"/api/plugins/{PID}/enable").status_code == 200
     assert client.get(f"/api/plugins/{PID}/languages").status_code == 200
+    assert client.get(f"/api/plugins/{PID}/ui-langs").status_code == 200
 
     assert client.delete(f"/api/plugins/{PID}").status_code == 200
