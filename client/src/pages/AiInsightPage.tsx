@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import {
   Brain,
   Check,
@@ -9,9 +11,13 @@ import {
   FileText,
   FolderOpen,
   FolderTree,
+  Library,
   Lightbulb,
   Loader2,
+  MessagesSquare,
   Network,
+  PanelLeftClose,
+  PanelLeftOpen,
   Play,
   Send,
   Sparkles,
@@ -69,6 +75,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 /** 数据源 → 选择集 key */
 const srcKey = (r: InsightSourceRef) => `${r.type}:${r.id}:${r.path ?? ""}`
 
+/** 记住停留在「第一步 · 建索引」还是「第二步 · 问 AI」，切换页面/刷新后恢复 */
+const TAB_STORAGE_KEY = "aiInsight.activeTab"
+
 /** 来源跳转：优先用后端下发的链接（能力提供方元数据生成）；旧数据回退 learn/symlink 规则 */
 function sourceHref(src: KbSource): string | null {
   if (src.link?.kind === "symlink" && src.link.href) return src.link.href
@@ -77,35 +86,53 @@ function sourceHref(src: KbSource): string | null {
   return null
 }
 
-function renderAnswer(text: string, sources: KbSource[]) {
-  const parts = text.split(/(\[来源\d+\])/g)
-  return parts.map((p, i) => {
-    const m = p.match(/\[来源(\d+)\]/)
-    if (m) {
-      const idx = Number(m[1]) - 1
-      const src = sources[idx]
-      if (src) {
-        const href = sourceHref(src)
-        const inner = (
-          <span
-            className="mx-0.5 inline-flex cursor-default items-center gap-1 rounded bg-primary/15 px-1.5 py-0.5 text-xs font-medium text-primary"
-            title={`${src.collectionName} / ${src.docName} / ${src.sectionName}`}
-          >
-            {p}
-          </span>
-        )
-        return href ? (
-          <Link key={i} to={href} className="no-underline">
-            {inner}
-          </Link>
-        ) : (
-          <span key={i}>{inner}</span>
-        )
-      }
-      return <span key={i}>{p}</span>
-    }
-    return <span key={i}>{p}</span>
-  })
+/** AI 回答里的 [来源N] 转成锚点链接，交给 Markdown 渲染成可点击的引用徽章。
+ *  msgIdx 为消息下标，保证多轮对话中来源锚点 id 唯一；已处于链接语法（[来源N](…)）时不替换。 */
+const SOURCE_REF_RE = /\[来源(\d+)\](?!\()/g
+function toMarkdownRefs(text: string, msgIdx: number) {
+  return text.replace(SOURCE_REF_RE, `[来源$1](#src-${msgIdx}-$1)`)
+}
+
+/** 自定义 Markdown 链接组件：#src-{msg}-{n} 渲染为引用徽章（点击滚动到来源卡片），其余按普通链接 */
+function AnswerLink({
+  href,
+  children,
+  sources,
+}: {
+  href?: string
+  children?: React.ReactNode
+  sources: KbSource[]
+}) {
+  const m = href?.match(/^#src-(\d+)-(\d+)$/)
+  if (m) {
+    const n = Number(m[2])
+    const src = sources[n - 1]
+    // 编号越界（模型输出与返回来源数不一致）：降级为纯文本，不渲染空徽章
+    if (!src) return <>{children}</>
+    return (
+      <a
+        href={href}
+        title={`${src.collectionName} / ${src.docName} / ${src.sectionName}`}
+        className="mx-0.5 inline-flex items-center gap-0.5 rounded bg-primary/15 px-1.5 py-0.5 text-xs font-medium text-primary no-underline"
+        onClick={(e) => {
+          e.preventDefault()
+          document.getElementById(`src-${m[1]}-${n}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }}
+      >
+        {children}
+      </a>
+    )
+  }
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="text-primary underline-offset-2 hover:underline"
+    >
+      {children}
+    </a>
+  )
 }
 
 /** 数据源树节点行（库/文档集/文档/软链接挂载/挂载内路径） */
@@ -197,8 +224,8 @@ export default function AiInsightPage() {
   // 挂载类数据源可用性（后端能力元数据）：必须在 resources state 声明之后使用
   const symlinkAvailable = resources.sourceTypes?.symlink?.available ?? false
   const [loadingResources, setLoadingResources] = useState(true)
-  const [indexSel, setIndexSel] = useState<Map<string, InsightSourceRef>>(new Map())
-  const [askSel, setAskSel] = useState<Map<string, InsightSourceRef>>(new Map())
+  // 数据检索库：第一步（建索引）与第二步（问答）共用同一套选择，切 tab 选择保留
+  const [sel, setSel] = useState<Map<string, InsightSourceRef>>(new Map())
 
   // 树展开与软链接路径懒加载
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -209,6 +236,27 @@ export default function AiInsightPage() {
   const [model, setModel] = useState("")
   const [indexProgress, setIndexProgress] = useState<Record<string, InsightStatus>>({})
   const [indexing, setIndexing] = useState(false)
+
+  // 第一步 / 第二步：默认打开第二步（问 AI）；切换页面再回来仍停留在原步骤
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    try {
+      const v = localStorage.getItem(TAB_STORAGE_KEY)
+      return v === "index" || v === "ask" ? v : "ask"
+    } catch {
+      return "ask"
+    }
+  })
+  const handleTabChange = (v: string) => {
+    setActiveTab(v)
+    try {
+      localStorage.setItem(TAB_STORAGE_KEY, v)
+    } catch {
+      /* 忽略：隐私模式等场景不可写 */
+    }
+  }
+
+  // 左侧数据检索库面板：可收起
+  const [panelOpen, setPanelOpen] = useState(true)
 
   // 对话
   const [mode, setMode] = useState<"assist" | "wander" | "reflect" | "plan">("assist")
@@ -235,7 +283,7 @@ export default function AiInsightPage() {
         const found = r.libraries.flatMap((l) => l.collections ?? []).find((c) => c.id === cid)
         if (found) {
           const ref: InsightSourceRef = { type: "collection", id: cid }
-          setAskSel((prev) => {
+          setSel((prev) => {
             if (prev.has(srcKey(ref))) return prev
             const next = new Map(prev)
             next.set(srcKey(ref), ref)
@@ -358,7 +406,7 @@ export default function AiInsightPage() {
   }
 
   async function doIndex() {
-    const refs = [...indexSel.values()]
+    const refs = [...sel.values()]
     if (refs.length === 0) return
     setIndexing(true)
     try {
@@ -400,7 +448,7 @@ export default function AiInsightPage() {
   }
 
   async function ask() {
-    const refs = [...askSel.values()]
+    const refs = [...sel.values()]
     if (refs.length === 0 || !question.trim() || asking) return
     const q = question.trim()
     setQuestion("")
@@ -424,7 +472,7 @@ export default function AiInsightPage() {
   }
 
   async function runPlan() {
-    const refs = [...askSel.values()]
+    const refs = [...sel.values()]
     if (refs.length === 0 || !question.trim() || planning) return
     setPlanning(true)
     setPlanResult(null)
@@ -666,7 +714,7 @@ export default function AiInsightPage() {
   ]
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
+    <div className="mx-auto max-w-6xl space-y-6 px-6 py-8">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-semibold">
           <Lightbulb className="size-6 text-primary" />
@@ -679,325 +727,395 @@ export default function AiInsightPage() {
       </div>
 
       <PluginGate pluginId="ai_insight" hint={t("insight.pluginHint")}>
-        <Tabs defaultValue="ask">
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList>
-            <TabsTrigger value="ask">{t("insight.stepAsk")}</TabsTrigger>
             <TabsTrigger value="index">{t("insight.stepIndex")}</TabsTrigger>
+            <TabsTrigger value="ask">{t("insight.stepAsk")}</TabsTrigger>
           </TabsList>
 
-          {/* ---------------- 问 AI（含四种思考模式与洞察规划） ---------------- */}
-          <TabsContent value="ask" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Brain className="size-4 text-primary" />
-                  {t("insight.modeTitle")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="mb-3 text-xs text-muted-foreground">{t("insight.modeIntro")}</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {modes.map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setMode(m.id)}
-                      className={cn(
-                        "flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                        mode === m.id ? "border-primary/50 bg-primary/5" : "hover:bg-accent/50",
-                      )}
-                    >
-                      <m.icon className={cn("mt-0.5 size-5", mode === m.id ? "text-primary" : "text-muted-foreground")} />
-                      <span>
-                        <span className="block text-sm font-medium">{m.label}</span>
-                        <span className="block text-xs text-muted-foreground">{m.desc}</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">{t("insight.askSourcesTitle")}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loadingResources ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-8 w-full" />
-                    <Skeleton className="h-8 w-full" />
-                  </div>
-                ) : (
-                  renderTree(askSel, setAskSel)
-                )}
-              </CardContent>
-            </Card>
-
-            {/* 洞察规划专用：生成类型 + 目标库 */}
-            {mode === "plan" && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Network className="size-4 text-primary" />
-                    {t("insight.modePlan")}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-3 text-sm">
-                    <span className="text-muted-foreground">{t("insight.planOutputTitle")}</span>
-                    <Select value={planOutput} onValueChange={(v) => setPlanOutput(v as InsightOutput)}>
-                      <SelectTrigger className="w-52">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="canvas">{t("insight.planOutputCanvas")}</SelectItem>
-                        <SelectItem value="course">{t("insight.planOutputCourse")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <span className="text-muted-foreground">{t("insight.planLibraryTitle")}</span>
-                    <Select value={planLib} onValueChange={setPlanLib}>
-                      <SelectTrigger className="w-56">
-                        <SelectValue placeholder={t("insight.planLibraryAuto")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">{t("insight.planLibraryAuto")}</SelectItem>
-                        {resources.libraries.map((l) => (
-                          <SelectItem key={l.id} value={l.id}>
-                            {l.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Textarea
-                    placeholder={t("insight.planGoalPlaceholder")}
-                    value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    className="min-h-20"
-                  />
-                  <Button
-                    onClick={runPlan}
-                    disabled={planning || !question.trim() || askSel.size === 0}
+          <div className="flex items-start gap-5">
+            {/* ---------------- 左侧：数据检索库（可收起） ---------------- */}
+            {panelOpen ? (
+              <aside className="w-80 shrink-0 space-y-3 rounded-xl border bg-card p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="flex items-center gap-2 text-sm font-semibold">
+                    <Library className="size-4 text-primary" />
+                    {t("insight.kbTitle")}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => setPanelOpen(false)}
+                    className="rounded-md p-1 text-muted-foreground hover:bg-accent"
+                    title={t("insight.collapsePanel")}
+                    aria-label={t("insight.collapsePanel")}
                   >
-                    {planning ? <Loader2 className="size-4 animate-spin" /> : <Network className="size-4" />}
-                    {t("insight.planButton")}
+                    <PanelLeftClose className="size-4" />
+                  </button>
+                </div>
+
+                {/* 快捷入口：问答（靠前） + 已选/已索引统计 */}
+                <div className="space-y-2">
+                  <Button
+                    size="sm"
+                    variant={activeTab === "ask" ? "secondary" : "default"}
+                    className="w-full justify-start"
+                    onClick={() => handleTabChange("ask")}
+                  >
+                    <MessagesSquare className="size-4" />
+                    {t("insight.goAsk")}
                   </Button>
-                  {planning && (
-                    <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Loader2 className="size-3.5 animate-spin" />
-                      {t("insight.planning")}
-                    </p>
-                  )}
-                  {planResult && (
-                    <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
-                      <p className="flex items-center gap-2 text-sm font-medium">
-                        <Check className="size-4 text-primary" />
-                        {t("insight.planDone", { name: planResult.collectionName })}
-                      </p>
-                      {planResult.summary && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {t("insight.planSummary")}：{planResult.summary}
-                        </p>
-                      )}
-                      <div className="mt-3 flex gap-2">
-                        <Button size="sm" asChild>
-                          <Link to={planResult.kind === "canvas" ? `/canvas/${planResult.collectionId}` : `/course/${planResult.collectionId}`}>
-                            {planResult.kind === "canvas" ? t("insight.planOpenCanvas") : t("insight.planOpenCourse")}
-                          </Link>
-                        </Button>
-                      </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{t("insight.selectedCount", { count: sel.size })}</span>
+                    <span>{t("insight.kbIndexed", { count: indexedKeys.size })}</span>
+                  </div>
+                </div>
+
+                {/* 数据源树 */}
+                <div className="max-h-[55vh] overflow-y-auto pr-1">
+                  {loadingResources ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
                     </div>
+                  ) : (
+                    renderTree(sel, setSel)
                   )}
-                </CardContent>
-              </Card>
+                </div>
+
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  {t(symlinkAvailable ? "insight.kbHintWithSymlink" : "insight.kbHint")}
+                </p>
+              </aside>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setPanelOpen(true)}
+                className="flex w-10 shrink-0 flex-col items-center gap-2 rounded-xl border bg-card py-3 text-muted-foreground transition-colors hover:bg-accent"
+                title={t("insight.expandPanel")}
+                aria-label={t("insight.expandPanel")}
+              >
+                <Library className="size-4 text-primary" />
+                <PanelLeftOpen className="size-4" />
+              </button>
             )}
 
-            {/* 对话区 */}
-            {mode !== "plan" && (
-              <Card className="flex min-h-[360px] flex-col">
-                <CardHeader>
-                  <CardTitle className="text-base">{t("insight.askTitle")}</CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-1 flex-col gap-4">
-                  <div className="flex flex-1 flex-col gap-3 overflow-y-auto">
-                    {autoIndex && (
-                      <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
-                        <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Loader2 className="size-3.5 animate-spin" />
-                          {t("insight.autoIndexing", { done: autoIndex.done, total: autoIndex.total })}
-                        </p>
-                        <ProgressBar className="mt-2 h-1.5" value={autoIndex.total ? (autoIndex.done / autoIndex.total) * 100 : 0} />
-                      </div>
+            {/* ---------------- 右侧：主区域 ---------------- */}
+            <div className="min-w-0 flex-1 space-y-4">
+              {/* 第一步：建索引 */}
+              <TabsContent value="index" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Sparkles className="size-4 text-primary" />
+                      {t("insight.vectorModelTitle")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex flex-wrap items-center gap-3 text-sm">
+                    {!embedStatus ? (
+                      <Skeleton className="h-6 w-72" />
+                    ) : (
+                      <>
+                        <Badge variant={embedHealthy ? "success" : "destructive"}>
+                          {embedHealthy ? t("insight.embeddingRunning") : t("insight.embeddingNotReady")}
+                        </Badge>
+                        <Select value={model} onValueChange={setModel}>
+                          <SelectTrigger className="w-72">
+                            <SelectValue placeholder={t("insight.selectModelPlaceholder")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(embedStatus.models ?? {}).map(([id, label]) => (
+                              <SelectItem key={id} value={id}>
+                                {label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {embedHealthy ? (
+                          <Button size="sm" variant="outline" onClick={stopEmbedding}>
+                            <Square className="size-4" />
+                            {t("insight.stopService")}
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="outline" onClick={startEmbedding}>
+                            <Play className="size-4" />
+                            {t("insight.startService")}
+                          </Button>
+                        )}
+                      </>
                     )}
-                    {messages.length === 0 && (
-                      <p className="py-8 text-center text-sm text-muted-foreground">
-                        {t("insight.askPlaceholder")}
+                    {embedStatus && (
+                      <p className="w-full text-xs text-muted-foreground">
+                        {embedStatus.downloadHint ?? t("insight.modelDownloadHint")}
                       </p>
                     )}
-                    {messages.map((m, i) => (
-                      <div
-                        key={i}
-                        className={
-                          m.role === "user"
-                            ? "ml-auto max-w-[85%] rounded-lg bg-primary px-4 py-2.5 text-sm text-primary-foreground"
-                            : "mr-auto max-w-full rounded-lg bg-muted px-4 py-3 text-sm"
-                        }
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex-row items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Database className="size-4 text-primary" />
+                        {t("insight.buildIndexTitle")}
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground">
+                        {t(symlinkAvailable ? "insight.indexIntroWithSymlink" : "insight.indexIntro")}
+                      </p>
+                    </div>
+                    <Button onClick={doIndex} disabled={indexing || sel.size === 0 || !embedHealthy}>
+                      {indexing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                      {indexing ? t("insight.indexing") : t("insight.buildVectorIndex")}
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Library className="size-3.5" />
+                      {t("insight.buildIndexHint", { count: sel.size })}
+                    </p>
+                    {Object.keys(indexProgress).length > 0 && (
+                      <div className="mt-3 space-y-2 border-t pt-3">
+                        {Object.entries(indexProgress)
+                          .filter(([, s]) => s.running)
+                          .map(([key, s]) => (
+                            <div key={key}>
+                              <p className="text-xs text-muted-foreground">
+                                {t("insight.indexingProgress", { done: s.done ?? 0, total: s.total ?? 0 })} · {key}
+                              </p>
+                              <ProgressBar className="mt-1 h-1.5" value={s.total ? ((s.done ?? 0) / s.total) * 100 : 0} />
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* 第二步：问 AI（含四种思考模式与洞察规划） */}
+              <TabsContent value="ask" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Brain className="size-4 text-primary" />
+                      {t("insight.modeTitle")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="mb-3 text-xs text-muted-foreground">{t("insight.modeIntro")}</p>
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                      {modes.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setMode(m.id)}
+                          className={cn(
+                            "flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors",
+                            mode === m.id ? "border-primary/50 bg-primary/5" : "hover:bg-accent/50",
+                          )}
+                        >
+                          <m.icon className={cn("size-4 shrink-0", mode === m.id ? "text-primary" : "text-muted-foreground")} />
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-medium">{m.label}</span>
+                            <span className="block truncate text-xs text-muted-foreground">{m.desc}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 洞察规划专用：生成类型 + 目标库 */}
+                {mode === "plan" && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Network className="size-4 text-primary" />
+                        {t("insight.modePlan")}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-3 text-sm">
+                        <span className="text-muted-foreground">{t("insight.planOutputTitle")}</span>
+                        <Select value={planOutput} onValueChange={(v) => setPlanOutput(v as InsightOutput)}>
+                          <SelectTrigger className="w-52">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="canvas">{t("insight.planOutputCanvas")}</SelectItem>
+                            <SelectItem value="course">{t("insight.planOutputCourse")}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <span className="text-muted-foreground">{t("insight.planLibraryTitle")}</span>
+                        <Select value={planLib} onValueChange={setPlanLib}>
+                          <SelectTrigger className="w-56">
+                            <SelectValue placeholder={t("insight.planLibraryAuto")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">{t("insight.planLibraryAuto")}</SelectItem>
+                            {resources.libraries.map((l) => (
+                              <SelectItem key={l.id} value={l.id}>
+                                {l.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Textarea
+                        placeholder={t("insight.planGoalPlaceholder")}
+                        value={question}
+                        onChange={(e) => setQuestion(e.target.value)}
+                        className="min-h-20"
+                      />
+                      <Button
+                        onClick={runPlan}
+                        disabled={planning || !question.trim() || sel.size === 0}
                       >
-                        <div className="markdown-body [&_p]:my-0">{renderAnswer(m.content, m.sources ?? [])}</div>
-                        {m.sources && m.sources.length > 0 && (
-                          <div className="mt-3 space-y-1.5 border-t pt-2">
-                            <p className="text-xs font-medium text-muted-foreground">{t("insight.refSources")}</p>
-                            {m.sources.map((s, j) => {
-                              const href = sourceHref(s)
-                              const body = (
-                                <span className="flex flex-col rounded-md border bg-background px-3 py-1.5 text-xs hover:bg-accent">
-                                  <span className="font-medium">
-                                    {t("insight.sourceRef", { n: j + 1 })} {s.collectionName} / {s.docName} / {s.sectionName}
-                                  </span>
-                                  <span className="line-clamp-2 text-muted-foreground">{s.excerpt}</span>
-                                </span>
-                              )
-                              return href ? (
-                                <Link key={j} to={href} className="block">
-                                  {body}
-                                </Link>
-                              ) : (
-                                <span key={j} className="block">
-                                  {body}
-                                </span>
-                              )
-                            })}
+                        {planning ? <Loader2 className="size-4 animate-spin" /> : <Network className="size-4" />}
+                        {t("insight.planButton")}
+                      </Button>
+                      {planning && (
+                        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Loader2 className="size-3.5 animate-spin" />
+                          {t("insight.planning")}
+                        </p>
+                      )}
+                      {planResult && (
+                        <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                          <p className="flex items-center gap-2 text-sm font-medium">
+                            <Check className="size-4 text-primary" />
+                            {t("insight.planDone", { name: planResult.collectionName })}
+                          </p>
+                          {planResult.summary && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {t("insight.planSummary")}：{planResult.summary}
+                            </p>
+                          )}
+                          <div className="mt-3 flex gap-2">
+                            <Button size="sm" asChild>
+                              <Link to={planResult.kind === "canvas" ? `/canvas/${planResult.collectionId}` : `/course/${planResult.collectionId}`}>
+                                {planResult.kind === "canvas" ? t("insight.planOpenCanvas") : t("insight.planOpenCourse")}
+                              </Link>
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* 对话区 */}
+                {mode !== "plan" && (
+                  <Card className="flex min-h-[420px] flex-col">
+                    <CardHeader>
+                      <CardTitle className="text-base">{t("insight.askTitle")}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-1 flex-col gap-4">
+                      <div className="flex flex-1 flex-col gap-3 overflow-y-auto">
+                        {autoIndex && (
+                          <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+                            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Loader2 className="size-3.5 animate-spin" />
+                              {t("insight.autoIndexing", { done: autoIndex.done, total: autoIndex.total })}
+                            </p>
+                            <ProgressBar className="mt-2 h-1.5" value={autoIndex.total ? (autoIndex.done / autoIndex.total) * 100 : 0} />
+                          </div>
+                        )}
+                        {messages.length === 0 && (
+                          <p className="py-8 text-center text-sm text-muted-foreground">
+                            {t("insight.askPlaceholder")}
+                          </p>
+                        )}
+                        {messages.map((m, i) => (
+                          <div
+                            key={i}
+                            className={
+                              m.role === "user"
+                                ? "ml-auto max-w-[85%] rounded-lg bg-primary px-4 py-2.5 text-sm text-primary-foreground"
+                                : "mr-auto max-w-full rounded-lg bg-muted px-4 py-3 text-sm"
+                            }
+                          >
+                            {m.role === "assistant" ? (
+                              <div className="markdown-body [&_p]:my-0">
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm]}
+                                  components={{
+                                    a: ({ href, children }) => (
+                                      <AnswerLink href={href} sources={m.sources ?? []}>
+                                        {children}
+                                      </AnswerLink>
+                                    ),
+                                  }}
+                                >
+                                  {toMarkdownRefs(m.content, i)}
+                                </ReactMarkdown>
+                              </div>
+                            ) : (
+                              <div className="whitespace-pre-wrap">{m.content}</div>
+                            )}
+                            {m.sources && m.sources.length > 0 && (
+                              <div className="mt-3 space-y-1.5 border-t pt-2">
+                                <p className="text-xs font-medium text-muted-foreground">{t("insight.refSources")}</p>
+                                {m.sources.map((s, j) => {
+                                  const href = sourceHref(s)
+                                  const body = (
+                                    <span
+                                      id={`src-${i}-${j + 1}`}
+                                      className="flex scroll-mt-24 flex-col rounded-md border bg-background px-3 py-1.5 text-xs hover:bg-accent"
+                                    >
+                                      <span className="font-medium">
+                                        {t("insight.sourceRef", { n: j + 1 })} {s.collectionName} / {s.docName} / {s.sectionName}
+                                      </span>
+                                      <span className="line-clamp-2 text-muted-foreground">{s.excerpt}</span>
+                                    </span>
+                                  )
+                                  return href ? (
+                                    <Link key={j} to={href} className="block">
+                                      {body}
+                                    </Link>
+                                  ) : (
+                                    <span key={j} className="block">
+                                      {body}
+                                    </span>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {asking && (
+                          <div className="mr-auto flex items-center gap-2 rounded-lg bg-muted px-4 py-2.5 text-sm text-muted-foreground">
+                            <Loader2 className="size-4 animate-spin" />
+                            {t("insight.asking")}
                           </div>
                         )}
                       </div>
-                    ))}
-                    {asking && (
-                      <div className="mr-auto flex items-center gap-2 rounded-lg bg-muted px-4 py-2.5 text-sm text-muted-foreground">
-                        <Loader2 className="size-4 animate-spin" />
-                        {t("insight.asking")}
+                      <div className="flex gap-2">
+                        <Textarea
+                          placeholder={t("insight.inputPlaceholder")}
+                          value={question}
+                          onChange={(e) => setQuestion(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault()
+                              ask()
+                            }
+                          }}
+                          className="min-h-12 flex-1"
+                        />
+                        <Button
+                          onClick={ask}
+                          disabled={asking || !question.trim() || sel.size === 0}
+                          className="self-end"
+                        >
+                          <Send className="size-4" />
+                          {t("insight.askButton")}
+                        </Button>
                       </div>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Textarea
-                      placeholder={t("insight.inputPlaceholder")}
-                      value={question}
-                      onChange={(e) => setQuestion(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault()
-                          ask()
-                        }
-                      }}
-                      className="min-h-12 flex-1"
-                    />
-                    <Button
-                      onClick={ask}
-                      disabled={asking || !question.trim() || askSel.size === 0}
-                      className="self-end"
-                    >
-                      <Send className="size-4" />
-                      {t("insight.askButton")}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* ---------------- 第一步：建索引 ---------------- */}
-          <TabsContent value="index" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Sparkles className="size-4 text-primary" />
-                  {t("insight.vectorModelTitle")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap items-center gap-3 text-sm">
-                {!embedStatus ? (
-                  <Skeleton className="h-6 w-72" />
-                ) : (
-                  <>
-                    <Badge variant={embedHealthy ? "success" : "destructive"}>
-                      {embedHealthy ? t("insight.embeddingRunning") : t("insight.embeddingNotReady")}
-                    </Badge>
-                    <Select value={model} onValueChange={setModel}>
-                      <SelectTrigger className="w-72">
-                        <SelectValue placeholder={t("insight.selectModelPlaceholder")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(embedStatus.models ?? {}).map(([id, label]) => (
-                          <SelectItem key={id} value={id}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {embedHealthy ? (
-                      <Button size="sm" variant="outline" onClick={stopEmbedding}>
-                        <Square className="size-4" />
-                        {t("insight.stopService")}
-                      </Button>
-                    ) : (
-                      <Button size="sm" variant="outline" onClick={startEmbedding}>
-                        <Play className="size-4" />
-                        {t("insight.startService")}
-                      </Button>
-                    )}
-                  </>
+                    </CardContent>
+                  </Card>
                 )}
-                {embedStatus && (
-                  <p className="w-full text-xs text-muted-foreground">
-                    {embedStatus.downloadHint ?? t("insight.modelDownloadHint")}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex-row items-center justify-between gap-3">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Database className="size-4 text-primary" />
-                    {t("insight.selectSourcesTitle")}
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground">
-                    {t(symlinkAvailable ? "insight.indexIntroWithSymlink" : "insight.indexIntro")}
-                  </p>
-                </div>
-                <Button onClick={doIndex} disabled={indexing || indexSel.size === 0 || !embedHealthy}>
-                  {indexing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-                  {indexing ? t("insight.indexing") : t("insight.buildVectorIndex")}
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {loadingResources ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                ) : (
-                  renderTree(indexSel, setIndexSel)
-                )}
-                {Object.keys(indexProgress).length > 0 && (
-                  <div className="mt-4 space-y-2 border-t pt-3">
-                    {Object.entries(indexProgress)
-                      .filter(([, s]) => s.running)
-                      .map(([key, s]) => (
-                        <div key={key}>
-                          <p className="text-xs text-muted-foreground">
-                            {t("insight.indexingProgress", { done: s.done ?? 0, total: s.total ?? 0 })} · {key}
-                          </p>
-                          <ProgressBar className="mt-1 h-1.5" value={s.total ? ((s.done ?? 0) / s.total) * 100 : 0} />
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </TabsContent>
+            </div>
+          </div>
         </Tabs>
       </PluginGate>
     </div>

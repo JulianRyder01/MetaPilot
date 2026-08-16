@@ -77,4 +77,15 @@ export const insightZhCN: Record<string, string> = {
   "insight.autoIndexFailed": "自动建索引失败，请先到第一步手动建立索引",
   "insight.symlinkBrowse": "浏览目录",
   "insight.treeEmpty": "（空）",
+  // ---- 数据检索库（左侧面板） ----
+  "insight.kbTitle": "数据检索库",
+  "insight.goAsk": "去问答",
+  "insight.selectedCount": "已选 {count} 项",
+  "insight.kbIndexed": "已索引 {count} 个源",
+  "insight.collapsePanel": "收起数据检索库面板",
+  "insight.expandPanel": "展开数据检索库面板",
+  "insight.kbHint": "勾选库 / 文档集 / 文档作为检索范围：可建索引，也可直接问答；未索引的源提问时自动建立。",
+  "insight.kbHintWithSymlink": "勾选库 / 文档集 / 文档或本机目录作为检索范围：可建索引，也可直接问答；未索引的源提问时自动建立。",
+  "insight.buildIndexTitle": "建立向量索引",
+  "insight.buildIndexHint": "已选 {count} 个数据源（可在左侧「数据检索库」调整），未索引的将一并建立。",
 }

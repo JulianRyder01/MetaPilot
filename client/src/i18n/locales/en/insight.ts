@@ -74,4 +74,15 @@ export const insightEn: Record<string, string> = {
   "insight.autoIndexFailed": "Auto-indexing failed; build the index manually in Step 1 first",
   "insight.symlinkBrowse": "Browse folder",
   "insight.treeEmpty": "(empty)",
+  // ---- Source library (left panel) ----
+  "insight.kbTitle": "Source Library",
+  "insight.goAsk": "Ask AI",
+  "insight.selectedCount": "{count} selected",
+  "insight.kbIndexed": "{count} indexed",
+  "insight.collapsePanel": "Collapse source library",
+  "insight.expandPanel": "Expand source library",
+  "insight.kbHint": "Check libraries / collections / documents as retrieval scope: index them or ask directly; unindexed sources auto-index on ask.",
+  "insight.kbHintWithSymlink": "Check libraries / collections / documents or local folders as retrieval scope: index them or ask directly; unindexed sources auto-index on ask.",
+  "insight.buildIndexTitle": "Build vector index",
+  "insight.buildIndexHint": "{count} source(s) selected (adjust in the Source Library on the left); unindexed ones are built too.",
 }

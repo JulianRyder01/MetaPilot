@@ -74,4 +74,15 @@ export const insightZhTW: Record<string, string> = {
   "insight.autoIndexFailed": "自動建索引失敗，請先到第一步手動建立索引",
   "insight.symlinkBrowse": "瀏覽目錄",
   "insight.treeEmpty": "（空）",
+  // ---- 資料檢索庫（左側面板） ----
+  "insight.kbTitle": "資料檢索庫",
+  "insight.goAsk": "去問 AI",
+  "insight.selectedCount": "已選 {count} 項",
+  "insight.kbIndexed": "已索引 {count} 個來源",
+  "insight.collapsePanel": "收起資料檢索庫面板",
+  "insight.expandPanel": "展開資料檢索庫面板",
+  "insight.kbHint": "勾選庫 / 文件集 / 文件作為檢索範圍：可建立索引，也可直接問答；未索引的來源提問時自動建立。",
+  "insight.kbHintWithSymlink": "勾選庫 / 文件集 / 文件或本機目錄作為檢索範圍：可建立索引，也可直接問答；未索引的來源提問時自動建立。",
+  "insight.buildIndexTitle": "建立向量索引",
+  "insight.buildIndexHint": "已選 {count} 個資料源（可在左側「資料檢索庫」調整），未索引的將一併建立。",
 }
