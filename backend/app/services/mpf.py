@@ -68,7 +68,7 @@ def serialize_mpf(data: dict) -> str:
             payload[key] = data[key]
     if data["type"] == "doc":
         payload["library"] = data.get("library", {})
-        payload["collections"] = data.get("collections", [])
+        payload["folders"] = data.get("folders", data.get("collections", []))
     elif data["type"] == "canvas":
         payload["canvas"] = data.get("canvas", {"nodes": [], "edges": []})
     return json.dumps(payload, ensure_ascii=False, indent=2)
@@ -102,7 +102,8 @@ def parse_mpf(text: str) -> dict:
     if errors:
         return {"ok": False, "errors": errors, "type": mpf_type, "content": None, "meta": meta, "unresolved": unresolved}
     if mpf_type == "doc":
-        content = {"library": data.get("library", {}), "collections": data.get("collections", [])}
+        content = {"library": data.get("library", {}),
+                   "folders": data.get("folders", data.get("collections", []))}
     else:
         content = data.get("canvas", {"nodes": [], "edges": []})
     return {"ok": True, "type": mpf_type, "meta": meta, "content": content, "unresolved": unresolved}
@@ -113,7 +114,7 @@ def _find_unresolved(data: dict) -> list[dict]:
     if data.get("type") != "doc":
         return []
     found = []
-    for col in data.get("collections", []):
+    for col in data.get("folders", data.get("collections", [])):
         for doc in col.get("documents", []):
             for sec in doc.get("sections", []):
                 for b in sec.get("blocks", []):
@@ -131,17 +132,18 @@ def _find_unresolved(data: dict) -> list[dict]:
 
 def _validate_doc(data: dict) -> list[str]:
     errors = []
-    if not isinstance(data.get("collections"), list):
-        return ["doc 类型缺少 collections 数组"]
-    for i, col in enumerate(data["collections"]):
+    folders = data.get("folders", data.get("collections"))
+    if not isinstance(folders, list):
+        return ["doc 类型缺少 folders 数组"]
+    for i, col in enumerate(folders):
         if not isinstance(col, dict) or not col.get("name"):
-            errors.append(f"collections[{i}] 缺少 name")
+            errors.append(f"folders[{i}] 缺少 name")
         for doc in col.get("documents", []):
             if not doc.get("name"):
-                errors.append(f"collections[{i}] 存在未命名的文档")
+                errors.append(f"folders[{i}] 存在未命名的文档")
             for sec in doc.get("sections", []):
                 if not sec.get("name"):
-                    errors.append(f"collections[{i}] 存在未命名的小节")
+                    errors.append(f"folders[{i}] 存在未命名的小节")
     return errors
 
 

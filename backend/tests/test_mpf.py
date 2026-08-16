@@ -57,7 +57,7 @@ def test_serialize_parse_doc_roundtrip():
     assert parsed["ok"] is True
     assert parsed["type"] == "doc"
     assert parsed["meta"]["name"] == "示例课程"
-    assert len(parsed["content"]["collections"][0]["documents"][0]["sections"][0]["blocks"]) == 3
+    assert len(parsed["content"]["folders"][0]["documents"][0]["sections"][0]["blocks"]) == 3
     # 未解析项：single_choice 与 interactive 需要课程插件
     plugins = {u["blockType"] for u in parsed["unresolved"]}
     assert "single_choice" in plugins

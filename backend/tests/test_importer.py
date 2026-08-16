@@ -90,7 +90,7 @@ def test_import_course_zip():
 
     # 库树
     lib = client.get(f"/api/libraries/{result['libraryId']}").json()
-    col = lib["collections"][0]
+    col = lib["folders"][0]
     assert col["name"] == "示例课程"
     assert col["packageId"] == "demo-course"
     blocks = col["documents"][0]["sections"][0]["blocks"]
@@ -122,8 +122,8 @@ def test_import_replaces_same_package():
     assert new_cid != old_cid
 
     lib = client.get(f"/api/libraries/{lib_id}").json()
-    assert len(lib["collections"]) == 1  # 旧课程被替换
-    assert lib["collections"][0]["id"] == new_cid
+    assert len(lib["folders"]) == 1  # 旧课程被替换
+    assert lib["folders"][0]["id"] == new_cid
 
 
 def test_import_invalid_zip():
@@ -156,7 +156,7 @@ def test_markdown_import():
 
     lib = client.get(f"/api/libraries/{result['libraryId']}").json()
     assert lib["name"] == "笔记库"
-    col = lib["collections"][0]
+    col = lib["folders"][0]
     assert col["kind"] == "note"
     doc = col["documents"][0]
     assert doc["name"] == "我的第一份笔记"
@@ -186,4 +186,4 @@ def test_export_course_zip():
         assert "interactives/demo.html" in names
         manifest = json.loads(zf.read("manifest.json"))
         assert manifest["id"] == "demo-course"
-        assert manifest["collections"][0]["documents"][0]["sections"][0]["blocks"][0]["type"] == "markdown"
+        assert manifest["folders"][0]["documents"][0]["sections"][0]["blocks"][0]["type"] == "markdown"

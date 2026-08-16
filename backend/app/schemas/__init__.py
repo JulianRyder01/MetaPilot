@@ -17,14 +17,38 @@ class DefaultTargetIn(BaseModel):
     id: str = Field(min_length=1)
 
 
-class CollectionIn(BaseModel):
+class FolderIn(BaseModel):
+    """顶层文件夹（原文档集：课程/图表/笔记等）。kind 放开为任意字符串（由核心/插件解释）。"""
     name: str = Field(min_length=1, max_length=200)
-    # 文档集类型放开为任意字符串（笔记/知识库/画布等由核心解释，课程等由对应插件解释）
-    # 核心默认创建「笔记」文档集，不默认课程（课程是插件 kind，见 docs/04）
     kind: str = "note"
     description: str = ""
     author: str = ""
     version: str = "1.0.0"
+
+
+class FolderPatch(BaseModel):
+    """文件夹更新（顶层/嵌套通用）：传什么更新什么；顶层忽略 parentId，嵌套忽略 kind 等。"""
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    kind: Optional[str] = None
+    description: Optional[str] = None
+    author: Optional[str] = None
+    version: Optional[str] = None
+    packageId: Optional[str] = None
+    parentId: Optional[str] = None
+    canvas: Optional[dict] = None
+    convertedFrom: Optional[str] = None
+    convertedAt: Optional[str] = None
+
+
+class SubfolderIn(BaseModel):
+    """嵌套文件夹（顶层文件夹内的目录层级）。"""
+    name: str = Field(min_length=1, max_length=200)
+    parent_id: Optional[str] = Field(default="", alias="parentId")
+
+
+class SubfolderUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    parent_id: Optional[str] = Field(default=None, alias="parentId")
 
 
 class DocumentIn(BaseModel):
@@ -33,16 +57,6 @@ class DocumentIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     doc_type: Literal["study", "quiz", "note"] = Field(default="study", alias="docType")
     folder_id: Optional[str] = Field(default="", alias="folderId")
-
-
-class FolderIn(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    parent_id: Optional[str] = Field(default="", alias="parentId")
-
-
-class FolderUpdate(BaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    parent_id: Optional[str] = Field(default=None, alias="parentId")
 
 
 class SectionIn(BaseModel):

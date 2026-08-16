@@ -193,14 +193,14 @@ def test_resources_tree_library_and_symlink():
     assert r.status_code == 200
     tree = r.json()
     libs = tree["libraries"]
-    assert any(l["id"] == t["lib"]["id"] and l["collections"][0]["documents"] for l in libs)
+    assert any(l["id"] == t["lib"]["id"] and l["folders"][0]["documents"] for l in libs)
     syms = tree["symlinks"]
     assert any(s["id"] == mid and s["name"] == "我的笔记" for s in syms)
     # 各粒度节点都有索引状态
     lib = next(l for l in libs if l["id"] == t["lib"]["id"])
     assert lib["status"]["indexed"] is False
-    assert lib["collections"][0]["status"]["indexed"] is False
-    assert lib["collections"][0]["documents"][0]["status"]["indexed"] is False
+    assert lib["folders"][0]["status"]["indexed"] is False
+    assert lib["folders"][0]["documents"][0]["status"]["indexed"] is False
 
 
 def test_resources_exclude_symlink_when_plugin_disabled():

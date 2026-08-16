@@ -27,7 +27,7 @@ def setup_function():
 
 def _make_col():
     lib = client.post("/api/libraries", json={"name": "库"}).json()
-    col = client.post(f"/api/libraries/{lib['id']}/collections",
+    col = client.post(f"/api/libraries/{lib['id']}/folders",
                       json={"name": "文档集", "kind": "note"}).json()
     return col["id"]
 
@@ -35,11 +35,11 @@ def _make_col():
 def test_folder_crud_and_nesting():
     cid = _make_col()
     # 创建根文件夹 A
-    a = client.post(f"/api/collections/{cid}/folders",
+    a = client.post(f"/api/folders/{cid}/folders",
                     json={"name": "文件夹A", "parentId": ""}).json()
     assert a["parentId"] == ""
     # 在 A 下创建子文件夹 B
-    b = client.post(f"/api/collections/{cid}/folders",
+    b = client.post(f"/api/folders/{cid}/folders",
                     json={"name": "子文件夹B", "parentId": a["id"]}).json()
     assert b["parentId"] == a["id"]
     # 移动 A 到 B 下应被拒绝（防环）
@@ -51,20 +51,20 @@ def test_folder_crud_and_nesting():
     assert r["parentId"] == ""
 
     lib = client.get(f"/api/libraries/{client.get('/api/libraries').json()[0]['id']}").json()
-    col = lib["collections"][0]
+    col = lib["folders"][0]
     assert len(col["folders"]) == 2
     # 未知父文件夹 404
-    assert client.post(f"/api/collections/{cid}/folders",
+    assert client.post(f"/api/folders/{cid}/folders",
                        json={"name": "x", "parentId": "nope"}).status_code == 404
 
 
 def test_document_in_folder_and_cascade_delete():
     cid = _make_col()
-    a = client.post(f"/api/collections/{cid}/folders", json={"name": "A"}).json()
-    b = client.post(f"/api/collections/{cid}/folders",
+    a = client.post(f"/api/folders/{cid}/folders", json={"name": "A"}).json()
+    b = client.post(f"/api/folders/{cid}/folders",
                     json={"name": "B", "parentId": a["id"]}).json()
     # 文档创建到 B 文件夹
-    doc = client.post(f"/api/collections/{cid}/documents",
+    doc = client.post(f"/api/folders/{cid}/documents",
                       json={"name": "文档1", "docType": "note", "folderId": b["id"]}).json()
     assert doc["folderId"] == b["id"]
     # 移动到根
@@ -76,16 +76,16 @@ def test_document_in_folder_and_cascade_delete():
     # 删除 A（级联删除 B 及其中文档）
     client.delete(f"/api/folders/{a['id']}")
     lib = client.get(f"/api/libraries/{client.get('/api/libraries').json()[0]['id']}").json()
-    col = lib["collections"][0]
+    col = lib["folders"][0]
     assert col["folders"] == []
     assert col["documents"] == []
 
 
 def test_section_reference_other_doc():
     cid = _make_col()
-    d1 = client.post(f"/api/collections/{cid}/documents",
+    d1 = client.post(f"/api/folders/{cid}/documents",
                      json={"name": "目标文档", "docType": "note"}).json()
-    d2 = client.post(f"/api/collections/{cid}/documents",
+    d2 = client.post(f"/api/folders/{cid}/documents",
                      json={"name": "引用文档", "docType": "note"}).json()
     # 创建引用小节：refDocId 指向 d1
     sec = client.post(f"/api/documents/{d2['id']}/sections",
@@ -93,7 +93,7 @@ def test_section_reference_other_doc():
     assert sec["refDocId"] == d1["id"]
     # 修改小节引用
     client.put(f"/api/sections/{sec['id']}", json={"name": "参见目标", "refDocId": ""})
-    got = client.get(f"/api/collections/{cid}").json()
+    got = client.get(f"/api/folders/{cid}").json()
     assert got["documents"][1]["sections"][0]["refDocId"] == ""
     # 普通小节不带 refDocId 字段（默认空）
     plain = client.post(f"/api/documents/{d2['id']}/sections", json={"name": "普通"}).json()

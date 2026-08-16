@@ -20,12 +20,18 @@ def _doc_payload(body: DocumentIn) -> dict:
     return body.model_dump(exclude_unset=True, by_alias=True)
 
 
-@router.post("/collections/{cid}/documents")
-def create_document(cid: str, body: DocumentIn, request: Request):
+@router.post("/folders/{fid}/documents")
+def create_document(fid: str, body: DocumentIn, request: Request):
     try:
-        return _store(request).create_document(cid, _doc_payload(body))
+        return _store(request).create_document(fid, _doc_payload(body))
     except KeyError as e:
         _not_found(e)
+
+
+@router.post("/collections/{cid}/documents")
+def create_document_alias(cid: str, body: DocumentIn, request: Request):
+    """旧路径别名（/api/collections → /api/folders）。"""
+    return create_document(cid, body, request)
 
 
 @router.put("/documents/{did}")

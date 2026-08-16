@@ -46,37 +46,45 @@ def _write_json(path: Path, data: Any) -> None:
 
 # ---------------- 树内定位工具 ----------------
 
-def find_collection(lib: dict, cid: str) -> Optional[dict]:
-    for c in lib.get("collections", []):
-        if c["id"] == cid:
-            return c
+def _folders(lib: dict) -> list:
+    """库内顶层文件夹列表（新键 folders；旧 .mpf/.json 的 collections 键读取兼容）。"""
+    folders = lib.get("folders")
+    if folders is None:
+        folders = lib.get("collections", [])
+    return folders
+
+
+def find_folder(lib: dict, fid: str) -> Optional[dict]:
+    for f in _folders(lib):
+        if f["id"] == fid:
+            return f
     return None
 
 
 def find_document(lib: dict, did: str) -> tuple[Optional[dict], Optional[dict]]:
-    for c in lib.get("collections", []):
-        for d in c.get("documents", []):
+    for f in _folders(lib):
+        for d in f.get("documents", []):
             if d["id"] == did:
-                return c, d
+                return f, d
     return None, None
 
 
 def find_section(lib: dict, sid: str) -> tuple[Optional[dict], Optional[dict], Optional[dict]]:
-    for c in lib.get("collections", []):
-        for d in c.get("documents", []):
+    for f in _folders(lib):
+        for d in f.get("documents", []):
             for s in d.get("sections", []):
                 if s["id"] == sid:
-                    return c, d, s
+                    return f, d, s
     return None, None, None
 
 
 def find_block(lib: dict, bid: str) -> tuple[Optional[dict], Optional[dict], Optional[dict], Optional[dict]]:
-    for c in lib.get("collections", []):
-        for d in c.get("documents", []):
+    for f in _folders(lib):
+        for d in f.get("documents", []):
             for s in d.get("sections", []):
                 for b in s.get("blocks", []):
                     if b["id"] == bid:
-                        return c, d, s, b
+                        return f, d, s, b
     return None, None, None, None
 
 
@@ -116,7 +124,7 @@ class LibraryStore:
                 "description": meta["description"],
                 "createdAt": meta.get("createdAt") or now_iso(),
                 "updatedAt": meta.get("updatedAt") or now_iso(),
-                "collections": parsed["content"]["collections"],
+                "folders": parsed["content"].get("folders") or parsed["content"].get("collections") or [],
             }
             # 置顶标记存索引摘要（index.json），不进入 .mpf 内容
             for it in self._load_index():
@@ -141,7 +149,7 @@ class LibraryStore:
             "description": lib.get("description", ""),
             "createdAt": lib.get("createdAt", ""),
             "updatedAt": lib.get("updatedAt", ""),
-            "collections": lib.get("collections", []),
+            "folders": _folders(lib),
         }
         mpf_path = self._lib_path(lib["id"])
         mpf_path.write_text(mpf_service.serialize_mpf(doc), encoding="utf-8")
@@ -156,10 +164,10 @@ class LibraryStore:
             "updatedAt": lib.get("updatedAt"),
             "pinned": bool(lib.get("pinned")),
             "isDefault": self.is_default_target("library", lib["id"]),
-            "collectionCount": len(lib.get("collections", [])),
-            "collections": [
-                {"id": c["id"], "name": c["name"], "kind": c.get("kind", "note")}
-                for c in lib.get("collections", [])
+            "folderCount": len(_folders(lib)),
+            "folders": [
+                {"id": f["id"], "name": f["name"], "kind": f.get("kind", "note")}
+                for f in _folders(lib)
             ],
         }
         for i, it in enumerate(items):
@@ -189,7 +197,7 @@ class LibraryStore:
                 "isDefault": False,
                 "createdAt": now_iso(),
                 "updatedAt": now_iso(),
-                "collections": [],
+                "folders": [],
             }
             self._save_lib(lib)
             return lib
@@ -241,9 +249,9 @@ class LibraryStore:
             # 清理该库下所有图表的 .canvas 文件
             try:
                 lib = self._load_lib(lid)
-                for col in lib.get("collections", []):
-                    if col.get("kind") == "canvas":
-                        self._canvas_path(col["id"]).unlink(missing_ok=True)
+                for fld in _folders(lib):
+                    if fld.get("kind") == "canvas":
+                        self._canvas_path(fld["id"]).unlink(missing_ok=True)
             except KeyError:
                 pass
             path = self._lib_path(lid)
@@ -257,11 +265,11 @@ class LibraryStore:
             # 若删除的是默认保存目标，清除默认标记
             self.clear_default_target("library", lid)
 
-    # ---- 文档集（课程） ----
-    def create_collection(self, lid: str, data: dict) -> dict:
+    # ---- 顶层文件夹（原文档集：课程/图表/笔记等） ----
+    def create_folder(self, lid: str, data: dict) -> dict:
         with self.lock:
             lib = self._load_lib(lid)
-            col = {
+            folder = {
                 "id": gen_id(),
                 "name": data["name"],
                 "kind": data.get("kind", "note"),
@@ -276,69 +284,97 @@ class LibraryStore:
                 "folders": [],
                 "canvas": {"nodes": [], "edges": []} if data.get("kind") == "canvas" else None,
             }
-            lib.setdefault("collections", []).append(col)
+            lib.setdefault("folders", []).append(folder)
             lib["updatedAt"] = now_iso()
             self._save_lib(lib)
-            return col
+            return folder
 
-    def update_collection(self, cid: str, data: dict) -> dict:
+    def update_folder(self, fid: str, data: dict) -> dict:
         with self.lock:
             for lib in self._iter_all_libs():
-                col = find_collection(lib, cid)
-                if col is None:
+                fld = find_folder(lib, fid)
+                if fld is None:
                     continue
                 for key in ("name", "kind", "description", "author", "version", "packageId", "formatVersion", "canvas",
-                            # 通用转换标记：集合由其它类型转换而来（如文档 → 课程），供任何插件/核心读取
+                            # 通用转换标记：文件夹由其它类型转换而来（如文档 → 课程），供任何插件/核心读取
                             "convertedFrom", "convertedAt"):
                     if key in data and data[key] is not None:
-                        col[key] = data[key]
-                col["updatedAt"] = now_iso()
+                        fld[key] = data[key]
+                fld["updatedAt"] = now_iso()
                 lib["updatedAt"] = now_iso()
                 self._save_lib(lib)
                 # 图表保存时同步落盘 Obsidian 原生 .canvas 文件（与 .mpf 兼容双向）
-                if data.get("canvas") is not None and col.get("kind") == "canvas":
-                    self._save_canvas_file(cid, data["canvas"])
-                return col
+                if data.get("canvas") is not None and fld.get("kind") == "canvas":
+                    self._save_canvas_file(fid, data["canvas"])
+                return fld
 
     # ---- 图表 .canvas 文件（Obsidian 兼容：保存/导入同步写回原生 .canvas） ----
 
-    def _canvas_path(self, cid: str) -> Path:
-        return self.root / "canvases" / f"{cid}.canvas"
+    def _canvas_path(self, fid: str) -> Path:
+        return self.root / "canvases" / f"{fid}.canvas"
 
-    def _save_canvas_file(self, cid: str, canvas: dict) -> None:
-        path = self._canvas_path(cid)
+    def _save_canvas_file(self, fid: str, canvas: dict) -> None:
+        path = self._canvas_path(fid)
         path.parent.mkdir(parents=True, exist_ok=True)
         _write_json(path, {
             "nodes": canvas.get("nodes", []),
             "edges": canvas.get("edges", []),
         })
 
-    def delete_collection(self, cid: str) -> None:
+    def delete_folder(self, fid: str) -> None:
         with self.lock:
             for lib in self._iter_all_libs():
-                cols = lib.get("collections", [])
-                for i, c in enumerate(cols):
-                    if c["id"] == cid:
-                        del cols[i]
+                folders = lib.setdefault("folders", [])
+                for i, fld in enumerate(folders):
+                    if fld["id"] == fid:
+                        del folders[i]
                         lib["updatedAt"] = now_iso()
                         self._save_lib(lib)
-                        self._canvas_path(cid).unlink(missing_ok=True)
+                        self._canvas_path(fid).unlink(missing_ok=True)
                         return
-            raise KeyError(f"文档集不存在: {cid}")
+            raise KeyError(f"文件夹不存在: {fid}")
+
+    def get_folder_any(self, fid: str) -> dict:
+        """统一获取文件夹：顶层返回全量；嵌套返回其基本信息。"""
+        for lib in self._iter_all_libs():
+            fld = find_folder(lib, fid)
+            if fld is not None:
+                return fld
+            owner = self._find_owner_folder(fid, lib)
+            if owner is not None:
+                folder = next((x for x in owner.get("folders", []) if x["id"] == fid), None)
+                return {"id": folder["id"], "name": folder["name"],
+                        "parentId": folder.get("parentId", "")}
+        raise KeyError(f"文件夹不存在: {fid}")
+
+    def update_folder_any(self, fid: str, data: dict) -> dict:
+        """统一更新：顶层或嵌套文件夹（先顶层后嵌套）。"""
+        for lib in self._iter_all_libs():
+            if find_folder(lib, fid) is not None:
+                return self.update_folder(fid, data)
+        return self.update_subfolder(fid, data)
+
+    def delete_folder_any(self, fid: str) -> None:
+        """统一删除：顶层或嵌套文件夹（先顶层后嵌套）。"""
+        for lib in self._iter_all_libs():
+            if find_folder(lib, fid) is not None:
+                self.delete_folder(fid)
+                return
+        self.delete_subfolder(fid)
 
     def _iter_all_libs(self):
         for it in self._load_index():
             yield self._load_lib(it["id"])
 
-    # ---- 文件夹（文档集内的目录层级） ----
+    # ---- 嵌套文件夹（顶层文件夹内的目录层级） ----
 
-    def _folder_tree(self, col: dict) -> dict[str, dict]:
-        """返回 folderId -> folder 的映射。"""
-        return {f["id"]: f for f in col.get("folders", [])}
+    def _folder_tree(self, fld: dict) -> dict[str, dict]:
+        """返回 folderId -> folder 的映射（fld 为顶层文件夹）。"""
+        return {f["id"]: f for f in fld.get("folders", [])}
 
-    def _folder_descendants(self, col: dict, fid: str) -> set[str]:
+    def _folder_descendants(self, fld: dict, fid: str) -> set[str]:
         """返回 fid 及其全部子孙文件夹 id。"""
-        tree = self._folder_tree(col)
+        tree = self._folder_tree(fld)
         out: set[str] = set()
         stack = [fid]
         while stack:
@@ -351,15 +387,15 @@ class LibraryStore:
                     stack.append(f["id"])
         return out
 
-    def create_folder(self, cid: str, data: dict) -> dict:
+    def create_subfolder(self, fid: str, data: dict) -> dict:
         with self.lock:
             for lib in self._iter_all_libs():
-                col = find_collection(lib, cid)
-                if col is None:
+                fld = find_folder(lib, fid)
+                if fld is None:
                     continue
                 parent_id = data.get("parentId", "")
                 if parent_id:
-                    tree = self._folder_tree(col)
+                    tree = self._folder_tree(fld)
                     if parent_id not in tree:
                         raise KeyError(f"父文件夹不存在: {parent_id}")
                 folder = {
@@ -368,20 +404,20 @@ class LibraryStore:
                     "parentId": parent_id,
                     "createdAt": now_iso(),
                 }
-                col.setdefault("folders", []).append(folder)
-                col["updatedAt"] = now_iso()
+                fld.setdefault("folders", []).append(folder)
+                fld["updatedAt"] = now_iso()
                 lib["updatedAt"] = now_iso()
                 self._save_lib(lib)
                 return folder
-            raise KeyError(f"文档集不存在: {cid}")
+            raise KeyError(f"文件夹不存在: {fid}")
 
-    def update_folder(self, fid: str, data: dict) -> dict:
+    def update_subfolder(self, fid: str, data: dict) -> dict:
         with self.lock:
             for lib in self._iter_all_libs():
-                col = self._find_col_by_folder(fid, lib)
-                if col is None:
+                fld = self._find_owner_folder(fid, lib)
+                if fld is None:
                     continue
-                folder = next((f for f in col.get("folders", []) if f["id"] == fid), None)
+                folder = next((f for f in fld.get("folders", []) if f["id"] == fid), None)
                 if folder is None:
                     raise KeyError(f"文件夹不存在: {fid}")
                 if "name" in data and data["name"] is not None:
@@ -392,49 +428,50 @@ class LibraryStore:
                     if new_parent == fid:
                         raise ValueError("父文件夹不能是自身")
                     if new_parent:
-                        descendants = self._folder_descendants(col, fid)
+                        descendants = self._folder_descendants(fld, fid)
                         if new_parent in descendants:
                             raise ValueError("父文件夹不能是其自身的子文件夹")
-                        if new_parent not in self._folder_tree(col):
+                        if new_parent not in self._folder_tree(fld):
                             raise KeyError(f"父文件夹不存在: {new_parent}")
                     folder["parentId"] = new_parent
-                col["updatedAt"] = now_iso()
+                fld["updatedAt"] = now_iso()
                 lib["updatedAt"] = now_iso()
                 self._save_lib(lib)
                 return folder
             raise KeyError(f"文件夹不存在: {fid}")
 
-    def delete_folder(self, fid: str) -> None:
-        """删除文件夹：级联删除其全部子孙文件夹与其中的文档。"""
+    def delete_subfolder(self, fid: str) -> None:
+        """删除嵌套文件夹：级联删除其全部子孙文件夹与其中的文档。"""
         with self.lock:
             for lib in self._iter_all_libs():
-                col = self._find_col_by_folder(fid, lib)
-                if col is None:
+                fld = self._find_owner_folder(fid, lib)
+                if fld is None:
                     raise KeyError(f"文件夹不存在: {fid}")
-                doomed = self._folder_descendants(col, fid)
-                col["folders"] = [f for f in col.get("folders", []) if f["id"] not in doomed]
-                col["documents"] = [
-                    d for d in col.get("documents", [])
+                doomed = self._folder_descendants(fld, fid)
+                fld["folders"] = [f for f in fld.get("folders", []) if f["id"] not in doomed]
+                fld["documents"] = [
+                    d for d in fld.get("documents", [])
                     if (d.get("folderId") or "") not in doomed
                 ]
-                col["updatedAt"] = now_iso()
+                fld["updatedAt"] = now_iso()
                 lib["updatedAt"] = now_iso()
                 self._save_lib(lib)
                 return
 
     @staticmethod
-    def _find_col_by_folder(fid: str, lib: dict):
-        for c in lib.get("collections", []):
-            if any(f["id"] == fid for f in c.get("folders", [])):
-                return c
+    def _find_owner_folder(fid: str, lib: dict):
+        """返回包含嵌套文件夹 fid 的顶层文件夹。"""
+        for f in _folders(lib):
+            if any(x["id"] == fid for x in f.get("folders", [])):
+                return f
         return None
 
-    # ---- 文档（章节） ----
-    def create_document(self, cid: str, data: dict) -> dict:
+    # ---- 文档 ----
+    def create_document(self, fid: str, data: dict) -> dict:
         with self.lock:
             for lib in self._iter_all_libs():
-                col = find_collection(lib, cid)
-                if col is None:
+                fld = find_folder(lib, fid)
+                if fld is None:
                     continue
                 doc = {
                     "id": gen_id(),
@@ -445,12 +482,12 @@ class LibraryStore:
                     "updatedAt": now_iso(),
                     "sections": [],
                 }
-                col.setdefault("documents", []).append(doc)
+                fld.setdefault("documents", []).append(doc)
                 lib["updatedAt"] = now_iso()
-                col["updatedAt"] = now_iso()
+                fld["updatedAt"] = now_iso()
                 self._save_lib(lib)
                 return doc
-            raise KeyError(f"文档集不存在: {cid}")
+            raise KeyError(f"文件夹不存在: {fid}")
 
     def update_document(self, did: str, data: dict) -> dict:
         with self.lock:

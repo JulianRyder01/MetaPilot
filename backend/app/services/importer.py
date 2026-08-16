@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Optional
 
 from ..services import mpf as mpf_service
-from ..storage.store import LibraryStore, find_collection, gen_id, now_iso
+from ..storage.store import LibraryStore, find_folder, gen_id, now_iso
 
 FORMAT_VERSION = 1
 
@@ -36,9 +36,9 @@ class CourseImporter:
             return ["manifest 必须是 JSON 对象"]
         if not manifest.get("name"):
             errors.append("缺少课程名 name")
-        collections = manifest.get("collections")
+        collections = manifest.get("folders", manifest.get("collections"))
         if not isinstance(collections, list) or not collections:
-            errors.append("缺少 collections（至少一个文档集）")
+            errors.append("缺少 folders（至少一个文件夹）")
         else:
             for col in collections:
                 if not col.get("name"):
@@ -78,16 +78,16 @@ class CourseImporter:
 
         # 若已有同 packageId 的课程则替换
         existing = None
-        for col in lib.get("collections", []):
+        for col in lib.get("folders", lib.get("collections", [])):
             if col.get("packageId") == package_id:
                 existing = col
                 break
         if existing:
-            self.store.delete_collection(existing["id"])
+            self.store.delete_folder(existing["id"])
 
         created = []
-        for col_data in manifest["collections"]:
-            col = self.store.create_collection(lib["id"], {
+        for col_data in manifest.get("folders", manifest.get("collections", [])):
+            col = self.store.create_folder(lib["id"], {
                 "name": col_data["name"],
                 "kind": col_data.get("kind", "course"),
                 "description": col_data.get("description", ""),
@@ -96,7 +96,7 @@ class CourseImporter:
                 "formatVersion": manifest.get("formatVersion", FORMAT_VERSION),
             })
             col["packageId"] = package_id
-            self.store.update_collection(col["id"], {"packageId": package_id})
+            self.store.update_folder(col["id"], {"packageId": package_id})
             for doc_data in col_data.get("documents", []):
                 doc = self.store.create_document(col["id"], {
                     "name": doc_data["name"],
@@ -154,7 +154,7 @@ class CourseImporter:
                 "version": parsed["meta"]["version"] or "1.0.0",
                 "description": parsed["meta"]["description"] or "",
                 "library": content["library"] or {"name": parsed["meta"]["name"] or "导入的库", "description": ""},
-                "collections": content["collections"],
+                "collections": content.get("folders", content.get("collections", [])),
             }
             result = self.import_package(manifest, {}, library_id=library_id)
             result["type"] = "doc"
@@ -167,12 +167,12 @@ class CourseImporter:
                 lib = self.store.get_library(library_id)
             else:
                 lib = self.store.create_library("图表", "导入的 .canvas / .mpf 图表")
-            col = self.store.create_collection(lib["id"], {
+            col = self.store.create_folder(lib["id"], {
                 "name": parsed["meta"]["name"] or "未命名图表",
                 "kind": "canvas",
                 "description": "由 .mpf/.canvas 导入的图表",
             })
-            self.store.update_collection(col["id"], {"canvas": content})
+            self.store.update_folder(col["id"], {"canvas": content})
             return {
                 "type": "canvas",
                 "libraryId": lib["id"],
@@ -199,7 +199,7 @@ class CourseImporter:
         """导出文档集为 .mpf：canvas → canvas 类型；其它 → doc 类型。"""
         for it in self.store.list_libraries():
             lib = self.store.get_library(it["id"])
-            col = find_collection(lib, collection_id)
+            col = find_folder(lib, collection_id)
             if col is None:
                 continue
             if col.get("kind") == "canvas":
@@ -215,9 +215,9 @@ class CourseImporter:
                 "description": col.get("description", ""),
                 "author": col.get("author", ""),
                 "version": col.get("version", "1.0.0"),
-                "collections": [col],
+                "folders": [col],
             })
-        raise KeyError(f"文档集不存在: {collection_id}")
+        raise KeyError(f"文件夹不存在: {collection_id}")
 
     def export_library_mpf(self, library_id: str) -> str:
         """导出整个库为 .mpf（doc 类型）。"""
@@ -227,7 +227,7 @@ class CourseImporter:
             "id": lib["id"],
             "name": lib["name"],
             "description": lib.get("description", ""),
-            "collections": lib.get("collections", []),
+            "folders": lib.get("folders", lib.get("collections", [])),
         })
 
     # ---------------- Markdown / Obsidian 笔记导入 ----------------
@@ -270,11 +270,11 @@ class CourseImporter:
             lib = self.store.create_library("笔记库", "导入的 Markdown / Obsidian 笔记")
         # 目标文档集（笔记集合）
         if collection_id:
-            col = find_collection(lib, collection_id)
+            col = find_folder(lib, collection_id)
             if col is None:
                 raise KeyError(f"文档集不存在: {collection_id}")
         else:
-            col = self.store.create_collection(lib["id"], {
+            col = self.store.create_folder(lib["id"], {
                 "name": "我的笔记", "kind": "note", "description": "由 Markdown 导入",
             })
         doc = self.store.create_document(col["id"], {"name": doc_name, "docType": "note"})
@@ -291,7 +291,7 @@ class CourseImporter:
                 lib = self.store.get_library(it["id"])
             except KeyError:
                 continue
-            for col in lib.get("collections", []):
+            for col in lib.get("folders", lib.get("collections", [])):
                 if col["id"] != collection_id:
                     continue
                 manifest = {
@@ -302,7 +302,7 @@ class CourseImporter:
                     "version": col.get("version", "1.0.0"),
                     "description": col.get("description", ""),
                     "kind": col.get("kind", "course"),
-                    "collections": [col],
+                    "folders": [col],
                 }
                 buf = io.BytesIO()
                 with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:

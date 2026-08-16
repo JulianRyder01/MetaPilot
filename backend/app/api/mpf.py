@@ -52,14 +52,20 @@ def export_library_mpf(lid: str, request: Request):
     return _mpf_response(text, "library")
 
 
-@router.get("/collections/{cid}/export-mpf")
-def export_collection_mpf(cid: str, request: Request):
+@router.get("/folders/{fid}/export-mpf")
+def export_folder_mpf(fid: str, request: Request):
     importer = request.app.state.importer
     try:
-        text = importer.export_collection_mpf(cid)
+        text = importer.export_collection_mpf(fid)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    return _mpf_response(text, "collection")
+    return _mpf_response(text, "folder")
+
+
+@router.get("/collections/{cid}/export-mpf")
+def export_collection_mpf_alias(cid: str, request: Request):
+    """旧路径别名（/api/collections → /api/folders）。"""
+    return export_folder_mpf(cid, request)
 
 
 def _mpf_response(text: str, kind: str):

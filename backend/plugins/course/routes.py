@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import Response
 
 from app.plugins.base import requires_plugin
-from app.storage.store import find_collection, now_iso
+from app.storage.store import find_folder, now_iso
 
 router = APIRouter(
     prefix="/api/plugins",
@@ -55,14 +55,14 @@ def convert_collection_to_course(cid: str, request: Request):
     """
     store = request.app.state.store
     for it in store.list_libraries():
-        col = find_collection(store.get_library(it["id"]), cid)
+        col = find_folder(store.get_library(it["id"]), cid)
         if col is None:
             continue
         if col.get("kind") == "canvas":
             raise HTTPException(status_code=400, detail="图表不能转为课程")
         if col.get("kind") == "course":
             raise HTTPException(status_code=400, detail="该文档集已经是课程")
-        updated = store.update_collection(cid, {
+        updated = store.update_folder(cid, {
             "kind": "course",
             "convertedFrom": col.get("kind") or "note",
             "convertedAt": now_iso(),

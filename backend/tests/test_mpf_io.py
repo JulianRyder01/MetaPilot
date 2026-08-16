@@ -32,9 +32,9 @@ def setup_function():
 
 def _make_course():
     lib = client.post("/api/libraries", json={"name": "专业课"}).json()
-    col = client.post(f"/api/libraries/{lib['id']}/collections",
+    col = client.post(f"/api/libraries/{lib['id']}/folders",
                       json={"name": "课程A", "kind": "course"}).json()
-    doc = client.post(f"/api/collections/{col['id']}/documents",
+    doc = client.post(f"/api/folders/{col['id']}/documents",
                       json={"name": "第1章", "docType": "study"}).json()
     sec = client.post(f"/api/documents/{doc['id']}/sections", json={"name": "小节"}).json()
     client.post(f"/api/sections/{sec['id']}/blocks",
@@ -45,7 +45,7 @@ def _make_course():
 def test_export_import_doc_course():
     t = _make_course()
     # 导出课程为 .mpf
-    r = client.get(f"/api/mpf/collections/{t['col']['id']}/export-mpf")
+    r = client.get(f"/api/mpf/folders/{t['col']['id']}/export-mpf")
     assert r.status_code == 200
     text = r.text
     assert '"type": "doc"' in text
@@ -58,7 +58,7 @@ def test_export_import_doc_course():
     assert result["imported"][0]["name"] == "课程A"
     # 内容一致
     lib = client.get(f"/api/libraries/{result['libraryId']}").json()
-    col = lib["collections"][0]
+    col = lib["folders"][0]
     assert col["documents"][0]["sections"][0]["blocks"][0]["content"] == "# 内容"
 
 
@@ -67,7 +67,7 @@ def test_export_library_mpf():
     r = client.get(f"/api/mpf/libraries/{t['lib']['id']}/export-mpf")
     assert r.status_code == 200
     assert '"type": "doc"' in r.text
-    assert '"collections"' in r.text
+    assert '"folders"' in r.text
     assert '"name": "专业课"' in r.text
 
 
@@ -78,12 +78,12 @@ def test_import_canvas_mpf():
     result = r.json()
     assert result["type"] == "canvas"
     # canvas 集合存在，数据保存
-    col = client.get(f"/api/collections/{result['collectionId']}").json()
+    col = client.get(f"/api/folders/{result['collectionId']}").json()
     assert col["kind"] == "canvas"
     assert col["canvas"]["nodes"][0]["id"] == "n1"
     assert col["name"] == "思维图"
     # 导出 canvas 集合仍为 canvas 类型
-    r2 = client.get(f"/api/mpf/collections/{result['collectionId']}/export-mpf")
+    r2 = client.get(f"/api/mpf/folders/{result['collectionId']}/export-mpf")
     assert '"type": "canvas"' in r2.text
 
 
@@ -102,7 +102,7 @@ def test_import_raw_canvas_file():
     assert r.status_code == 200, r.text
     result = r.json()
     assert result["type"] == "canvas"
-    col = client.get(f"/api/collections/{result['collectionId']}").json()
+    col = client.get(f"/api/folders/{result['collectionId']}").json()
     assert len(col["canvas"]["nodes"]) == 2
     assert len(col["canvas"]["edges"]) == 1
 
@@ -115,7 +115,7 @@ def test_import_invalid_mpf():
 def test_mpf_unresolved_reported():
     """含课程块（single_choice）的 doc .mpf 导入返回 unresolved 标记。"""
     mpf_text = ('{"format":"meta-pilot","formatVersion":1,"type":"doc","name":"课",'
-                '"collections":[{"name":"课","kind":"course","documents":[{"name":"章",'
+                '"folders":[{"name":"课","kind":"course","documents":[{"name":"章",'
                 '"sections":[{"name":"节","blocks":[{"type":"single_choice","question":"q","options":["a"],"answer":0}]}]}]}]}')
     r = client.post("/api/mpf/import", files={"file": ("c.mpf", mpf_text.encode("utf-8"), "application/json")})
     assert r.status_code == 200, r.text

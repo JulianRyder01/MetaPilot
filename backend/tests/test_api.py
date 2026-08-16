@@ -31,9 +31,9 @@ def setup_function():
 def _make_tree():
     """创建 库->课程->章节->小节，返回 id 字典。"""
     lib = client.post("/api/libraries", json={"name": "测试库"}).json()
-    col = client.post(f"/api/libraries/{lib['id']}/collections",
+    col = client.post(f"/api/libraries/{lib['id']}/folders",
                       json={"name": "数字图像处理", "kind": "course"}).json()
-    doc = client.post(f"/api/collections/{col['id']}/documents",
+    doc = client.post(f"/api/folders/{col['id']}/documents",
                       json={"name": "第1章 图像基础", "docType": "study"}).json()
     sec = client.post(f"/api/documents/{doc['id']}/sections",
                       json={"name": "像素与采样"}).json()
@@ -51,7 +51,7 @@ def test_library_crud():
     # create
     lib = client.post("/api/libraries", json={"name": "我的库", "description": "d"}).json()
     assert lib["name"] == "我的库"
-    assert lib["collections"] == []
+    assert lib["folders"] == []
     # list
     listed = client.get("/api/libraries").json()
     assert any(it["id"] == lib["id"] for it in listed)
@@ -101,18 +101,18 @@ def test_library_pin_and_default():
 def test_tree_crud():
     t = _make_tree()
     # 文档集信息
-    col = client.get(f"/api/libraries/{t['lib']['id']}").json()["collections"][0]
+    col = client.get(f"/api/libraries/{t['lib']['id']}").json()["folders"][0]
     assert col["kind"] == "course"
     assert col["documents"][0]["name"] == "第1章 图像基础"
     # 更新文档
     client.put(f"/api/documents/{t['doc']['id']}", json={"name": "第1章 绪论", "docType": "quiz"})
     got = client.get(f"/api/libraries/{t['lib']['id']}").json()
-    assert got["collections"][0]["documents"][0]["name"] == "第1章 绪论"
-    assert got["collections"][0]["documents"][0]["docType"] == "quiz"
+    assert got["folders"][0]["documents"][0]["name"] == "第1章 绪论"
+    assert got["folders"][0]["documents"][0]["docType"] == "quiz"
     # 更新小节名
     client.put(f"/api/sections/{t['sec']['id']}", json={"name": "采样定理"})
     got = client.get(f"/api/libraries/{t['lib']['id']}").json()
-    assert got["collections"][0]["documents"][0]["sections"][0]["name"] == "采样定理"
+    assert got["folders"][0]["documents"][0]["sections"][0]["name"] == "采样定理"
 
 
 def test_blocks_all_types():
@@ -130,19 +130,19 @@ def test_blocks_all_types():
         r = client.post(f"/api/sections/{sid}/blocks", json=c)
         assert r.status_code == 200, f"block {c['type']} 创建失败: {r.text}"
     got = client.get(f"/api/libraries/{t['lib']['id']}").json()
-    blocks = got["collections"][0]["documents"][0]["sections"][0]["blocks"]
+    blocks = got["folders"][0]["documents"][0]["sections"][0]["blocks"]
     assert [b["type"] for b in blocks] == [c["type"] for c in cases]
     # 更新与删除
     bid = blocks[1]["id"]
     client.put(f"/api/blocks/{bid}", json={"type": "single_choice", "question": "Q2",
                                             "options": ["A", "B"], "answer": 0})
     got = client.get(f"/api/libraries/{t['lib']['id']}").json()
-    blocks = got["collections"][0]["documents"][0]["sections"][0]["blocks"]
+    blocks = got["folders"][0]["documents"][0]["sections"][0]["blocks"]
     assert blocks[1]["question"] == "Q2"
     assert blocks[1]["answer"] == 0
     client.delete(f"/api/blocks/{bid}")
     got = client.get(f"/api/libraries/{t['lib']['id']}").json()
-    blocks = got["collections"][0]["documents"][0]["sections"][0]["blocks"]
+    blocks = got["folders"][0]["documents"][0]["sections"][0]["blocks"]
     assert len(blocks) == len(cases) - 1
 
 
@@ -151,8 +151,8 @@ def test_delete_collection_cleanup():
     cid = t["col"]["id"]
     client.put(f"/api/plugins/course/progress/{cid}/toggle/{t['sec']['id']}")
     client.post("/api/plugins/course/stats/sessions", json={"collectionId": cid, "durationSec": 30})
-    client.delete(f"/api/collections/{cid}")
-    assert client.get(f"/api/libraries/{t['lib']['id']}").json()["collections"] == []
+    client.delete(f"/api/folders/{cid}")
+    assert client.get(f"/api/libraries/{t['lib']['id']}").json()["folders"] == []
 
 
 def test_progress_flow():

@@ -125,22 +125,22 @@ class InsightService:
         libraries = []
         for lib in self.store.list_libraries():
             lib_info = self.store.get_library(lib["id"])
-            collections = []
-            for col in lib_info.get("collections", []):
+            folders = []
+            for fld in lib_info.get("folders", lib_info.get("collections", [])):
                 documents = []
-                for doc in col.get("documents", []):
+                for doc in fld.get("documents", []):
                     documents.append({
                         "id": doc["id"], "name": doc["name"], "docType": doc.get("docType", "study"),
                         "status": self.status(_key_for({"type": "document", "id": doc["id"]})),
                     })
-                collections.append({
-                    "id": col["id"], "name": col["name"], "kind": col.get("kind", "course"),
+                folders.append({
+                    "id": fld["id"], "name": fld["name"], "kind": fld.get("kind", "course"),
                     "documents": documents,
-                    "status": self.status(_key_for({"type": "collection", "id": col["id"]})),
+                    "status": self.status(_key_for({"type": "collection", "id": fld["id"]})),
                 })
             libraries.append({
                 "id": lib["id"], "name": lib["name"],
-                "collections": collections,
+                "folders": folders,
                 "status": self.status(_key_for({"type": "library", "id": lib["id"]})),
             })
         symlinks = []
@@ -256,14 +256,14 @@ class InsightService:
                     lib = self.store.get_library(source["id"])
                 except KeyError:
                     raise KeyError(f"库不存在: {source['id']}")
-                collections = lib.get("collections", [])
+                collections = lib.get("folders", lib.get("collections", []))
             else:
                 target_cid = source["id"] if t == "collection" else None
                 target_did = source["id"] if t == "document" else None
                 collections = []
                 for lib in self.store.list_libraries():
                     info = self.store.get_library(lib["id"])
-                    for col in info.get("collections", []):
+                    for col in info.get("folders", info.get("collections", [])):
                         if t == "collection" and col["id"] != target_cid:
                             continue
                         if t == "document":
@@ -385,7 +385,7 @@ class InsightService:
                 found = False
                 for lib in self.store.list_libraries():
                     info = self.store.get_library(lib["id"])
-                    for col in info.get("collections", []):
+                    for col in info.get("folders", info.get("collections", [])):
                         if t == "collection":
                             if col["id"] == s["id"]:
                                 found = True
@@ -694,8 +694,8 @@ class InsightService:
             result = self._save_canvas_to_symlink(name, nodes, edges, summary, target)
         else:
             lib_id = self._pick_library(target.get("id") or None)
-            col = self.store.create_collection(lib_id, {"name": name, "kind": "canvas", "description": question})
-            self.store.update_collection(col["id"], {"canvas": {"nodes": nodes, "edges": edges}})
+            col = self.store.create_folder(lib_id, {"name": name, "kind": "canvas", "description": question})
+            self.store.update_folder(col["id"], {"canvas": {"nodes": nodes, "edges": edges}})
             result = {"kind": "canvas", "collectionId": col["id"], "collectionName": name,
                       "libraryId": lib_id, "summary": summary}
         await fire({"type": "step", "step": "save", "status": "done"})
@@ -767,7 +767,7 @@ class InsightService:
             result = self._save_course_to_symlink(col_data, name, summary, target)
         else:
             lib_id = self._pick_library(target.get("id") or None)
-            col = self.store.create_collection(lib_id, {
+            col = self.store.create_folder(lib_id, {
                 "name": name, "kind": "course", "description": data.get("description") or question,
             })
             for doc_data in built_docs:

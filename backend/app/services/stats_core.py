@@ -65,7 +65,7 @@ class StatsCoreService:
                 lib = self.store.get_library(it["id"])
             except KeyError:
                 continue
-            for col in lib.get("collections", []):
+            for col in lib.get("folders", lib.get("collections", [])):
                 words = 0
                 for doc in col.get("documents", []):
                     for sec in doc.get("sections", []):
@@ -90,7 +90,7 @@ class StatsCoreService:
                 lib = self.store.get_library(it["id"])
             except KeyError:
                 continue
-            for col in lib.get("collections", []):
+            for col in lib.get("folders", lib.get("collections", [])):
                 valid_cids.add(col["id"])
                 for doc in col.get("documents", []):
                     doc_names.setdefault(doc["id"], doc.get("name") or "")

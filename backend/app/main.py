@@ -14,7 +14,7 @@ from .services.ai_config import AIConfig
 from .services.ai_gateway import AIGateway
 from .services.local_servers import LocalServersManager
 from .storage.store import LibraryStore
-from .api import ai_settings, documents, folders, kinds, libraries, mpf, notes, plugin_store, plugins, stats_core
+from .api import ai_settings, documents, kinds, libraries, mpf, notes, plugin_store, plugins, stats_core
 from .plugins.base import manager
 from .plugins.loader import load_plugins
 from .services.importer import CourseImporter
@@ -67,7 +67,6 @@ register_core_mpf_types()
 
 app.include_router(libraries.router)
 app.include_router(documents.router)
-app.include_router(folders.router)
 app.include_router(notes.router)
 app.include_router(plugins.router)
 app.include_router(plugin_store.router)
