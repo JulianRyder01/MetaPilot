@@ -27,7 +27,7 @@ import {
   X,
 } from "lucide-react"
 import { toast } from "@/lib/toast"
-import { ApiError, type KbSource, type SymlinkTree } from "@/lib/api"
+import { api, ApiError, type KbSource, type SymlinkTree } from "@/lib/api"
 
 import { useT } from "@/i18n"
 import { cn } from "@/lib/utils"
@@ -45,6 +45,7 @@ import {
   type InsightMode,
   type InsightOutput,
   type InsightPlanStepId,
+  type InsightPlanTarget,
   type InsightResourceNode,
   type InsightResources,
   type InsightSourceRef,
@@ -292,7 +293,9 @@ export default function AiInsightPage() {
 
   // 洞察规划
   const [planOutput, setPlanOutput] = useState<InsightOutput>("canvas")
-  const [planLib, setPlanLib] = useState("")
+  // 保存位置：null = 使用默认保存目标（库/软链接，全局唯一）；否则显式指定库或软链接
+  const [planTarget, setPlanTarget] = useState<InsightPlanTarget | null>(null)
+  const [defaultTarget, setDefaultTarget] = useState<{ kind: "library" | "symlink"; id: string } | null>(null)
   const [planning, setPlanning] = useState(false)
   const [planResult, setPlanResult] = useState<Awaited<ReturnType<typeof insightPlan>> | null>(null)
   // 洞察规划执行路线：每步状态与 AI 思考输出（/plan/stream 实时推送）
@@ -341,6 +344,13 @@ export default function AiInsightPage() {
   useEffect(() => {
     loadResources()
     loadEmbed()
+    // 默认保存目标（库/软链接唯一）：供「保存位置」选择器显示当前默认项
+    api
+      .getDefaultTarget()
+      .then((dt) => {
+        if (dt.kind && dt.id) setDefaultTarget({ kind: dt.kind, id: dt.id })
+      })
+      .catch(() => {})
     const timer = setInterval(loadEmbed, 5000)
     return () => clearInterval(timer)
   }, [loadResources, loadEmbed])
@@ -511,7 +521,7 @@ export default function AiInsightPage() {
     abortRef.current = ac
     try {
       await ensureIndexed(refs)
-      await insightPlanStream(refs, question.trim(), planOutput, planLib, 12, (evt) => {
+      await insightPlanStream(refs, question.trim(), planOutput, "", 12, (evt) => {
         if (evt.type === "step") {
           setPlanSteps((prev) => ({
             ...prev,
@@ -539,7 +549,7 @@ export default function AiInsightPage() {
             return next
           })
         }
-      }, ac.signal)
+      }, ac.signal, planTarget ?? undefined)
     } catch (e) {
       const detail = e instanceof ApiError ? (e.detail as { code?: string } | undefined) : undefined
       if (detail?.code === "NOT_INDEXED") {
@@ -1009,18 +1019,44 @@ export default function AiInsightPage() {
                             <SelectItem value="course">{t("insight.planOutputCourse")}</SelectItem>
                           </SelectContent>
                         </Select>
-                        <span className="text-muted-foreground">{t("insight.planLibraryTitle")}</span>
-                        <Select value={planLib} onValueChange={setPlanLib}>
-                          <SelectTrigger className="w-56">
-                            <SelectValue placeholder={t("insight.planLibraryAuto")} />
+                        <span className="text-muted-foreground">{t("insight.planTargetTitle")}</span>
+                        <Select
+                          value={planTarget ? `${planTarget.kind}:${planTarget.id}` : ""}
+                          onValueChange={(v) => {
+                            if (!v) {
+                              setPlanTarget(null)
+                              return
+                            }
+                            const [kind, id] = v.split(":")
+                            setPlanTarget({ kind: kind as "library" | "symlink", id })
+                          }}
+                        >
+                          <SelectTrigger className="w-64">
+                            <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">{t("insight.planLibraryAuto")}</SelectItem>
+                            <SelectItem value="">
+                              {defaultTarget
+                                ? t("insight.planTargetDefaultWith", {
+                                    name:
+                                      (defaultTarget.kind === "library"
+                                        ? resources.libraries.find((l) => l.id === defaultTarget.id)?.name
+                                        : resources.symlinks.find((m) => m.id === defaultTarget.id)?.name) ??
+                                      t("insight.planTargetDefault"),
+                                  })
+                                : t("insight.planTargetDefault")}
+                            </SelectItem>
                             {resources.libraries.map((l) => (
-                              <SelectItem key={l.id} value={l.id}>
-                                {l.name}
+                              <SelectItem key={`library:${l.id}`} value={`library:${l.id}`}>
+                                {t("insight.planTargetLibrary")}：{l.name}
                               </SelectItem>
                             ))}
+                            {symlinkAvailable &&
+                              resources.symlinks.map((m) => (
+                                <SelectItem key={`symlink:${m.id}`} value={`symlink:${m.id}`}>
+                                  {t("insight.planTargetSymlink")}：{m.name}
+                                </SelectItem>
+                              ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1048,13 +1084,27 @@ export default function AiInsightPage() {
                               {t("insight.planSummary")}：{planResult.summary}
                             </p>
                           )}
-                          <div className="mt-3 flex gap-2">
-                            <Button size="sm" asChild>
-                              <Link to={planResult.kind === "canvas" ? `/canvas/${planResult.collectionId}` : `/course/${planResult.collectionId}`}>
-                                {planResult.kind === "canvas" ? t("insight.planOpenCanvas") : t("insight.planOpenCourse")}
-                              </Link>
-                            </Button>
-                          </div>
+                          {planResult.target === "symlink" ? (
+                            <div className="mt-3 space-y-2">
+                              <p className="text-xs text-muted-foreground">
+                                {t("insight.planSavedToSymlink")}：{planResult.path}
+                              </p>
+                              <Button size="sm" variant="outline" asChild>
+                                <Link to={planResult.mountId ? `/files?mount=${planResult.mountId}` : "/files"}>
+                                  <FolderOpen className="size-4" />
+                                  {t("insight.planOpenFiles")}
+                                </Link>
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="mt-3 flex gap-2">
+                              <Button size="sm" asChild>
+                                <Link to={planResult.kind === "canvas" ? `/canvas/${planResult.collectionId}` : `/course/${planResult.collectionId}`}>
+                                  {planResult.kind === "canvas" ? t("insight.planOpenCanvas") : t("insight.planOpenCourse")}
+                                </Link>
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </CardContent>

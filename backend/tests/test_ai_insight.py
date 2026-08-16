@@ -104,6 +104,14 @@ class FakeSymlink:
             })
         return {"path": rel, "items": items}
 
+    def write_file(self, mount_id: str, rel: str, content: str) -> dict:
+        """写入挂载内文本文件（AI 洞察保存 .mpf 用）。"""
+        m = self.get_mount(mount_id)
+        target = Path(m["root"]) / rel.strip("/").replace("\\", "/")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        return {"ok": True, "path": rel, "bytes": len(content.encode("utf-8"))}
+
 
 def _reset():
     tmp = Path(tempfile.mkdtemp(prefix="metapilot_insight_"))
@@ -477,6 +485,86 @@ def test_plan_generates_course():
     blocks = col["documents"][0]["sections"][0]["blocks"]
     assert len(blocks) == 1  # 非 markdown 块被丢弃
     assert blocks[0]["type"] == "markdown"
+
+
+def test_plan_save_to_symlink_exports_mpf():
+    """/plan 指定保存到软链接：生成内容导出为 .mpf 写入挂载目录（含挂载内路径）。"""
+    t = _make_library()
+    client.post("/api/plugins/ai_insight/index", json={
+        "sources": [{"type": "library", "id": t["lib"]["id"]}],
+    })
+    _wait_indexed([f"lib_{t['lib']['id']}"])
+
+    root, mid = _make_symlink_dir()
+    manager.register_service("symlink.mounts",
+                             FakeSymlink([{"id": mid, "name": "外部资料", "root": str(root), "type": "dir"}]))
+
+    GW.captured.clear()
+    GW.replies = [
+        json.dumps({"theme": "时域与频域的联系", "summary": "s", "keyPoints": [],
+                    "relations": [], "outline": ["时域"]}, ensure_ascii=False),
+        json.dumps({"revisions": [], "extraPoints": []}, ensure_ascii=False),
+        json.dumps({"name": "信号处理概念图",
+                    "nodes": [{"id": "n1", "type": "text", "x": 0, "y": 0, "width": 240, "height": 90,
+                               "text": "傅里叶变换"}],
+                    "edges": []}, ensure_ascii=False),
+    ]
+    r = client.post("/api/plugins/ai_insight/plan", json={
+        "sources": [{"type": "library", "id": t["lib"]["id"]}],
+        "question": "梳理核心概念",
+        "output": "canvas",
+        "target": {"kind": "symlink", "id": mid, "path": "ai"},
+    })
+    assert r.status_code == 200, r.text
+    result = r.json()
+    assert result["target"] == "symlink"
+    assert result["mountId"] == mid
+    assert result["path"].endswith(".mpf") and result["path"].startswith("ai/")
+    # .mpf 已写入挂载目录 ai/ 下，且为 canvas 类型
+    written = list((root / "ai").glob("*.mpf"))
+    assert len(written) == 1
+    text = written[0].read_text(encoding="utf-8")
+    assert '"type": "canvas"' in text
+    assert "傅里叶变换" in text
+
+
+def test_plan_uses_default_target_symlink():
+    """未显式传 target 时，plan 保存到核心默认保存目标（这里设为软链接）。"""
+    t = _make_library()
+    client.post("/api/plugins/ai_insight/index", json={
+        "sources": [{"type": "library", "id": t["lib"]["id"]}],
+    })
+    _wait_indexed([f"lib_{t['lib']['id']}"])
+
+    root, mid = _make_symlink_dir()
+    manager.register_service("symlink.mounts",
+                             FakeSymlink([{"id": mid, "name": "外部资料", "root": str(root), "type": "dir"}]))
+    assert client.put("/api/default-target", json={"kind": "symlink", "id": mid}).status_code == 200
+
+    GW.captured.clear()
+    GW.replies = [
+        json.dumps({"theme": "信号处理", "summary": "s", "keyPoints": [],
+                    "relations": [], "outline": ["时域"]}, ensure_ascii=False),
+        json.dumps({"revisions": [], "extraPoints": []}, ensure_ascii=False),
+        json.dumps({"name": "信号处理微课",
+                    "description": "d",
+                    "documents": [{"name": "第1章", "docType": "study", "sections": [
+                        {"name": "时域", "blocks": [{"type": "markdown", "content": "# 时域\n\n内容。"}]},
+                    ]}]}, ensure_ascii=False),
+    ]
+    r = client.post("/api/plugins/ai_insight/plan", json={
+        "sources": [{"type": "library", "id": t["lib"]["id"]}],
+        "question": "生成入门课程",
+        "output": "course",
+    })
+    assert r.status_code == 200, r.text
+    result = r.json()
+    assert result["target"] == "symlink"
+    assert result["mountId"] == mid
+    # doc 类型 .mpf 写入挂载根目录
+    written = list(root.glob("*.mpf"))
+    assert len(written) == 1
+    assert '"type": "doc"' in written[0].read_text(encoding="utf-8")
 
 
 def test_plan_not_indexed_returns_409():

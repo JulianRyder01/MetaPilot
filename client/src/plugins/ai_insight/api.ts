@@ -63,13 +63,23 @@ export interface InsightAskResult {
   sources: KbSource[]
 }
 
-/** 洞察规划结果（已创建到库的集合） */
+/** 洞察规划结果（已保存）：target=symlink 时表示已导出 .mpf 到软链接挂载目录（无 collectionId/libraryId） */
 export interface InsightPlanResult {
   kind: InsightOutput
-  collectionId: string
+  collectionId?: string
   collectionName: string
-  libraryId: string
+  libraryId?: string
   summary?: string
+  target?: "library" | "symlink"
+  mountId?: string
+  path?: string
+}
+
+/** 洞察规划保存目标：library（库）/ symlink（软链接挂载，path 为挂载内相对路径） */
+export interface InsightPlanTarget {
+  kind: "library" | "symlink"
+  id: string
+  path?: string
 }
 
 /** embedding 状态（含可选模型清单与下载说明） */
@@ -120,10 +130,11 @@ export const insightPlan = (
   output: InsightOutput,
   libraryId = "",
   topK = 12,
+  target?: InsightPlanTarget,
 ) =>
   request<InsightPlanResult>("/plugins/ai_insight/plan", {
     method: "POST",
-    body: JSON.stringify({ sources, question, output, libraryId, topK }),
+    body: JSON.stringify({ sources, question, output, libraryId, topK, target }),
   })
 
 export const insightEmbeddingStatus = () =>
@@ -159,11 +170,12 @@ export function insightPlanStream(
   topK = 12,
   onEvent: (evt: InsightPlanStreamEvent) => void,
   signal?: AbortSignal,
+  target?: InsightPlanTarget,
 ): Promise<void> {
   return fetch(`${BASE}/plugins/ai_insight/plan/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sources, question, output, libraryId, topK }),
+    body: JSON.stringify({ sources, question, output, libraryId, topK, target }),
     signal,
   }).then(async (res) => {
     if (!res.ok) {

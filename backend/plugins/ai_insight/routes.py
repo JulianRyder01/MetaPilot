@@ -56,6 +56,8 @@ class PlanIn(BaseModel):
     output: Literal["canvas", "course"] = "canvas"
     libraryId: str = ""
     topK: int = 12
+    # 保存目标（可选）：{"kind": "library"|"symlink", "id", "path?"}；不传用默认保存目标
+    target: Optional[dict] = None
 
 
 class ModelIn(BaseModel):
@@ -180,11 +182,12 @@ async def ask(body: AskIn, request: Request):
 
 @router.post("/plan")
 async def plan(body: PlanIn, request: Request):
-    """洞察规划：多轮 agent 推理，生成图表（canvas）或课程（course）到指定库。"""
+    """洞察规划：多轮 agent 推理，生成图表（canvas）或课程（course），保存到目标库/软链接。"""
     svc = _svc(request)
     try:
         sources = [{"type": s.type, "id": s.id, "path": s.path} for s in body.sources]
-        return await svc.plan(sources, body.question, body.output, body.libraryId or None, body.topK)
+        return await svc.plan(sources, body.question, body.output, body.libraryId or None,
+                              body.topK, target=body.target)
     except NotIndexedError as e:
         raise HTTPException(status_code=409, detail={"code": "NOT_INDEXED", "keys": e.keys})
     except ValueError as e:
@@ -211,7 +214,7 @@ async def plan_stream(body: PlanIn, request: Request):
         try:
             sources = [{"type": s.type, "id": s.id, "path": s.path} for s in body.sources]
             result = await svc.plan(sources, body.question, body.output, body.libraryId or None,
-                                    body.topK, emit=emit)
+                                    body.topK, target=body.target, emit=emit)
             await queue.put({"type": "done", "result": result})
         except NotIndexedError as e:
             await queue.put({"type": "error", "code": "NOT_INDEXED", "keys": e.keys})

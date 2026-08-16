@@ -22,8 +22,9 @@ import numpy as np
 
 from app.config import settings
 from app.plugins.base import manager
+from app.services import mpf as mpf_service
 from app.services.ai_gateway import AIGateway
-from app.storage.store import LibraryStore
+from app.storage.store import LibraryStore, gen_id
 
 EMBED_BATCH = 16
 TOP_K = 5
@@ -55,6 +56,12 @@ MODE_PROMPTS: dict[str, str] = {
 
 # 洞察规划输出的节点颜色候选（JSON Canvas 兼容）
 CANVAS_COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#8b5cf6"]
+
+
+def _safe_filename(name: str) -> str:
+    """把内容名转为安全的文件名（去非法字符，限长）。"""
+    cleaned = re.sub(r'[\\/:*?"<>|\s]+', "_", name).strip("_")[:80]
+    return cleaned or "ai_insight"
 
 
 def _key_for(source: dict) -> str:
@@ -560,8 +567,14 @@ class InsightService:
 
     async def plan(self, sources: list[dict], question: str, output: str = "canvas",
                    library_id: Optional[str] = None, top_k: int = PLAN_TOP_K,
+                   target: Optional[dict] = None,
                    emit: Optional[Callable[[dict], Awaitable[None]]] = None) -> dict:
-        """多轮 agent 推理：分析联系 → 批判反思 → 生成目标结构（canvas / course），并创建到库。
+        """多轮 agent 推理：分析联系 → 批判反思 → 生成目标结构（canvas / course），并保存。
+
+        保存目标（target，可选）：{"kind": "library"|"symlink", "id", "path?"}——
+        - 不传时用核心默认保存目标（default-target，库或软链接）；未设置则回退第一个库；
+        - library：存入库结构（现有行为）；symlink：把生成内容导出为 .mpf 写入挂载目录（path 为挂载内相对路径）。
+        library_id 为旧参数兼容（等价 target={"kind":"library","id":library_id}，优先级低于 target/默认目标）。
 
         emit 可选：每步开始/结束与 AI 输出的事件回调（供前端 SSE 实时展示执行路线与思考内容）。
         事件协议为本插件前后端约定（step id: retrieve / plan / review / generate / save），
@@ -573,6 +586,8 @@ class InsightService:
             raise RuntimeError("请至少选择一个数据源")
         if not question.strip():
             raise RuntimeError("目标不能为空")
+
+        target = self._resolve_target(target, library_id)
 
         async def fire(evt: dict) -> None:
             if emit is not None:
@@ -619,10 +634,28 @@ class InsightService:
 
         merged = {"plan": plan1, "review": plan2, "question": question, "context": context}
         if output == "canvas":
-            return await self._generate_canvas(merged, library_id, emit=emit)
-        return await self._generate_course(merged, library_id, emit=emit)
+            return await self._generate_canvas(merged, target, emit=emit)
+        return await self._generate_course(merged, target, emit=emit)
 
-    async def _generate_canvas(self, merged: dict, library_id: Optional[str],
+    def _resolve_target(self, target: Optional[dict], library_id: Optional[str]) -> dict:
+        """解析保存目标：显式 target → 默认保存目标（default-target）→ 兼容 library_id → 第一个库。"""
+        if target and target.get("kind"):
+            return {
+                "kind": str(target["kind"]),
+                "id": str(target.get("id") or ""),
+                "path": str(target.get("path") or ""),
+            }
+        dt = self.store.get_default_target()
+        if dt.get("kind") and dt.get("id"):
+            return {"kind": dt["kind"], "id": dt["id"]}
+        if library_id:
+            return {"kind": "library", "id": library_id}
+        libs = self.store.list_libraries()
+        if not libs:
+            raise RuntimeError("未指定保存位置，且当前无可用库")
+        return {"kind": "library", "id": libs[0]["id"]}
+
+    async def _generate_canvas(self, merged: dict, target: dict,
                                emit: Optional[Callable[[dict], Awaitable[None]]] = None) -> dict:
         plan1, plan2, question, context = merged["plan"], merged["review"], merged["question"], merged["context"]
 
@@ -654,16 +687,21 @@ class InsightService:
         name = str(data.get("name") or plan1.get("theme") or "AI 洞察图表").strip()[:100]
         nodes = self._sanitize_canvas_nodes(data.get("nodes") or [])
         edges = self._sanitize_canvas_edges(data.get("edges") or [], nodes)
+        summary = plan1.get("summary", "")
 
         await fire({"type": "step", "step": "save", "status": "start"})
-        lib_id = self._pick_library(library_id)
-        col = self.store.create_collection(lib_id, {"name": name, "kind": "canvas", "description": question})
-        self.store.update_collection(col["id"], {"canvas": {"nodes": nodes, "edges": edges}})
+        if target["kind"] == "symlink":
+            result = self._save_canvas_to_symlink(name, nodes, edges, summary, target)
+        else:
+            lib_id = self._pick_library(target.get("id") or None)
+            col = self.store.create_collection(lib_id, {"name": name, "kind": "canvas", "description": question})
+            self.store.update_collection(col["id"], {"canvas": {"nodes": nodes, "edges": edges}})
+            result = {"kind": "canvas", "collectionId": col["id"], "collectionName": name,
+                      "libraryId": lib_id, "summary": summary}
         await fire({"type": "step", "step": "save", "status": "done"})
-        return {"kind": "canvas", "collectionId": col["id"], "collectionName": name,
-                "libraryId": lib_id, "summary": plan1.get("summary", "")}
+        return result
 
-    async def _generate_course(self, merged: dict, library_id: Optional[str],
+    async def _generate_course(self, merged: dict, target: dict,
                                emit: Optional[Callable[[dict], Awaitable[None]]] = None) -> dict:
         plan1, plan2, question, context = merged["plan"], merged["review"], merged["question"], merged["context"]
 
@@ -692,34 +730,82 @@ class InsightService:
         await fire({"type": "step", "step": "generate", "status": "done"})
 
         name = str(data.get("name") or plan1.get("theme") or "AI 洞察课程").strip()[:100]
-        await fire({"type": "step", "step": "save", "status": "start"})
-        lib_id = self._pick_library(library_id)
-        col = self.store.create_collection(lib_id, {
-            "name": name, "kind": "course", "description": data.get("description") or question,
-        })
         documents = data.get("documents") or []
         if not documents:
             # 兜底：用规划大纲生成单章
-            docs = [{"name": "第 1 章 核心概念", "docType": "study",
-                     "sections": [{"name": s, "blocks": [{"type": "markdown",
-                                                          "content": f"# {s}\n\n详见资料与洞察规划。", }]}
-                                  for s in (plan1.get("outline") or [])[:6]]}]
-            documents = docs
-        created = 0
+            documents = [{"name": "第 1 章 核心概念", "docType": "study",
+                          "sections": [{"name": s, "blocks": [{"type": "markdown",
+                                                               "content": f"# {s}\n\n详见资料与洞察规划。", }]}
+                                       for s in (plan1.get("outline") or [])[:6]]}]
+
+        # 清洗并构建文档结构（库存储与 .mpf 导出共用同一份数据）
+        built_docs: list[dict] = []
         for d in documents[:10]:
             doc_name = str(d.get("name") or "章节").strip()[:100]
-            doc = self.store.create_document(col["id"], {"name": doc_name, "docType": d.get("docType") or "study"})
+            sections = []
             for sec in (d.get("sections") or [])[:12]:
                 sec_name = str(sec.get("name") or "知识点").strip()[:100]
-                section = self.store.create_section(doc["id"], {"name": sec_name})
-                for b in (sec.get("blocks") or [])[:20]:
-                    if b.get("type") != "markdown" or not str(b.get("content") or "").strip():
-                        continue
-                    self.store.add_block(section["id"], {"type": "markdown", "content": str(b["content"])})
-                    created += 1
+                blocks = [{"type": "markdown", "content": str(b["content"])}
+                          for b in (sec.get("blocks") or [])[:20]
+                          if b.get("type") == "markdown" and str(b.get("content") or "").strip()]
+                sections.append({"id": gen_id(), "name": sec_name, "refDocId": "", "blocks": blocks})
+            built_docs.append({"id": gen_id(), "name": doc_name,
+                               "docType": str(d.get("docType") or "study"), "folderId": "",
+                               "sections": sections})
+        summary = plan1.get("summary", "")
+
+        await fire({"type": "step", "step": "save", "status": "start"})
+        if target["kind"] == "symlink":
+            col_data = {
+                "id": gen_id(), "name": name, "kind": "course",
+                "description": data.get("description") or question,
+                "author": "", "version": "1.0.0", "formatVersion": 1, "packageId": "",
+                "createdAt": datetime.now().isoformat(timespec="seconds"),
+                "updatedAt": datetime.now().isoformat(timespec="seconds"),
+                "documents": built_docs, "folders": [],
+            }
+            result = self._save_course_to_symlink(col_data, name, summary, target)
+        else:
+            lib_id = self._pick_library(target.get("id") or None)
+            col = self.store.create_collection(lib_id, {
+                "name": name, "kind": "course", "description": data.get("description") or question,
+            })
+            for doc_data in built_docs:
+                doc = self.store.create_document(col["id"], {
+                    "name": doc_data["name"], "docType": doc_data["docType"],
+                })
+                for sec in doc_data["sections"]:
+                    section = self.store.create_section(doc["id"], {"name": sec["name"]})
+                    for b in sec["blocks"]:
+                        self.store.add_block(section["id"], {"type": "markdown", "content": b["content"]})
+            result = {"kind": "course", "collectionId": col["id"], "collectionName": name,
+                      "libraryId": lib_id, "summary": summary}
         await fire({"type": "step", "step": "save", "status": "done"})
-        return {"kind": "course", "collectionId": col["id"], "collectionName": name,
-                "libraryId": lib_id, "summary": plan1.get("summary", "")}
+        return result
+
+    # ---- 保存到软链接：生成内容导出为 .mpf 文件 ----
+
+    def _save_canvas_to_symlink(self, name: str, nodes: list[dict], edges: list[dict],
+                                summary: str, target: dict) -> dict:
+        doc = {"type": "canvas", "name": name, "canvas": {"nodes": nodes, "edges": edges}}
+        return self._write_symlink_mpf(doc, "canvas", name, summary, target)
+
+    def _save_course_to_symlink(self, collection: dict, name: str, summary: str, target: dict) -> dict:
+        doc = {"type": "doc", "name": name, "collections": [collection]}
+        return self._write_symlink_mpf(doc, "course", name, summary, target)
+
+    def _write_symlink_mpf(self, doc: dict, kind: str, name: str, summary: str, target: dict) -> dict:
+        """把生成的图表/课程序列化为 .mpf 写入软链接挂载目录（path 为挂载内相对路径）。"""
+        if self.symlink is None:
+            raise RuntimeError("软链接插件不可用，无法保存到软链接")
+        self.symlink.get_mount(target["id"])  # 确认挂载存在
+        text = mpf_service.serialize_mpf(doc)
+        rel = (target.get("path") or "").strip("/").strip("\\")
+        filename = f"{_safe_filename(name)}.mpf"
+        full_rel = f"{rel}/{filename}" if rel else filename
+        self.symlink.write_file(target["id"], full_rel, text)
+        return {"kind": kind, "target": "symlink", "mountId": target["id"], "path": full_rel,
+                "collectionName": name, "summary": summary}
 
     def _pick_library(self, library_id: Optional[str]) -> str:
         if library_id:

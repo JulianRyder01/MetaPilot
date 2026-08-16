@@ -22,11 +22,11 @@ from typing import Optional
 
 from app.storage.store import _read_json, _write_json, gen_id
 
-# 可读/可写的文本扩展名白名单
+# 可读/可写的文本扩展名白名单（.mpf 为 MetaPilot 文档，AI 洞察可把生成结果存为 .mpf 到挂载目录）
 TEXT_EXTENSIONS = {
     ".md", ".markdown", ".txt", ".text", ".json", ".yaml", ".yml",
     ".csv", ".tsv", ".log", ".xml", ".html", ".css", ".js", ".ts",
-    ".py", ".toml", ".ini", ".conf", ".cfg",
+    ".py", ".toml", ".ini", ".conf", ".cfg", ".mpf",
 }
 # 可内联预览的媒体扩展名 → MIME（前端据此选择 <img>/<iframe>/<video>/<audio> 渲染）
 MEDIA_TYPES = {
