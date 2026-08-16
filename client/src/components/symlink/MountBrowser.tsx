@@ -13,8 +13,6 @@ import {
   Grid3X3,
   Link2,
   List,
-  PanelLeft,
-  PanelLeftClose,
   Pencil,
   Plus,
   RefreshCw,
@@ -40,7 +38,6 @@ import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { MarkdownBlock } from "@/components/learn/blocks/MarkdownBlock"
 import { useDialogs } from "@/components/ui/dialog-provider"
@@ -111,7 +108,6 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
   const [editContent, setEditContent] = useState("")
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"grid" | "list">("grid")
-  const [collapsed, setCollapsed] = useState(false)
   /** 右键菜单：在哪个文件上、出现在哪个屏幕坐标 */
   const [ctxMenu, setCtxMenu] = useState<{ item: SymlinkItem; x: number; y: number } | null>(null)
 
@@ -246,97 +242,15 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
   }
 
   const crumbs = path ? path.split("/").filter(Boolean) : []
-  const dirs = (tree?.items ?? []).filter((i) => i.type === "dir")
   const filteredItems = (tree?.items ?? []).filter((i) =>
     i.name.toLowerCase().includes(search.trim().toLowerCase()),
-  )
-
-  // ---- 左侧目录面板 ----
-  const sidePanel = collapsed ? (
-    <div className="flex w-10 shrink-0 flex-col items-center gap-2 border-r py-3">
-      <button onClick={() => setCollapsed(false)} className="rounded p-1.5 text-muted-foreground hover:bg-accent" title={t("symlink.expandDir")}>
-        <PanelLeft className="size-4" />
-      </button>
-      <button onClick={() => loadTree("")} className="rounded p-1.5 text-primary hover:bg-accent" title={mount.name}>
-        <Link2 className="size-4" />
-      </button>
-      {crumbs.map((c, i) => (
-        <button
-          key={i}
-          onClick={() => loadTree(crumbs.slice(0, i + 1).join("/"))}
-          className="rounded p-1.5 text-muted-foreground hover:bg-accent"
-          title={c}
-        >
-          <Folder className="size-4" />
-        </button>
-      ))}
-    </div>
-  ) : (
-    <aside className="flex w-52 shrink-0 flex-col border-r">
-      <div className="flex items-center justify-between border-b px-3 py-2">
-        <button
-          onClick={() => loadTree("")}
-          className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-          title={mount.name}
-        >
-          <Link2 className="size-3.5 shrink-0" />
-          <span className="truncate">{mount.name}</span>
-        </button>
-        <button onClick={() => setCollapsed(true)} className="rounded p-1 text-muted-foreground hover:bg-accent" title={t("symlink.collapseDir")}>
-          <PanelLeftClose className="size-3.5" />
-        </button>
-      </div>
-      <ScrollArea className="flex-1">
-        <div className="p-2">
-          {/* 路径层级（面包屑，可向上跳转） */}
-          <p className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">{t("symlink.directory")}</p>
-          <div className="mb-2 space-y-0.5">
-            {crumbs.map((c, i) => {
-              const target = crumbs.slice(0, i + 1).join("/")
-              return (
-                <button
-                  key={i}
-                  onClick={() => loadTree(target)}
-                  className="flex w-full items-center gap-1 rounded px-1.5 py-1 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-                >
-                  <Folder className="size-3 shrink-0" />
-                  <span className="truncate">{c}</span>
-                </button>
-              )
-            })}
-            {crumbs.length === 0 && (
-              <p className="px-1.5 py-0.5 text-xs text-muted-foreground">{t("symlink.rootDir")}</p>
-            )}
-          </div>
-          {/* 当前目录的子文件夹 */}
-          <p className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">{t("symlink.folder")}</p>
-          <div className="space-y-0.5">
-            {dirs.map((d) => (
-              <button
-                key={d.name}
-                onClick={() => openItem(d)}
-                className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-              >
-                <FolderOpen className="size-3.5 shrink-0 text-primary" />
-                <span className="truncate">{d.name}</span>
-              </button>
-            ))}
-            {dirs.length === 0 && (
-              <p className="px-1.5 py-0.5 text-xs text-muted-foreground">{t("symlink.noSubfolders")}</p>
-            )}
-          </div>
-        </div>
-      </ScrollArea>
-    </aside>
   )
 
   // ---- 右侧主区 ----
   return (
     <>
-    <div className="flex min-h-[calc(100vh-240px)] overflow-hidden rounded-lg border">
-      {sidePanel}
-
-      {/* 主区 */}
+    <div className="min-h-[calc(100vh-240px)] overflow-hidden rounded-lg border">
+      {/* 主区：与库一致的文件视图（文件夹 + 文档卡片/列表 + 面包屑导航） */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* 工具栏 */}
         <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
@@ -504,7 +418,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                       : t("symlink.emptyDir")}
                 </p>
               ) : view === "grid" ? (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {filteredItems.map((item) => (
                     <div
                       key={item.name}
@@ -512,7 +426,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                         e.preventDefault()
                         setCtxMenu({ item, x: e.clientX, y: e.clientY })
                       }}
-                      className="group relative rounded-lg border p-3 transition-colors hover:bg-accent/40"
+                      className="group relative rounded-lg border p-4 transition-shadow hover:shadow-md"
                     >
                       <button onClick={() => openItem(item)} className="flex w-full flex-col items-center gap-2 text-center">
                         {item.type === "dir" ? (
@@ -520,8 +434,13 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                         ) : (
                           <FileTypeIcon name={item.name} />
                         )}
-                        <span className="line-clamp-2 w-full break-all text-xs">{item.name}</span>
-                        {item.type === "file" && (
+                        <span className="line-clamp-2 w-full break-all text-xs font-medium">{item.name}</span>
+                        {item.type === "dir" ? (
+                          <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            <Folder className="size-2.5" />
+                            {t("symlink.folder")}
+                          </span>
+                        ) : (
                           <span className="text-[10px] text-muted-foreground">{fmtSize(item.size)}</span>
                         )}
                       </button>
@@ -538,7 +457,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                   ))}
                 </div>
               ) : (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   {filteredItems.map((item) => (
                     <div
                       key={item.name}
@@ -546,7 +465,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                         e.preventDefault()
                         setCtxMenu({ item, x: e.clientX, y: e.clientY })
                       }}
-                      className="group flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-accent/40"
+                      className="group flex items-center gap-3 rounded-lg border px-4 py-3 text-sm hover:bg-accent/40"
                     >
                       <button onClick={() => openItem(item)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
                         {item.type === "dir" ? (
@@ -554,9 +473,11 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                         ) : (
                           <FileTypeIcon name={item.name} />
                         )}
-                        <span className="truncate">{item.name}</span>
-                        {item.type === "file" && (
+                        <span className="truncate font-medium">{item.name}</span>
+                        {item.type === "file" ? (
                           <span className="ml-auto shrink-0 text-xs text-muted-foreground">{fmtSize(item.size)}</span>
+                        ) : (
+                          <Badge variant="secondary">{t("symlink.folder")}</Badge>
                         )}
                       </button>
                       {mount.type !== "file" && (
