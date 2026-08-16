@@ -9,7 +9,6 @@ import {
   GraduationCap,
   Pencil,
   Play,
-  Rocket,
   Sparkles,
 } from "lucide-react"
 import { toast } from "@/lib/toast"
@@ -23,7 +22,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress as ProgressBar } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
-import { PluginGate } from "@/components/plugins/PluginGate"
 
 export default function CoursePage() {
   const t = useT()
@@ -216,21 +214,6 @@ export default function CoursePage() {
           </div>
         )}
       </div>
-
-      {/* AI 洞察入口 */}
-      <PluginGate pluginId="ai_insight" hint={t("course.insightHint")} compact>
-        <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-4">
-          <div className="flex items-center gap-2 text-sm">
-            <Rocket className="size-4 text-primary" />
-            <span>
-              {t("course.insightIntro")}
-            </span>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => navigate(`/insight?cid=${cid}`)}>
-            {t("course.openInsight")}
-          </Button>
-        </div>
-      </PluginGate>
     </div>
   )
 }

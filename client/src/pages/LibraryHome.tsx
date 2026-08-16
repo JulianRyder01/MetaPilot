@@ -246,7 +246,15 @@ export default function LibraryHome() {
                           key={a.id}
                           variant="outline"
                           size="sm"
-                          onClick={() => a.onCreate?.({ libraryId: current.id, refresh })}
+                          onClick={() =>
+                            a.onCreate?.({
+                              libraryId: current.id,
+                              refresh,
+                              navigate,
+                              prompt,
+                              confirm,
+                            })
+                          }
                         >
                           {Icon && <Icon className="size-4" />}
                           {t(a.createLabel ?? "")}
@@ -329,7 +337,7 @@ export default function LibraryHome() {
                                         onClick={(e) => {
                                           e.preventDefault()
                                           e.stopPropagation()
-                                          a.onConvert?.(col, { refresh })
+                                          a.onConvert?.(col, { libraryId: current.id, refresh, navigate, prompt, confirm })
                                         }}
                                       >
                                         {CvtIcon && <CvtIcon className="size-3" />}
@@ -384,7 +392,7 @@ export default function LibraryHome() {
                                     onClick={(e) => {
                                       e.preventDefault()
                                       e.stopPropagation()
-                                      a.onConvert?.(col, { refresh })
+                                      a.onConvert?.(col, { libraryId: current.id, refresh, navigate, prompt, confirm })
                                     }}
                                   >
                                     {CvtIcon && <CvtIcon className="size-3" />}

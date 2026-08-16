@@ -47,6 +47,28 @@ export interface CollectionRef {
   kind: string
 }
 
+/** 集合操作上下文：核心向插件注入的库级能力（回调内真实调用后端 API，禁止 mock） */
+export interface CollectionActionCtx {
+  libraryId: string
+  refresh: () => void
+  navigate: (to: string) => void
+  /** 填空弹窗（取消返回 null）：插件新建集合等命名交互 */
+  prompt: (options: {
+    title: string
+    placeholder?: string
+    initialValue?: string
+    confirmText?: string
+    cancelText?: string
+  }) => Promise<string | null>
+  /** 确认弹窗：插件执行不可逆操作（如转换）前确认 */
+  confirm: (options: {
+    title: string
+    description?: string
+    confirmText?: string
+    destructive?: boolean
+  }) => Promise<boolean>
+}
+
 /** 「我的库」页集合创建/转换操作扩展点（插件向库首页注入新建按钮与集合转换操作）。
  *
  * - create*：库首页操作区的新建按钮（label 为 i18n key，icon 为 lucide 图标名字符串）；
@@ -59,14 +81,14 @@ export interface PluginCollectionAction {
   createLabel?: string
   /** 新建按钮图标（lucide 图标名，宿主动态解析） */
   createIcon?: string
-  onCreate?: (ctx: { libraryId: string; refresh: () => void }) => void
+  onCreate?: (ctx: CollectionActionCtx) => void
   /** 转换操作文案（i18n key） */
   convertLabel?: string
   /** 转换操作图标（lucide 图标名） */
   convertIcon?: string
   /** 某集合是否可执行转换（false 则不显示转换操作） */
   canConvert?: (col: CollectionRef) => boolean
-  onConvert?: (col: CollectionRef, ctx: { refresh: () => void }) => void
+  onConvert?: (col: CollectionRef, ctx: CollectionActionCtx) => void
 }
 
 /** 设置页贡献的分区（如主题选装） */

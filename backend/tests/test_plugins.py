@@ -147,6 +147,37 @@ def test_disable_course_blocks_import_and_notes():
     assert resp.status_code == 200
 
 
+def test_convert_document_collection_to_course():
+    """文档集转课程：课程=打了补丁的文档（kind=course + 转换标记）；图表/已转/禁用门禁均拒绝。"""
+    lib = client.post("/api/libraries", json={"name": "库A"}).json()
+    # 核心创建笔记文档集（默认 kind=note）
+    note = client.post(f"/api/libraries/{lib['id']}/collections", json={"name": "我的笔记", "kind": "note"}).json()
+    assert note["kind"] == "note"
+
+    # 课程插件端点：转为课程（补丁 kind + convertedFrom/convertedAt）
+    r = client.post(f"/api/plugins/course/collections/{note['id']}/convert")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["collection"]["kind"] == "course"
+    assert body["collection"]["convertedFrom"] == "note"
+    assert body["collection"]["convertedAt"]
+
+    # 已是课程：拒绝
+    assert client.post(f"/api/plugins/course/collections/{note['id']}/convert").status_code == 400
+    # 图表不能转课程
+    canvas = client.post(f"/api/libraries/{lib['id']}/collections", json={"name": "图", "kind": "canvas"}).json()
+    assert client.post(f"/api/plugins/course/collections/{canvas['id']}/convert").status_code == 400
+    # 不存在：404
+    assert client.post("/api/plugins/course/collections/nope/convert").status_code == 404
+    # 禁用课程插件：503（requires_plugin 门禁）
+    client.post("/api/plugins/course/disable")
+    try:
+        assert client.post(f"/api/plugins/course/collections/{canvas['id']}/convert").status_code == 503
+    finally:
+        client.post("/api/plugins/course/enable")
+
+
 def test_disable_ai_insight_blocks_ask():
     r = client.post("/api/plugins/ai_insight/disable").json()
     assert r["enabled"] is False
