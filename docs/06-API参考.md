@@ -20,7 +20,7 @@
 | POST | `/api/plugins/upload` | 上传 zip 本地安装（multipart `file`，不经商店） |
 | POST | `/api/plugins/store/publish` | 上传 zip 发布到商店（multipart `file`） |
 
-## 3. 库 / 文档集 / 文档 / 小节 / 块（内容 CRUD）
+## 3. 库 / 文件夹 / 文档 / 小节 / 块（内容 CRUD）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -29,11 +29,11 @@
 | GET | `/api/libraries/{lid}` | 库完整树（含全部内容） |
 | PUT | `/api/libraries/{lid}` | 更新库 |
 | DELETE | `/api/libraries/{lid}` | 删除库 |
-| POST | `/api/libraries/{lid}/collections` | 新建文档集（课程）`{name, kind, description, author, version}` |
-| GET | `/api/collections/{cid}` | 文档集（课程）详情 |
-| PUT | `/api/collections/{cid}` | 更新文档集 |
-| DELETE | `/api/collections/{cid}` | 删除文档集 |
-| POST | `/api/collections/{cid}/documents` | 新建文档（章节）`{name, docType}` |
+| POST | `/api/libraries/{lid}/folders` | 新建文件夹（课程）`{name, kind, description, author, version}` |
+| GET | `/api/folders/{fid}` | 文件夹（课程）详情 |
+| PUT | `/api/folders/{fid}` | 更新文件夹 |
+| DELETE | `/api/folders/{fid}` | 删除文件夹 |
+| POST | `/api/folders/{fid}/documents` | 新建文档（章节）`{name, docType}` |
 | PUT | `/api/documents/{did}` | 更新文档 |
 | DELETE | `/api/documents/{did}` | 删除文档 |
 | POST | `/api/documents/{did}/sections` | 新建小节（知识点）`{name}` |
