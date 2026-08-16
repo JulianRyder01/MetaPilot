@@ -4,7 +4,7 @@ import { BookOpen, Globe, Library, Puzzle, Settings2, type LucideIcon } from "lu
 import * as Lucide from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { useT, LANGS, useI18nStore } from "@/i18n"
+import { useT, useLangs, useI18nStore } from "@/i18n"
 import { useThemeStore } from "@/stores/theme"
 import { usePluginsStore, ensurePluginsLoaded } from "@/stores/plugins"
 import { allPluginNavItems, usePluginRuntimeFrontends } from "@/plugins/registry"
@@ -43,6 +43,7 @@ export default function AppLayout() {
   const plugins = usePluginsStore((s) => s.plugins)
   const dynamic = usePluginRuntimeFrontends()
   const t = useT()
+  const langs = useLangs()
   const lang = useI18nStore((s) => s.lang)
   const setLang = useI18nStore((s) => s.setLang)
   const [langOpen, setLangOpen] = useState(false)
@@ -108,7 +109,7 @@ export default function AppLayout() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {LANGS.map((l) => (
+                {langs.map((l) => (
                   <DropdownMenuItem key={l.value} onClick={() => setLang(l.value)}>
                     <span className="flex-1">{l.native}</span>
                     {lang === l.value && <Check className="size-4 text-primary" />}

@@ -11,7 +11,7 @@
  */
 import { create } from "zustand"
 
-import { registerI18n, translate, useI18nStore, type Lang } from "@/i18n"
+import { registerI18n, registerLang, translate, useI18nStore, type Lang, type LangDef } from "@/i18n"
 import type { PluginFrontend } from "./types"
 
 interface PluginRuntimeState {
@@ -75,9 +75,12 @@ export function ensurePluginRegistry() {
  *
  * 第三方 frontend.js 无法 import 宿主模块，需要感知当前界面语言/取词条时
  * 经 window.MetaPilotI18n：
- * - getLang(): 当前界面语言（zh-CN / zh-TW / en）；
+ * - getLang(): 当前界面语言（zh-CN / zh-TW / en，或插件注册的动态语言）；
  * - translate(key, params?): 取词条（含插件经 registerI18n 注入的词典）；
- * - subscribe(fn): 订阅界面语言变化（返回取消订阅函数）。
+ * - subscribe(fn): 订阅界面语言变化（返回取消订阅函数）；
+ * - registerLang({value, native}, dict?): 注册新的界面语言（可选附带该语言词典），
+ *   注册后 Globe 下拉/设置页语言选择立即出现该语言，translate 按新语言取词条，
+ *   缺失词条回退简体中文。
  */
 export function ensureI18nBridge() {
   if (!window.MetaPilotI18n) {
@@ -85,6 +88,7 @@ export function ensureI18nBridge() {
       getLang: () => useI18nStore.getState().lang,
       translate: (key: string, params?: Record<string, string | number>) => translate(key, params),
       subscribe: (fn: (lang: Lang) => void) => useI18nStore.subscribe((s) => fn(s.lang)),
+      registerLang: (def: LangDef, dict?: Record<string, string>) => registerLang(def, dict),
     }
   }
 }
@@ -96,6 +100,7 @@ declare global {
       getLang: () => Lang
       translate: (key: string, params?: Record<string, string | number>) => string
       subscribe: (fn: (lang: Lang) => void) => () => void
+      registerLang: (def: LangDef, dict?: Record<string, string>) => void
     }
     React?: unknown
   }

@@ -1,6 +1,6 @@
 import { Languages, Palette, Settings2 } from "lucide-react"
 
-import { LANGS, useI18nStore, useT } from "@/i18n"
+import { useLangs, useI18nStore, useT } from "@/i18n"
 import { useSettingsStore } from "@/stores/settings"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 
 export default function SettingsPage() {
   const t = useT()
+  const langs = useLangs()
   const lang = useI18nStore((s) => s.lang)
   const setLang = useI18nStore((s) => s.setLang)
   const {
@@ -42,7 +43,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            {LANGS.map((l) => (
+            {langs.map((l) => (
               <button
                 key={l.value}
                 onClick={() => setLang(l.value)}
