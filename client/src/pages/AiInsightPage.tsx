@@ -13,6 +13,7 @@ import {
   FolderTree,
   Library,
   Lightbulb,
+  ListChecks,
   Loader2,
   MessagesSquare,
   Network,
@@ -23,6 +24,7 @@ import {
   Sparkles,
   Square,
   Wand2,
+  X,
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { ApiError, type KbSource, type SymlinkTree } from "@/lib/api"
@@ -36,11 +38,13 @@ import {
   insightEmbeddingStop,
   insightIndex,
   insightPlan,
+  insightPlanStream,
   insightResources,
   insightStatus,
   insightSymlinkTree,
   type InsightMode,
   type InsightOutput,
+  type InsightPlanStepId,
   type InsightResourceNode,
   type InsightResources,
   type InsightSourceRef,
@@ -74,6 +78,27 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 /** 数据源 → 选择集 key */
 const srcKey = (r: InsightSourceRef) => `${r.type}:${r.id}:${r.path ?? ""}`
+
+/** 洞察规划执行路线（todo list）：与后端 /plan/stream 的 step id 对应，顺序即展示顺序 */
+const PLAN_STEP_ORDER: InsightPlanStepId[] = ["retrieve", "plan", "review", "generate", "save"]
+
+interface PlanStepState {
+  status: "pending" | "running" | "done" | "error"
+  content?: string
+}
+
+function emptyPlanSteps(): Record<InsightPlanStepId, PlanStepState> {
+  return Object.fromEntries(PLAN_STEP_ORDER.map((id) => [id, { status: "pending" }])) as Record<InsightPlanStepId, PlanStepState>
+}
+
+/** AI 思考输出展示：JSON 美化缩进，非 JSON 原样 */
+function formatPlanOutput(raw: string) {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2)
+  } catch {
+    return raw
+  }
+}
 
 /** 记住停留在「第一步 · 建索引」还是「第二步 · 问 AI」，切换页面/刷新后恢复 */
 const TAB_STORAGE_KEY = "aiInsight.activeTab"
@@ -270,6 +295,11 @@ export default function AiInsightPage() {
   const [planLib, setPlanLib] = useState("")
   const [planning, setPlanning] = useState(false)
   const [planResult, setPlanResult] = useState<Awaited<ReturnType<typeof insightPlan>> | null>(null)
+  // 洞察规划执行路线：每步状态与 AI 思考输出（/plan/stream 实时推送）
+  const [planSteps, setPlanSteps] = useState<Record<InsightPlanStepId, PlanStepState>>(emptyPlanSteps())
+  // 流式规划请求的取消句柄：离开页面时中断，避免悬挂
+  const abortRef = useRef<AbortController | null>(null)
+  useEffect(() => () => abortRef.current?.abort(), [])
 
   const loadResources = useCallback(async () => {
     setLoadingResources(true)
@@ -476,14 +506,42 @@ export default function AiInsightPage() {
     if (refs.length === 0 || !question.trim() || planning) return
     setPlanning(true)
     setPlanResult(null)
+    setPlanSteps(emptyPlanSteps())
+    const ac = new AbortController()
+    abortRef.current = ac
     try {
       await ensureIndexed(refs)
-      const r = await insightPlan(refs, question.trim(), planOutput, planLib)
-      setPlanResult(r)
-      toast.success(t("insight.planDone", { name: r.collectionName }))
+      await insightPlanStream(refs, question.trim(), planOutput, planLib, 12, (evt) => {
+        if (evt.type === "step") {
+          setPlanSteps((prev) => ({
+            ...prev,
+            [evt.step]: { ...prev[evt.step], status: evt.status === "start" ? "running" : "done" },
+          }))
+        } else if (evt.type === "think") {
+          setPlanSteps((prev) => ({ ...prev, [evt.step]: { ...prev[evt.step], content: evt.content } }))
+        } else if (evt.type === "done") {
+          setPlanResult(evt.result)
+          toast.success(t("insight.planDone", { name: evt.result.collectionName }))
+        } else if (evt.type === "error") {
+          // 把仍在运行中的步骤标记为失败（error 事件由 insightPlanStream 抛错，此处仅更新 UI）
+          setPlanSteps((prev) => {
+            const next = { ...prev }
+            for (const id of PLAN_STEP_ORDER) {
+              if (next[id].status === "running") next[id] = { ...next[id], status: "error" }
+            }
+            return next
+          })
+        }
+      }, ac.signal)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("insight.planFailed"))
+      const detail = e instanceof ApiError ? (e.detail as { code?: string } | undefined) : undefined
+      if (detail?.code === "NOT_INDEXED") {
+        toast.error(t("insight.autoIndexFailed"))
+      } else {
+        toast.error(e instanceof Error ? e.message : t("insight.planFailed"))
+      }
     } finally {
+      abortRef.current = null
       setPlanning(false)
     }
   }
@@ -972,12 +1030,6 @@ export default function AiInsightPage() {
                         {planning ? <Loader2 className="size-4 animate-spin" /> : <Network className="size-4" />}
                         {t("insight.planButton")}
                       </Button>
-                      {planning && (
-                        <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Loader2 className="size-3.5 animate-spin" />
-                          {t("insight.planning")}
-                        </p>
-                      )}
                       {planResult && (
                         <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
                           <p className="flex items-center gap-2 text-sm font-medium">
@@ -998,6 +1050,77 @@ export default function AiInsightPage() {
                           </div>
                         </div>
                       )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* 洞察规划执行中：执行路线（todo list）+ 实时 AI 思考输出 */}
+                {mode === "plan" && planning && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <ListChecks className="size-4 text-primary" />
+                        {t("insight.planRoadmap")}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <ol className="space-y-1.5">
+                        {PLAN_STEP_ORDER.map((id, idx) => {
+                          const st = planSteps[id]
+                          const label =
+                            id === "generate"
+                              ? t(planOutput === "canvas" ? "insight.planStep.generateCanvas" : "insight.planStep.generateCourse")
+                              : t(`insight.planStep.${id}`)
+                          return (
+                            <li key={id} className="flex items-center gap-2 text-sm">
+                              <span className="flex size-5 shrink-0 items-center justify-center">
+                                {st.status === "done" ? (
+                                  <Check className="size-4 text-primary" />
+                                ) : st.status === "running" ? (
+                                  <Loader2 className="size-4 animate-spin text-primary" />
+                                ) : st.status === "error" ? (
+                                  <X className="size-4 text-destructive" />
+                                ) : (
+                                  <span className="size-2 rounded-full bg-muted-foreground/40" />
+                                )}
+                              </span>
+                              <span className={cn("min-w-0 truncate", st.status === "pending" ? "text-muted-foreground" : "font-medium")}>
+                                {idx + 1}. {label}
+                              </span>
+                              {st.status === "running" && (
+                                <span className="shrink-0 text-xs text-muted-foreground">{t("insight.planStepRunning")}</span>
+                              )}
+                            </li>
+                          )
+                        })}
+                      </ol>
+
+                      {/* AI 思考过程：已完成/进行中步骤的输出实时展示 */}
+                      <div className="space-y-2 border-t pt-3">
+                        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                          <Brain className="size-3.5" />
+                          {t("insight.planThinking")}
+                        </p>
+                        {PLAN_STEP_ORDER.filter((id) => planSteps[id].content).map((id) => (
+                          <div key={id} className="rounded-md border bg-muted/40 p-2.5">
+                            <p className="mb-1 text-xs font-medium">
+                              {id === "generate"
+                                ? t(planOutput === "canvas" ? "insight.planStep.generateCanvas" : "insight.planStep.generateCourse")
+                                : t(`insight.planStep.${id}`)}
+                            </p>
+                            <pre className="max-h-52 overflow-auto whitespace-pre-wrap text-xs leading-relaxed">
+                              {formatPlanOutput(planSteps[id].content ?? "")}
+                            </pre>
+                          </div>
+                        ))}
+                        {!PLAN_STEP_ORDER.some((id) => planSteps[id].status === "running") &&
+                          !PLAN_STEP_ORDER.some((id) => planSteps[id].status === "done") && (
+                            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Loader2 className="size-3.5 animate-spin" />
+                              {t("insight.planConnecting")}
+                            </p>
+                          )}
+                      </div>
                     </CardContent>
                   </Card>
                 )}

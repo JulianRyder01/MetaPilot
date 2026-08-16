@@ -16,7 +16,7 @@ import re
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 
 import numpy as np
 
@@ -544,8 +544,14 @@ class InsightService:
     # ---------------- 洞察规划（多轮 agent + 生成） ----------------
 
     async def plan(self, sources: list[dict], question: str, output: str = "canvas",
-                   library_id: Optional[str] = None, top_k: int = PLAN_TOP_K) -> dict:
-        """多轮 agent 推理：分析联系 → 批判反思 → 生成目标结构（canvas / course），并创建到库。"""
+                   library_id: Optional[str] = None, top_k: int = PLAN_TOP_K,
+                   emit: Optional[Callable[[dict], Awaitable[None]]] = None) -> dict:
+        """多轮 agent 推理：分析联系 → 批判反思 → 生成目标结构（canvas / course），并创建到库。
+
+        emit 可选：每步开始/结束与 AI 输出的事件回调（供前端 SSE 实时展示执行路线与思考内容）。
+        事件协议为本插件前后端约定（step id: retrieve / plan / review / generate / save），
+        展示文案由前端词典提供，不写死其它插件描述。
+        """
         if output not in ("canvas", "course"):
             raise ValueError(f"未知生成类型: {output}")
         if not sources:
@@ -553,10 +559,17 @@ class InsightService:
         if not question.strip():
             raise RuntimeError("目标不能为空")
 
+        async def fire(evt: dict) -> None:
+            if emit is not None:
+                await emit(evt)
+
+        await fire({"type": "step", "step": "retrieve", "status": "start"})
         hits = await self._retrieve(sources, question, top_k)
+        await fire({"type": "step", "step": "retrieve", "status": "done"})
         context = self._context_text(hits)
 
         # Round 1：主题与联系分析
+        await fire({"type": "step", "step": "plan", "status": "start"})
         r1 = await self.gateway.chat([
             {"role": "system", "content": (
                 "你是 AI 洞察规划引擎。请分析下面资料之间的联系，形成一份主题洞察规划。"
@@ -569,9 +582,12 @@ class InsightService:
             )},
             {"role": "user", "content": f"{context}\n\n用户目标：{question}"},
         ], temperature=0.3, max_tokens=1600, response_format={"type": "json_object"}, plugin="ai_insight")
+        await fire({"type": "think", "step": "plan", "content": r1["content"]})
         plan1 = _extract_json(r1["content"])
+        await fire({"type": "step", "step": "plan", "status": "done"})
 
         # Round 2：批判反思，补充遗漏
+        await fire({"type": "step", "step": "review", "status": "start"})
         r2 = await self.gateway.chat([
             {"role": "system", "content": (
                 "你是批判性审阅者。以下是第一轮形成的洞察规划。请以批判性视角结合资料审视，"
@@ -584,15 +600,24 @@ class InsightService:
                 f"第一轮规划：\n{json.dumps(plan1, ensure_ascii=False, indent=2)}\n\n资料：\n{context}"
             )},
         ], temperature=0.3, max_tokens=1200, response_format={"type": "json_object"}, plugin="ai_insight")
+        await fire({"type": "think", "step": "review", "content": r2["content"]})
         plan2 = _extract_json(r2["content"])
+        await fire({"type": "step", "step": "review", "status": "done"})
 
         merged = {"plan": plan1, "review": plan2, "question": question, "context": context}
         if output == "canvas":
-            return await self._generate_canvas(merged, library_id)
-        return await self._generate_course(merged, library_id)
+            return await self._generate_canvas(merged, library_id, emit=emit)
+        return await self._generate_course(merged, library_id, emit=emit)
 
-    async def _generate_canvas(self, merged: dict, library_id: Optional[str]) -> dict:
+    async def _generate_canvas(self, merged: dict, library_id: Optional[str],
+                               emit: Optional[Callable[[dict], Awaitable[None]]] = None) -> dict:
         plan1, plan2, question, context = merged["plan"], merged["review"], merged["question"], merged["context"]
+
+        async def fire(evt: dict) -> None:
+            if emit is not None:
+                await emit(evt)
+
+        await fire({"type": "step", "step": "generate", "status": "start"})
         r = await self.gateway.chat([
             {"role": "system", "content": (
                 "你是知识图表设计师。请根据洞察规划生成一张知识图表（canvas），用于直观展示概念与联系。"
@@ -610,20 +635,31 @@ class InsightService:
                 f"\n\n资料：\n{context[:16000]}"
             )},
         ], temperature=0.4, max_tokens=4000, response_format={"type": "json_object"}, plugin="ai_insight")
+        await fire({"type": "think", "step": "generate", "content": r["content"]})
         data = _extract_json(r["content"])
+        await fire({"type": "step", "step": "generate", "status": "done"})
 
         name = str(data.get("name") or plan1.get("theme") or "AI 洞察图表").strip()[:100]
         nodes = self._sanitize_canvas_nodes(data.get("nodes") or [])
         edges = self._sanitize_canvas_edges(data.get("edges") or [], nodes)
 
+        await fire({"type": "step", "step": "save", "status": "start"})
         lib_id = self._pick_library(library_id)
         col = self.store.create_collection(lib_id, {"name": name, "kind": "canvas", "description": question})
         self.store.update_collection(col["id"], {"canvas": {"nodes": nodes, "edges": edges}})
+        await fire({"type": "step", "step": "save", "status": "done"})
         return {"kind": "canvas", "collectionId": col["id"], "collectionName": name,
                 "libraryId": lib_id, "summary": plan1.get("summary", "")}
 
-    async def _generate_course(self, merged: dict, library_id: Optional[str]) -> dict:
+    async def _generate_course(self, merged: dict, library_id: Optional[str],
+                               emit: Optional[Callable[[dict], Awaitable[None]]] = None) -> dict:
         plan1, plan2, question, context = merged["plan"], merged["review"], merged["question"], merged["context"]
+
+        async def fire(evt: dict) -> None:
+            if emit is not None:
+                await emit(evt)
+
+        await fire({"type": "step", "step": "generate", "status": "start"})
         r = await self.gateway.chat([
             {"role": "system", "content": (
                 "你是课程设计师。请根据洞察规划生成一门微课程（文档结构），用于循序渐进地教学用户。"
@@ -640,9 +676,12 @@ class InsightService:
                 f"\n\n资料：\n{context[:16000]}"
             )},
         ], temperature=0.4, max_tokens=5000, response_format={"type": "json_object"}, plugin="ai_insight")
+        await fire({"type": "think", "step": "generate", "content": r["content"]})
         data = _extract_json(r["content"])
+        await fire({"type": "step", "step": "generate", "status": "done"})
 
         name = str(data.get("name") or plan1.get("theme") or "AI 洞察课程").strip()[:100]
+        await fire({"type": "step", "step": "save", "status": "start"})
         lib_id = self._pick_library(library_id)
         col = self.store.create_collection(lib_id, {
             "name": name, "kind": "course", "description": data.get("description") or question,
@@ -667,6 +706,7 @@ class InsightService:
                         continue
                     self.store.add_block(section["id"], {"type": "markdown", "content": str(b["content"])})
                     created += 1
+        await fire({"type": "step", "step": "save", "status": "done"})
         return {"kind": "course", "collectionId": col["id"], "collectionName": name,
                 "libraryId": lib_id, "summary": plan1.get("summary", "")}
 

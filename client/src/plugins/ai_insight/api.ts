@@ -3,7 +3,7 @@
  * 端点全部位于 /api/plugins/ai_insight/*（规范 §4 统一前缀）。
  * 数据源多粒度：library（库）/ collection（文档集）/ document（文档）/ symlink（软链接挂载或挂载内路径）。
  */
-import { request, type KbEmbeddingStatus, type KbSource, type SymlinkTree } from "@/lib/api"
+import { request, ApiError, BASE, type KbEmbeddingStatus, type KbSource, type SymlinkTree } from "@/lib/api"
 
 /** 数据源标识（path 为 symlink 挂载内相对路径，空 = 整个挂载） */
 export interface InsightSourceRef {
@@ -137,3 +137,73 @@ export const insightEmbeddingStart = (model = "") =>
 
 export const insightEmbeddingStop = () =>
   request<{ ok: boolean }>("/plugins/ai_insight/embedding/stop", { method: "POST" })
+
+/** 洞察规划执行路线的步骤 id（前端按此顺序展示 todo list；展示名由前端词典提供，后端不写死文案） */
+export type InsightPlanStepId = "retrieve" | "plan" | "review" | "generate" | "save"
+
+/** /plan/stream 的 SSE 事件（协议由 ai_insight 插件前后端约定） */
+export type InsightPlanStreamEvent =
+  | { type: "step"; step: InsightPlanStepId; status: "start" | "done" }
+  | { type: "think"; step: InsightPlanStepId; content: string }
+  | { type: "done"; result: InsightPlanResult }
+  | { type: "error"; code?: string; keys?: string[]; message?: string }
+
+/** 洞察规划（SSE 流式）：实时推送执行路线与各轮 AI 思考，onEvent 逐事件回调；
+ *  收到 error 事件时抛 ApiError（detail 为该事件）。 */
+export function insightPlanStream(
+  sources: InsightSourceRef[],
+  question: string,
+  output: InsightOutput,
+  libraryId = "",
+  topK = 12,
+  onEvent: (evt: InsightPlanStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return fetch(`${BASE}/plugins/ai_insight/plan/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sources, question, output, libraryId, topK }),
+    signal,
+  }).then(async (res) => {
+    if (!res.ok) {
+      let detail: unknown = res.statusText
+      try {
+        detail = (await res.json()).detail ?? detail
+      } catch {
+        /* ignore */
+      }
+      throw new ApiError(res.status, typeof detail === "string" ? detail : JSON.stringify(detail), detail)
+    }
+    if (!res.body) throw new ApiError(0, "浏览器不支持流式响应（SSE）")
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buf = ""
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      let nl: number
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim()
+        buf = buf.slice(nl + 1)
+        if (!line.startsWith("data:")) continue
+        const raw = line.slice(5).trim()
+        if (!raw) continue
+        let evt: InsightPlanStreamEvent
+        try {
+          evt = JSON.parse(raw) as InsightPlanStreamEvent
+        } catch {
+          continue
+        }
+        onEvent(evt)
+        if (evt.type === "error") {
+          const err = new ApiError(502, evt.message ?? "洞察规划失败")
+          err.detail = evt
+          // 停止继续读取，避免连接悬挂
+          await reader.cancel().catch(() => undefined)
+          throw err
+        }
+      }
+    }
+  })
+}

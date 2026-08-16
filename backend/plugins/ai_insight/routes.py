@@ -7,9 +7,12 @@
 """
 from __future__ import annotations
 
+import asyncio
+import json
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.plugins.base import requires_plugin
@@ -192,6 +195,53 @@ async def plan(body: PlanIn, request: Request):
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"洞察规划失败: {e}")
+
+
+@router.post("/plan/stream")
+async def plan_stream(body: PlanIn, request: Request):
+    """洞察规划（SSE 流式）：实时推送执行路线（步骤开始/结束）与各轮 AI 思考输出，
+    完成后推送 done（含创建结果）；失败推送 error。事件协议由本插件前后端约定。"""
+    svc = _svc(request)
+    queue: "asyncio.Queue[Optional[dict]]" = asyncio.Queue()
+
+    async def emit(evt: dict) -> None:
+        await queue.put(evt)
+
+    async def run() -> None:
+        try:
+            sources = [{"type": s.type, "id": s.id, "path": s.path} for s in body.sources]
+            result = await svc.plan(sources, body.question, body.output, body.libraryId or None,
+                                    body.topK, emit=emit)
+            await queue.put({"type": "done", "result": result})
+        except NotIndexedError as e:
+            await queue.put({"type": "error", "code": "NOT_INDEXED", "keys": e.keys})
+        except (NotConfiguredError, AIError) as e:
+            await queue.put({"type": "error", "message": str(e)})
+        except ValueError as e:
+            await queue.put({"type": "error", "message": str(e)})
+        except KeyError as e:
+            await queue.put({"type": "error", "message": f"数据源不存在: {e}"})
+        except Exception as e:
+            await queue.put({"type": "error", "message": f"洞察规划失败: {e}"})
+        finally:
+            await queue.put(None)
+
+    task = asyncio.create_task(run())
+
+    async def gen():
+        try:
+            while True:
+                evt = await queue.get()
+                if evt is None:
+                    break
+                yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
+        finally:
+            # 客户端断开（生成器被关闭）时取消后台规划任务，避免悬挂
+            if not task.done():
+                task.cancel()
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.get("/modes")

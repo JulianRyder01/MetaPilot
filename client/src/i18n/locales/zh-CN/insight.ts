@@ -71,6 +71,17 @@ export const insightZhCN: Record<string, string> = {
   "insight.planOpenCourse": "打开课程",
   "insight.planSummary": "规划摘要",
   "insight.planFailed": "洞察规划失败",
+  // ---- 洞察规划执行路线（SSE 实时） ----
+  "insight.planRoadmap": "AI 执行路线",
+  "insight.planThinking": "AI 思考过程",
+  "insight.planStep.retrieve": "检索资料",
+  "insight.planStep.plan": "主题与联系分析",
+  "insight.planStep.review": "批判性反思",
+  "insight.planStep.generateCanvas": "生成知识图表",
+  "insight.planStep.generateCourse": "生成微课程",
+  "insight.planStep.save": "保存到库",
+  "insight.planStepRunning": "进行中…",
+  "insight.planConnecting": "正在连接 AI 并规划执行路线…",
   // ---- 自动建索引 ----
   "insight.autoIndexing": "所选数据源尚未建立索引，正在自动建立（{done}/{total}）...",
   "insight.autoIndexDone": "索引完成，继续生成...",

@@ -482,6 +482,64 @@ def test_plan_not_indexed_returns_409():
     assert r.json()["detail"]["code"] == "NOT_INDEXED"
 
 
+def test_plan_stream_emits_roadmap_events():
+    """/plan/stream 按执行路线逐步推送：retrieve/plan/review/generate/save 的 start/done、
+    各轮 AI 思考（think）与最终 done(result)。"""
+    t = _make_library()
+    client.post("/api/plugins/ai_insight/index", json={
+        "sources": [{"type": "library", "id": t["lib"]["id"]}],
+    })
+    _wait_indexed([f"lib_{t['lib']['id']}"])
+
+    GW.captured.clear()
+    GW.replies = [
+        json.dumps({
+            "theme": "时域与频域的联系",
+            "summary": "傅里叶变换与卷积共同构成信号处理的核心。",
+            "keyPoints": ["傅里叶变换", "卷积"],
+            "relations": [],
+            "outline": ["时域", "频域"],
+        }, ensure_ascii=False),
+        json.dumps({"revisions": [], "extraPoints": ["采样"]}, ensure_ascii=False),
+        json.dumps({
+            "name": "信号处理概念图",
+            "nodes": [{"id": "n1", "type": "text", "x": 100, "y": 100, "width": 240, "height": 90,
+                       "text": "傅里叶变换"}],
+            "edges": [],
+        }, ensure_ascii=False),
+    ]
+
+    events: list[dict] = []
+    with client.stream("POST", "/api/plugins/ai_insight/plan/stream", json={
+        "sources": [{"type": "library", "id": t["lib"]["id"]}],
+        "question": "梳理信号处理的核心概念关系",
+        "output": "canvas",
+    }) as r:
+        assert r.status_code == 200, r.text
+        assert r.headers["content-type"].startswith("text/event-stream")
+        for line in r.iter_lines():
+            if line.startswith("data:"):
+                events.append(json.loads(line[5:].strip()))
+
+    # 步骤按固定顺序交替 start/done（每步两个事件）
+    steps = [e for e in events if e["type"] == "step"]
+    expected_steps = [s for s in ["retrieve", "plan", "review", "generate", "save"] for _ in range(2)]
+    assert [s["step"] for s in steps] == expected_steps
+    assert [s["status"] for s in steps] == ["start", "done"] * 5
+
+    # 三轮 AI 思考输出（plan/review/generate），内容与替身回复一致
+    thinks = [e for e in events if e["type"] == "think"]
+    assert [th["step"] for th in thinks] == ["plan", "review", "generate"]
+    assert "时域与频域的联系" in thinks[0]["content"]
+
+    # 最终 done 携带创建结果
+    done = [e for e in events if e["type"] == "done"]
+    assert len(done) == 1
+    assert done[0]["result"]["kind"] == "canvas"
+    assert done[0]["result"]["collectionName"] == "信号处理概念图"
+    assert not [e for e in events if e["type"] == "error"]
+
+
 def test_embedding_status_models_and_health(monkeypatch):
     # healthy 来自本地向量服务运行状态；测试环境探测不到服务 → False（结构字段仍完整）
     monkeypatch.setattr(
