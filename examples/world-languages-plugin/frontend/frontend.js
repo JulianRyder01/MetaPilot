@@ -262,4 +262,24 @@
       },
     },
   })
+
+  // 注册插件提供的界面语言：词典经宿主 i18n 桥注入（真实数据，非 mock）。
+  // Globe 下拉 / 设置页语言选择立即出现这些语言；切换后按新语言取词条，
+  // 未覆盖词条回退简体中文。语言清单来自后端 /ui-langs，随 ui_dicts/ 登记动态变化。
+  if (I18N && typeof I18N.registerLang === "function") {
+    fetch("/api/plugins/world_languages/ui-langs")
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status)
+        return r.json()
+      })
+      .then(function (d) {
+        var langs = (d && d.langs) || []
+        langs.forEach(function (l) {
+          I18N.registerLang({ value: l.value, native: l.native }, l.dict || {})
+        })
+      })
+      .catch(function (e) {
+        console.warn("[world_languages] 界面语言注册失败", e)
+      })
+  }
 })()

@@ -2,7 +2,7 @@
 """世界语言插件打包脚本：把插件源码打成可安装的 zip（world-languages-plugin.zip）。
 
 zip 内文件位于根目录（插件开发规范 §3/§6.2 约定）：
-plugin.json / __init__.py / routes.py / languages.py / frontend/frontend.js
+plugin.json / __init__.py / routes.py / languages.py / ui_langs.py / ui_dicts/ / frontend/frontend.js
 """
 import os
 import zipfile
@@ -15,8 +15,12 @@ FILES = [
     "__init__.py",
     "routes.py",
     "languages.py",
+    "ui_langs.py",
     "frontend/frontend.js",
 ]
+# 界面语言词典按语言拆分于 ui_dicts/ 下：动态收集，新增语言无需改本脚本
+UI_DICTS_DIR = os.path.join(HERE, "ui_dicts")
+FILES += [f"ui_dicts/{n}" for n in sorted(os.listdir(UI_DICTS_DIR)) if n.endswith(".py")]
 
 
 def main() -> None:

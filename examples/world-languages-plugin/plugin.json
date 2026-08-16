@@ -2,8 +2,8 @@
   "specVersion": "1.1",
   "id": "world_languages",
   "name": "世界语言",
-  "version": "1.0.0",
-  "description": "语言目录页面：按当前界面语言展示全世界主要语言的自称（该语言本国人民的称呼）与其本地化称呼，如中文界面下「英语（English）」。",
+  "version": "1.1.0",
+  "description": "多语言扩展插件：语言目录页面（按当前界面语言展示全世界主要语言的自称与本地化称呼），并为宿主界面动态注册多种界面语言（顶栏语言切换与设置页语言选择即时出现，未覆盖词条回退简体中文）。",
   "author": "MetaPilot Community",
   "depends_on": [],
   "source": "user",
@@ -22,10 +22,17 @@
   "features": [
     "语言目录页面：当前界面语言下的称呼 + 该语言自称，随界面语言切换实时更新",
     "语言数据由插件后端提供（/api/plugins/world_languages/languages），前端实时拉取，非 mock",
-    "支持按名称搜索与按区域分组浏览"
+    "支持按名称搜索与按区域分组浏览",
+    "宿主界面语言扩充：经宿主 i18n 桥注册插件提供的界面语言（含全量界面词典），顶栏与设置页可切换",
+    "界面语言清单与词典由插件后端提供（/api/plugins/world_languages/ui-langs），随插件内容动态变化"
   ],
   "icon": "Languages",
   "changelog": [
+    {
+      "version": "1.1.0",
+      "date": "",
+      "summary": "新增宿主界面语言扩充：注册多种界面语言（含全量界面词典，未覆盖词条回退简体中文）；界面语言清单由插件后端 ui-langs 接口动态提供，不写死语言列表"
+    },
     {
       "version": "1.0.0",
       "date": "",
