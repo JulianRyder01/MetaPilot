@@ -55,3 +55,11 @@ export function allPluginNavItems(frontends: Record<string, PluginFrontend>) {
     ),
   ]
 }
+
+/** 全部插件集合创建/转换操作（内置 + 动态，带 pluginId）：库首页按插件启用状态过滤渲染 */
+export function allCollectionActions(frontends: Record<string, PluginFrontend>) {
+  return [
+    ...builtinFrontends.flatMap((p) => (p.collectionActions ?? []).map((a) => ({ ...a, pluginId: p.id }))),
+    ...Object.values(frontends).flatMap((p) => (p.collectionActions ?? []).map((a) => ({ ...a, pluginId: p.id }))),
+  ]
+}

@@ -11,8 +11,9 @@ class LibraryIn(BaseModel):
 
 class CollectionIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    # 文档集类型放开为任意字符串（课程/笔记/知识库/画布等由对应插件或核心解释），默认课程
-    kind: str = "course"
+    # 文档集类型放开为任意字符串（笔记/知识库/画布等由核心解释，课程等由对应插件解释）
+    # 核心默认创建「笔记」文档集，不默认课程（课程是插件 kind，见 docs/04）
+    kind: str = "note"
     description: str = ""
     author: str = ""
     version: str = "1.0.0"

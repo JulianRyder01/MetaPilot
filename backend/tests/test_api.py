@@ -44,7 +44,7 @@ def test_health():
     r = client.get("/api/health")
     assert r.status_code == 200
     assert r.json()["ok"] is True
-    assert r.json()["version"] == "1.1.1"
+    assert r.json()["version"] == "1.1.2"
 
 
 def test_library_crud():

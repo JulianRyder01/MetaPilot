@@ -26,11 +26,11 @@ _SOURCE_ORDER = {"user": 0, "official": 1, "core": 2}
 CORE_COLLECTION_KINDS: dict[str, dict] = {
     "note": {
         "labelKey": "core.library.kindNote", "icon": "FileText",
-        "openRoute": "", "unitLabelKey": "core.library.unitDoc",
+        "openRoute": "/edit/{id}", "unitLabelKey": "core.library.unitDoc",
     },
     "kb": {
         "labelKey": "core.library.kindKb", "icon": "BookMarked",
-        "openRoute": "", "unitLabelKey": "core.library.unitDoc",
+        "openRoute": "/edit/{id}", "unitLabelKey": "core.library.unitDoc",
     },
     "canvas": {
         "labelKey": "core.library.kindCanvas", "icon": "LayoutGrid",
@@ -188,7 +188,7 @@ class PluginManager:
         return {
             "id": "core",
             "name": "MetaPilot 文档库",
-            "version": "1.1.1",
+            "version": "1.1.2",
             "specVersion": "1.0",
             "description": "MetaPilot 本身：库-文档集-文档-小节 的浏览与 Markdown 阅读、笔记导入、插件管理，并提供统一 AI 网关（API 配置/中转/用量统计）与本地模型管理。官方核心，不允许禁用或删除。",
             "author": "MetaPilot",
@@ -206,6 +206,7 @@ class PluginManager:
             "features": ["库-文档集-文档-小节浏览与阅读", "Markdown / Obsidian 笔记导入", "插件管理与插件商店", "统一 AI 网关与用量统计", "本地模型管理"],
             "icon": "BookOpen",
             "changelog": [
+                {"version": "1.1.2", "date": "", "summary": "核心文档能力独立于课程插件：库页可新建文档（笔记文档集）；文档阅读（/learn）与编辑（/edit）改为官方核心路由，禁用课程插件后文档仍可正常阅读/编辑（课程补丁能力才依赖插件并提示）；文档集类型元数据 note/kb 打开路由指向核心编辑页；核心创建集合默认 kind 为 note（不默认课程）"},
                 {"version": "1.1.1", "date": "", "summary": "统一 AI 网关：设置页配置 openai/anthropic 兼容 API 入口（key/地址/模型/价格，全部存 .env），插件经 MetaPilot 中转调用（拿不到密钥）；统计页新增 AI 用量（调用次数/token/成本，按模型分组）；内置本地模型（Qwen3-Embedding 0.6B/4B、Qwen3-4B、Qwen3-Reranker）一键下载与启动"},
                 {"version": "1.1.0", "date": "", "summary": "内置 i18n：界面支持简体中文/繁体中文/English 三语（useT/translate + 域拆分词典），顶栏与设置页可随时切换；插件开发规范升级 1.2.0（新增 §12 i18n 约定）"},
                 {"version": "1.0.1", "date": "", "summary": "统一弹窗组件库 DialogProvider + useDialogs（confirm/prompt/select），全应用零原生弹窗；.mpf 解析支持 doc/canvas 类型与未解析项检测"},

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom"
 import * as Lucide from "lucide-react"
 import {
   BookOpen,
+  FileText,
   Grid3X3,
   List,
   Plus,
@@ -17,7 +18,8 @@ import { api, type CollectionKindMeta, type LibraryMeta } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/stores/app"
 import { usePluginsStore } from "@/stores/plugins"
-import { builtinFrontends, usePluginRuntimeFrontends } from "@/plugins/registry"
+import { allCollectionActions, builtinFrontends, usePluginRuntimeFrontends } from "@/plugins/registry"
+import type { CollectionRef } from "@/plugins/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -33,8 +35,6 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ImportDialog } from "@/components/library/ImportDialog"
-import { AddMountDialog } from "@/components/symlink/AddMountDialog"
-import { MountBrowser } from "@/components/symlink/MountBrowser"
 import { useDialogs } from "@/components/ui/dialog-provider"
 
 const KIND_ICON_FALLBACK = BookOpen
@@ -44,6 +44,13 @@ function kindIcon(meta?: CollectionKindMeta) {
   if (!meta?.icon) return KIND_ICON_FALLBACK
   const Cmp = (Lucide as unknown as Record<string, unknown>)[meta.icon]
   return typeof Cmp === "function" ? (Cmp as typeof BookOpen) : KIND_ICON_FALLBACK
+}
+
+/** 插件操作图标动态解析：icon（lucide 名），未知返回 undefined（不渲染图标） */
+function actionIcon(name?: string) {
+  if (!name) return undefined
+  const Cmp = (Lucide as unknown as Record<string, unknown>)[name]
+  return typeof Cmp === "function" ? (Cmp as typeof BookOpen) : undefined
 }
 
 /** 集合类型打开路由：kind 元数据 openRoute（{id} 占位）；空 = 无独立页 */
@@ -83,6 +90,18 @@ export default function LibraryHome() {
     return enabled ? (p.librarySections ?? []) : []
   })
 
+  // 集合创建/转换操作扩展点（如课程插件的「新建课程」/「转为课程」）：仅渲染已启用插件的操作
+  const enabledPluginIds = new Set(plugins.filter((p) => p.enabled).map((p) => p.id))
+  const collectionActions = allCollectionActions(dynamic).filter((a) => enabledPluginIds.has(a.pluginId))
+  const createActions = collectionActions.filter((a) => Boolean(a.createLabel && a.onCreate))
+
+  /** 某集合可执行的插件转换操作（如文档 → 课程） */
+  function convertActionsFor(col: CollectionRef) {
+    return collectionActions.filter(
+      (a) => a.convertLabel && a.onConvert && (!a.canConvert || a.canConvert(col)),
+    )
+  }
+
   async function handleDelete(id: string) {
     const ok = await confirm({
       title: t("core.library.deleteLibTitle"),
@@ -94,6 +113,28 @@ export default function LibraryHome() {
     await api.deleteLibrary(id)
     toast.success(t("core.library.deletedLib"))
     refresh()
+  }
+
+  /** 在当前库中新建空白文档（kind=note，官方核心），创建后跳转文档编辑页。 */
+  async function createNoteCollection() {
+    if (!currentLibraryId) return
+    const name = await prompt({
+      title: t("core.library.newDocTitle"),
+      placeholder: t("core.library.newDocPlaceholder"),
+      initialValue: t("core.library.newDocDefault"),
+    })
+    if (name == null) return
+    if (!name.trim()) return
+    const col = await api.createCollection(currentLibraryId, {
+      name: name.trim(),
+      kind: "note",
+      description: "",
+      author: "",
+      version: "1.0.0",
+    })
+    toast.success(t("core.library.createdDoc"))
+    await refresh()
+    navigate(`/edit/${col.id}`)
   }
 
   /** 在当前库中新建空白图表（kind=canvas），创建后跳转画布。 */
@@ -189,10 +230,29 @@ export default function LibraryHome() {
                 {current && (
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{t("core.library.collectionCount", { count: current.collectionCount })}</Badge>
+                    <Button variant="outline" size="sm" onClick={createNoteCollection}>
+                      <FileText className="size-4" />
+                      {t("core.library.newDoc")}
+                    </Button>
                     <Button variant="outline" size="sm" onClick={createCanvasCollection}>
                       <Workflow className="size-4" />
                       {t("core.library.newCanvas")}
                     </Button>
+                    {/* 插件注入的新建按钮（如课程插件的「新建课程」）：仅启用对应插件时显示 */}
+                    {createActions.map((a) => {
+                      const Icon = actionIcon(a.createIcon)
+                      return (
+                        <Button
+                          key={a.id}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => a.onCreate?.({ libraryId: current.id, refresh })}
+                        >
+                          {Icon && <Icon className="size-4" />}
+                          {t(a.createLabel ?? "")}
+                        </Button>
+                      )
+                    })}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -249,12 +309,36 @@ export default function LibraryHome() {
                       const meta = kindMeta[col.kind]
                       const Icon = kindIcon(meta)
                       const href = kindHref(meta, col.id)
+                      const convertActions = convertActionsFor(col)
                       const card = (
                         <Card className="h-full transition-shadow hover:shadow-md">
                           <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-base">
                               <Icon className="size-4 text-primary" />
                               <span className="truncate">{col.name}</span>
+                              {convertActions.length > 0 && (
+                                <span className="ml-auto flex items-center gap-0.5">
+                                  {convertActions.map((a) => {
+                                    const CvtIcon = actionIcon(a.convertIcon)
+                                    return (
+                                      <Button
+                                        key={a.id}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 gap-1 px-1.5 text-xs text-muted-foreground hover:text-primary"
+                                        onClick={(e) => {
+                                          e.preventDefault()
+                                          e.stopPropagation()
+                                          a.onConvert?.(col, { refresh })
+                                        }}
+                                      >
+                                        {CvtIcon && <CvtIcon className="size-3" />}
+                                        {t(a.convertLabel ?? "")}
+                                      </Button>
+                                    )
+                                  })}
+                                </span>
+                              )}
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
@@ -278,6 +362,7 @@ export default function LibraryHome() {
                       const meta = kindMeta[col.kind]
                       const Icon = kindIcon(meta)
                       const href = kindHref(meta, col.id)
+                      const convertActions = convertActionsFor(col)
                       const row = (
                         <div className="flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors hover:bg-accent/40">
                           <Icon className="size-4 shrink-0 text-primary" />
@@ -286,6 +371,29 @@ export default function LibraryHome() {
                           <span className="shrink-0 text-xs text-muted-foreground">
                             {t(meta?.unitLabelKey ?? "core.library.unitDoc")}
                           </span>
+                          {convertActions.length > 0 && (
+                            <span className="flex shrink-0 items-center gap-0.5">
+                              {convertActions.map((a) => {
+                                const CvtIcon = actionIcon(a.convertIcon)
+                                return (
+                                  <Button
+                                    key={a.id}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 gap-1 px-1.5 text-xs text-muted-foreground hover:text-primary"
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      a.onConvert?.(col, { refresh })
+                                    }}
+                                  >
+                                    {CvtIcon && <CvtIcon className="size-3" />}
+                                    {t(a.convertLabel ?? "")}
+                                  </Button>
+                                )
+                              })}
+                            </span>
+                          )}
                         </div>
                       )
                       return href ? (

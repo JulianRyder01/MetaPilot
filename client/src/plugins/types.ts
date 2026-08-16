@@ -40,6 +40,35 @@ export interface PluginLibrarySection {
   Component: ComponentType
 }
 
+/** 集合转换操作涉及的集合最小信息（库列表返回的精简集合，避免核心向插件暴露完整数据结构） */
+export interface CollectionRef {
+  id: string
+  name: string
+  kind: string
+}
+
+/** 「我的库」页集合创建/转换操作扩展点（插件向库首页注入新建按钮与集合转换操作）。
+ *
+ * - create*：库首页操作区的新建按钮（label 为 i18n key，icon 为 lucide 图标名字符串）；
+ * - convert*：文档集卡片上的转换操作（canConvert 返回 true 才显示）；
+ * - 回调真实调用后端 API（禁止 mock），完成后调用 ctx.refresh() 刷新列表。
+ */
+export interface PluginCollectionAction {
+  id: string
+  /** 新建按钮文案（i18n key） */
+  createLabel?: string
+  /** 新建按钮图标（lucide 图标名，宿主动态解析） */
+  createIcon?: string
+  onCreate?: (ctx: { libraryId: string; refresh: () => void }) => void
+  /** 转换操作文案（i18n key） */
+  convertLabel?: string
+  /** 转换操作图标（lucide 图标名） */
+  convertIcon?: string
+  /** 某集合是否可执行转换（false 则不显示转换操作） */
+  canConvert?: (col: CollectionRef) => boolean
+  onConvert?: (col: CollectionRef, ctx: { refresh: () => void }) => void
+}
+
 /** 设置页贡献的分区（如主题选装） */
 export interface PluginSettingsSection {
   id: string
@@ -66,6 +95,8 @@ export interface PluginFrontend {
   importTabs?: PluginImportTab[]
   /** 扩展点：「我的库」页贡献的分区 */
   librarySections?: PluginLibrarySection[]
+  /** 扩展点：「我的库」页集合创建/转换操作（新建按钮 + 集合转换） */
+  collectionActions?: PluginCollectionAction[]
   /** 扩展点：设置页贡献的分区 */
   settingsSections?: PluginSettingsSection[]
   /** 扩展点：主题选择面板贡献的分区 */

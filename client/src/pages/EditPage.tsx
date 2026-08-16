@@ -16,7 +16,7 @@ import {
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
-import { api, type Collection, type Document } from "@/lib/api"
+import { api, type Collection, type CollectionKindMeta, type Document } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { buildCollectionTree, folderPath, type FolderNode } from "@/lib/tree"
 import { Button } from "@/components/ui/button"
@@ -55,6 +55,8 @@ export default function EditPage() {
   const [sel, setSel] = useState<Selection>({ kind: "collection" })
   const [newBlockType, setNewBlockType] = useState("markdown")
   const [dirty, setDirty] = useState(false)
+  // 文档集类型元数据（核心 + 插件声明）：kind 下拉动态渲染，不写死插件 kind
+  const [kindMeta, setKindMeta] = useState<Record<string, CollectionKindMeta>>({})
 
   const load = useCallback(async () => {
     if (cid) setCol(await api.getCollection(cid))
@@ -62,6 +64,7 @@ export default function EditPage() {
 
   useEffect(() => {
     load()
+    api.listCollectionKinds().then(setKindMeta).catch(() => {})
   }, [load])
 
   if (!col) {
@@ -298,14 +301,19 @@ export default function EditPage() {
         </div>
         <div className="space-y-1.5">
           <Label>{t("common.type")}</Label>
-          <Select value={col.kind} onValueChange={(v) => saveCollection({ kind: v as Collection["kind"] })}>
+          <Select value={col.kind} onValueChange={(v) => saveCollection({ kind: v })}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="course">{t("core.library.kindCourse")}</SelectItem>
-              <SelectItem value="note">{t("core.library.kindNote")}</SelectItem>
-              <SelectItem value="kb">{t("core.library.kindKb")}</SelectItem>
+              {/* 文档类类型动态渲染（kind 注册表，排除画布）：核心类型 + 插件声明的类型，不写死 */}
+              {Object.entries(kindMeta)
+                .filter(([k]) => k !== "canvas")
+                .map(([k, meta]) => (
+                  <SelectItem key={k} value={k}>
+                    {t(meta.labelKey ?? k)}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
@@ -636,7 +644,7 @@ export default function EditPage() {
             variant="outline"
             size="sm"
             className="ml-auto"
-            onClick={() => navigate(`/course/${cid}`)}
+            onClick={() => navigate(col.kind === "course" ? `/course/${cid}` : "/")}
           >
             {t("core.edit.done")}
           </Button>

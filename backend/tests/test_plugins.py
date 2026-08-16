@@ -240,7 +240,7 @@ def test_collection_kinds_registry():
     kinds = r.json()
     # 核心类型
     assert kinds["canvas"]["openRoute"] == "/canvas/{id}"
-    assert kinds["note"]["openRoute"] == ""
+    assert kinds["note"]["openRoute"] == "/edit/{id}"
     assert "icon" in kinds["canvas"]
     # course 类型由课程插件声明（含打开路由与归属插件）
     assert kinds["course"]["openRoute"] == "/course/{id}"
@@ -363,10 +363,10 @@ def test_plugin_info_includes_metadata_v12():
 def test_plugin_list_includes_changelog():
     """插件清单携带更新历史（changelog）：官方核心内置多版本，官方插件至少一条。"""
     by_id = {p["id"]: p for p in client.get("/api/plugins").json()}
-    # 官方核心：内置 1.0.0 → 1.0.1 → 1.1.0 → 1.1.1 历史，倒序（最新在前）
+    # 官方核心：内置 1.0.0 → 1.1.1 → 1.1.2 历史，倒序（最新在前）
     core = by_id["core"]
     assert isinstance(core["changelog"], list) and len(core["changelog"]) >= 3
-    assert core["changelog"][0]["version"] == "1.1.1"
+    assert core["changelog"][0]["version"] == "1.1.2"
     assert all("version" in c and "summary" in c for c in core["changelog"])
     # 官方插件：来自 plugin.json，至少一条，含 version/summary 字段
     for pid in ("course", "symlink", "themes", "ai_insight"):

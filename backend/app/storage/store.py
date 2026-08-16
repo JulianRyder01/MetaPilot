@@ -149,7 +149,7 @@ class LibraryStore:
             "updatedAt": lib.get("updatedAt"),
             "collectionCount": len(lib.get("collections", [])),
             "collections": [
-                {"id": c["id"], "name": c["name"], "kind": c.get("kind", "course")}
+                {"id": c["id"], "name": c["name"], "kind": c.get("kind", "note")}
                 for c in lib.get("collections", [])
             ],
         }
@@ -218,7 +218,7 @@ class LibraryStore:
             col = {
                 "id": gen_id(),
                 "name": data["name"],
-                "kind": data.get("kind", "course"),
+                "kind": data.get("kind", "note"),
                 "description": data.get("description", ""),
                 "author": data.get("author", ""),
                 "version": data.get("version", "1.0.0"),
@@ -241,7 +241,9 @@ class LibraryStore:
                 col = find_collection(lib, cid)
                 if col is None:
                     continue
-                for key in ("name", "kind", "description", "author", "version", "packageId", "formatVersion", "canvas"):
+                for key in ("name", "kind", "description", "author", "version", "packageId", "formatVersion", "canvas",
+                            # 通用转换标记：集合由其它类型转换而来（如文档 → 课程），供任何插件/核心读取
+                            "convertedFrom", "convertedAt"):
                     if key in data and data[key] is not None:
                         col[key] = data[key]
                 col["updatedAt"] = now_iso()

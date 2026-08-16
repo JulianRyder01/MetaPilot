@@ -1,10 +1,8 @@
-/** 课程插件（official）：学习页路由 + 统计导航 + 扩展点（块渲染器/课程导入 tab）。 */
+/** 课程插件（official）：课程页路由 + 统计导航 + 扩展点（块渲染器/课程导入 tab/集合创建转换）。 */
 import { BarChart3 } from "lucide-react"
 import type { ComponentType } from "react"
 
 import CoursePage from "@/pages/CoursePage"
-import LearnPage from "@/pages/LearnPage"
-import EditPage from "@/pages/EditPage"
 import StatsPage from "@/pages/StatsPage"
 import { CourseImportTab } from "./course/importTab"
 import {
@@ -20,8 +18,6 @@ export const coursePlugin: PluginFrontend = {
   id: "course",
   routes: [
     { path: "/course/:cid", Component: CoursePage },
-    { path: "/learn/:cid/:sid", Component: LearnPage },
-    { path: "/edit/:cid", Component: EditPage },
     { path: "/stats", Component: StatsPage },
   ],
   navItems: [{ to: "/stats", label: "nav.stats", icon: BarChart3 }],
