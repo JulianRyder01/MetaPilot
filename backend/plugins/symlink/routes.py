@@ -1,6 +1,8 @@
 """软链接插件路由：挂载本机目录，像文件系统一样浏览/读写。"""
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.plugins.base import requires_plugin
 from .service import MountError, SymlinkService
@@ -18,7 +20,8 @@ class MountIn(BaseModel):
 
 
 class MountRename(BaseModel):
-    name: str
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    pinned: Optional[bool] = None
 
 
 class FileIn(BaseModel):
@@ -36,6 +39,11 @@ class OpenIn(BaseModel):
 
 def _svc(request: Request):
     return request.app.state.symlink
+
+
+def _default_target(request: Request) -> dict:
+    """核心默认保存目标（软链接视作库的默认目标登记在这里，全局唯一）。"""
+    return request.app.state.store.get_default_target()
 
 
 def _err(e: Exception):
@@ -63,7 +71,12 @@ def fs_list(path: str = "", request: Request = None):
 
 @router.get("/mounts")
 def list_mounts(request: Request):
-    return _svc(request).list_mounts()
+    """挂载列表（软链接与库平级展示；置顶优先；isDefault 由核心默认保存目标派生）。"""
+    mounts = _svc(request).list_mounts()
+    dt = _default_target(request)
+    for m in mounts:
+        m["isDefault"] = dt.get("kind") == "symlink" and dt.get("id") == m["id"]
+    return sorted(mounts, key=lambda m: not bool(m.get("pinned")))
 
 
 @router.post("/mounts")
@@ -77,7 +90,17 @@ def add_mount(body: MountIn, request: Request):
 @router.put("/mounts/{mid}")
 def rename_mount(mid: str, body: MountRename, request: Request):
     try:
-        return _svc(request).rename_mount(mid, body.name.strip())
+        return _svc(request).rename_mount(mid, body.name.strip(), body.pinned)
+    except Exception as e:
+        _err(e)
+
+
+@router.post("/mounts/{mid}/default")
+def set_default_mount(mid: str, request: Request):
+    """把该软链接设为默认保存目标（全局唯一，与库统一）。"""
+    try:
+        _svc(request).get_mount(mid)
+        return request.app.state.store.set_default_target("symlink", mid)
     except Exception as e:
         _err(e)
 
@@ -86,6 +109,8 @@ def rename_mount(mid: str, body: MountRename, request: Request):
 def remove_mount(mid: str, request: Request):
     try:
         _svc(request).remove_mount(mid)
+        # 卸载的是默认目标时清除默认标记，避免悬空
+        request.app.state.store.clear_default_target("symlink", mid)
         return {"ok": True}
     except Exception as e:
         _err(e)

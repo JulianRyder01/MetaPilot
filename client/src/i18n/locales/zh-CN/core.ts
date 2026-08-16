@@ -150,6 +150,7 @@ export const coreZhCN: Record<string, string> = {
   "core.library.renameLibTitle": "重命名库",
   "core.library.renamedLib": "已重命名库",
   "core.library.menuMore": "更多操作",
+  "core.library.addSymlink": "添加软链接",
 
   // ---- 编辑页 ----
   "core.edit.block.markdown": "展示（Markdown）",

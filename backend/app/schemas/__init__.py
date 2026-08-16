@@ -7,9 +7,14 @@ from pydantic import BaseModel, ConfigDict, Field
 class LibraryIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = ""
-    # 管理标记（置顶可多个；默认库唯一）：PUT 更新时可选传入
+    # 置顶标记（可多个）：PUT 更新时可选传入
     pinned: Optional[bool] = None
-    isDefault: Optional[bool] = None
+
+
+class DefaultTargetIn(BaseModel):
+    """默认保存目标（库 / 软链接统一，唯一）：AI 洞察等插件的默认保存位置。"""
+    kind: Literal["library", "symlink"]
+    id: str = Field(min_length=1)
 
 
 class CollectionIn(BaseModel):

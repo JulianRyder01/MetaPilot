@@ -145,6 +145,7 @@ export const coreZhTW: Record<string, string> = {
   "core.library.renameLibTitle": "重新命名庫",
   "core.library.renamedLib": "已重新命名庫",
   "core.library.menuMore": "更多操作",
+  "core.library.addSymlink": "新增軟連結",
 
   // ---- 编辑页 ----
   "core.edit.block.markdown": "展示（Markdown）",

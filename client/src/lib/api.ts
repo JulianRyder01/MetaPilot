@@ -56,6 +56,13 @@ export const api = {
   /** 设为默认库（唯一）：AI 洞察等插件的默认保存目标 */
   setDefaultLibrary: (id: string) => request<Library>(`/libraries/${id}/default`, { method: "POST" }),
   deleteLibrary: (id: string) => request<{ ok: boolean }>(`/libraries/${id}`, { method: "DELETE" }),
+  // 默认保存目标（库 / 软链接统一，全局唯一）：AI 洞察等插件的默认保存位置
+  getDefaultTarget: () => request<{ kind: "library" | "symlink"; id: string }>("/default-target"),
+  setDefaultTarget: (kind: "library" | "symlink", id: string) =>
+    request<{ kind: "library" | "symlink"; id: string }>("/default-target", {
+      method: "PUT",
+      body: JSON.stringify({ kind, id }),
+    }),
 
   // 文档集（课程）
   getCollection: (id: string) => request<Collection>(`/collections/${id}`),
@@ -394,6 +401,10 @@ export interface SymlinkMount {
   name: string
   root: string
   type?: "dir" | "file"
+  /** 置顶（可多个，列表置顶优先） */
+  pinned?: boolean
+  /** 是否为默认保存目标（与库统一，全局唯一） */
+  isDefault?: boolean
   createdAt?: string
 }
 

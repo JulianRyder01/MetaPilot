@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from ..schemas import CollectionIn, LibraryIn
+from ..schemas import CollectionIn, DefaultTargetIn, LibraryIn
 from ..storage.store import LibraryStore, find_collection
 
 router = APIRouter(prefix="/api", tags=["libraries"])
@@ -33,19 +33,35 @@ def get_library(lid: str, request: Request):
 @router.put("/libraries/{lid}")
 def update_library(lid: str, body: LibraryIn, request: Request):
     try:
-        return _store(request).update_library(lid, body.name, body.description,
-                                              body.pinned, body.isDefault)
+        return _store(request).update_library(lid, body.name, body.description, body.pinned)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.post("/libraries/{lid}/default")
 def set_default_library(lid: str, request: Request):
-    """把指定库设为默认库（唯一）：AI 洞察等插件的默认保存目标。"""
+    """把指定库设为默认保存目标（全局唯一，含软链接）。"""
     try:
         return _store(request).set_default_library(lid)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/default-target")
+def get_default_target(request: Request):
+    """默认保存目标（{kind, id}）：库或软链接，全局唯一，供 AI 洞察等插件读取。"""
+    return _store(request).get_default_target()
+
+
+@router.put("/default-target")
+def set_default_target(body: DefaultTargetIn, request: Request):
+    """设置默认保存目标（软链接插件经此登记 symlink 目标）。"""
+    if body.kind == "library":
+        try:
+            _store(request).get_library(body.id)
+        except KeyError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+    return _store(request).set_default_target(body.kind, body.id)
 
 
 @router.delete("/libraries/{lid}")

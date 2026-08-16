@@ -21,8 +21,9 @@ import { FsPicker } from "@/components/symlink/FsPicker"
  *
  * 链接的是本机磁盘上的文件夹或单个文件（不复制原文件），
  * 链接后可在文件浏览器中像文档一样浏览、阅读与编辑。
+ * trigger 可自定义触发元素（默认「添加」按钮）。
  */
-export function AddMountDialog({ onAdded }: { onAdded: () => void }) {
+export function AddMountDialog({ onAdded, trigger }: { onAdded: () => void; trigger?: React.ReactNode }) {
   const t = useT()
   const [name, setName] = useState("")
   const [root, setRoot] = useState("")
@@ -47,10 +48,12 @@ export function AddMountDialog({ onAdded }: { onAdded: () => void }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Plus className="size-4" />
-          {t("common.add")}
-        </Button>
+        {trigger ?? (
+          <Button variant="outline" size="sm">
+            <Plus className="size-4" />
+            {t("common.add")}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

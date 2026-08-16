@@ -158,6 +158,7 @@ export const coreEn: Record<string, string> = {
   "core.library.renameLibTitle": "Rename library",
   "core.library.renamedLib": "Library renamed",
   "core.library.menuMore": "More actions",
+  "core.library.addSymlink": "Add symlink",
 
   // ---- Editor ----
   "core.edit.block.markdown": "Display (Markdown)",

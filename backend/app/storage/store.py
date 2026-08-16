@@ -118,12 +118,12 @@ class LibraryStore:
                 "updatedAt": meta.get("updatedAt") or now_iso(),
                 "collections": parsed["content"]["collections"],
             }
-            # 置顶/默认标记存索引摘要（index.json），不进入 .mpf 内容
+            # 置顶标记存索引摘要（index.json），不进入 .mpf 内容
             for it in self._load_index():
                 if it["id"] == lid:
                     lib["pinned"] = bool(it.get("pinned"))
-                    lib["isDefault"] = bool(it.get("isDefault"))
                     break
+            lib["isDefault"] = self.is_default_target("library", lid)
             return lib
         if json_path.exists():
             # 旧 .json 格式：读取并自动迁移为 .mpf
@@ -155,7 +155,7 @@ class LibraryStore:
             "description": lib.get("description", ""),
             "updatedAt": lib.get("updatedAt"),
             "pinned": bool(lib.get("pinned")),
-            "isDefault": bool(lib.get("isDefault")),
+            "isDefault": self.is_default_target("library", lib["id"]),
             "collectionCount": len(lib.get("collections", [])),
             "collections": [
                 {"id": c["id"], "name": c["name"], "kind": c.get("kind", "note")}
@@ -195,7 +195,7 @@ class LibraryStore:
             return lib
 
     def update_library(self, lid: str, name: Optional[str] = None, description: Optional[str] = None,
-                       pinned: Optional[bool] = None, is_default: Optional[bool] = None) -> dict:
+                       pinned: Optional[bool] = None) -> dict:
         with self.lock:
             lib = self._load_lib(lid)
             if name is not None:
@@ -204,28 +204,37 @@ class LibraryStore:
                 lib["description"] = description
             if pinned is not None:
                 lib["pinned"] = bool(pinned)
-            if is_default is not None:
-                # 默认库唯一：设当前为默认时，其它库的默认标记清除
-                if bool(is_default):
-                    self._clear_default_flag(lid)
-                lib["isDefault"] = bool(is_default)
             lib["updatedAt"] = now_iso()
             self._save_lib(lib)
             return lib
 
-    def set_default_library(self, lid: str) -> dict:
-        """把指定库设为默认（唯一），其它库的默认标记清除。"""
-        return self.update_library(lid, is_default=True)
+    # ---- 默认保存目标（库 / 软链接统一，唯一） ----
 
-    def _clear_default_flag(self, except_lid: str) -> None:
-        items = self._load_index()
-        changed = False
-        for it in items:
-            if it["id"] != except_lid and it.get("isDefault"):
-                it["isDefault"] = False
-                changed = True
-        if changed:
-            self._save_index(items)
+    def get_default_target(self) -> dict:
+        """全局默认保存目标：{kind: library|symlink, id}；未设置时为空串。"""
+        return _read_json(self.root / "default_target.json", {"kind": "", "id": ""})
+
+    def set_default_target(self, kind: str, target_id: str) -> dict:
+        """设置默认保存目标（唯一）：库或软链接都经此登记，AI 洞察等插件读取。"""
+        entry = {"kind": kind, "id": target_id}
+        _write_json(self.root / "default_target.json", entry)
+        return entry
+
+    def is_default_target(self, kind: str, target_id: str) -> bool:
+        t = self.get_default_target()
+        return t.get("kind") == kind and t.get("id") == target_id
+
+    def clear_default_target(self, kind: str, target_id: str) -> None:
+        """目标被删除时清除其默认标记（避免悬空）。"""
+        if self.is_default_target(kind, target_id):
+            self.set_default_target("", "")
+
+    def set_default_library(self, lid: str) -> dict:
+        """把指定库设为默认保存目标（唯一），并返回库信息。"""
+        with self.lock:
+            self._load_lib(lid)  # 确认存在
+            self.set_default_target("library", lid)
+            return self._load_lib(lid)
 
     def delete_library(self, lid: str) -> None:
         with self.lock:
@@ -245,6 +254,8 @@ class LibraryStore:
                 old.unlink()
             items = [it for it in self._load_index() if it["id"] != lid]
             self._save_index(items)
+            # 若删除的是默认保存目标，清除默认标记
+            self.clear_default_target("library", lid)
 
     # ---- 文档集（课程） ----
     def create_collection(self, lid: str, data: dict) -> dict:

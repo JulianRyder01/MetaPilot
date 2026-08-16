@@ -17,6 +17,14 @@ export const symlinkAddMount = (name: string, root: string) =>
 export const symlinkRenameMount = (id: string, name: string) =>
   request<SymlinkMount>(`/plugins/symlink/mounts/${id}`, { method: "PUT", body: JSON.stringify({ name }) })
 
+/** 置顶 / 取消置顶（可多个） */
+export const symlinkPinMount = (id: string, pinned: boolean) =>
+  request<SymlinkMount>(`/plugins/symlink/mounts/${id}`, { method: "PUT", body: JSON.stringify({ pinned }) })
+
+/** 设为默认保存目标（全局唯一，与库统一） */
+export const symlinkSetDefaultMount = (id: string) =>
+  request<{ kind: "symlink"; id: string }>(`/plugins/symlink/mounts/${id}/default`, { method: "POST" })
+
 export const symlinkRemoveMount = (id: string) =>
   request<{ ok: boolean }>(`/plugins/symlink/mounts/${id}`, { method: "DELETE" })
 

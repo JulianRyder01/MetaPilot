@@ -126,18 +126,22 @@ class SymlinkService:
                 "name": name,
                 "root": str(root_path.resolve()),
                 "type": "dir" if root_path.is_dir() else "file",
+                "pinned": False,
                 "createdAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
             }
             data["mounts"].append(mount)
             self._save(data)
             return mount
 
-    def rename_mount(self, mount_id: str, name: str) -> dict:
+    def rename_mount(self, mount_id: str, name: Optional[str] = None, pinned: Optional[bool] = None) -> dict:
         with self.lock:
             data = self._load()
             for m in data["mounts"]:
                 if m["id"] == mount_id:
-                    m["name"] = name
+                    if name is not None:
+                        m["name"] = name
+                    if pinned is not None:
+                        m["pinned"] = bool(pinned)
                     self._save(data)
                     return m
             raise KeyError(f"挂载不存在: {mount_id}")
