@@ -213,6 +213,10 @@ export const coreZhCN: Record<string, string> = {
   "core.canvas.backToLibrary": "返回库",
   "core.canvas.badge": "图表画布",
   "core.canvas.dirty": "有未保存修改",
+  "core.canvas.unsavedTitle": "有未保存的修改",
+  "core.canvas.unsavedDesc": "图表有未保存的修改，关闭前是否保存？",
+  "core.canvas.discardAndLeave": "不保存并离开",
+  "core.canvas.saveAndLeave": "保存并离开",
   "core.canvas.newTextNode": "新建文本节点",
   "core.canvas.help":
     "拖拽节点移动，空白框选、Shift 多选，Delete 删除，Ctrl+C/V 复制粘贴，Ctrl+Z 撤销；双击文本编辑；从节点边缘连接点拖到另一节点创建连线；滚轮平移、Ctrl+滚轮缩放、按住空格拖拽平移。",

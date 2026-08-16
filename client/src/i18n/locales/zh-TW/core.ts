@@ -208,6 +208,10 @@ export const coreZhTW: Record<string, string> = {
   "core.canvas.backToLibrary": "返回文件庫",
   "core.canvas.badge": "圖表畫布",
   "core.canvas.dirty": "有未儲存的變更",
+  "core.canvas.unsavedTitle": "有未儲存的修改",
+  "core.canvas.unsavedDesc": "圖表有未儲存的修改，關閉前是否儲存？",
+  "core.canvas.discardAndLeave": "不儲存並離開",
+  "core.canvas.saveAndLeave": "儲存並離開",
   "core.canvas.newTextNode": "新建文字節點",
   "core.canvas.help":
     "拖曳節點移動，空白框選、Shift 多選，Delete 刪除，Ctrl+C/V 複製貼上，Ctrl+Z 復原；雙擊文字編輯；從節點邊緣連接點拖到另一節點建立連線；滾輪平移、Ctrl+滾輪縮放、按住空格拖曳平移。",

@@ -225,6 +225,10 @@ export const coreEn: Record<string, string> = {
   "core.canvas.backToLibrary": "Back to library",
   "core.canvas.badge": "Canvas",
   "core.canvas.dirty": "Unsaved changes",
+  "core.canvas.unsavedTitle": "Unsaved changes",
+  "core.canvas.unsavedDesc": "The canvas has unsaved changes. Save before leaving?",
+  "core.canvas.discardAndLeave": "Discard & leave",
+  "core.canvas.saveAndLeave": "Save & leave",
   "core.canvas.newTextNode": "New text node",
   "core.canvas.help":
     "Drag nodes to move; marquee-select on empty space, Shift to multi-select, Delete to remove, Ctrl+C/V to copy & paste, Ctrl+Z to undo; double-click text to edit; drag from a node's edge handle onto another node to create a link; scroll to pan, Ctrl+scroll to zoom, hold Space and drag to pan.",

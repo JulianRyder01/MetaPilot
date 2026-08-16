@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams } from "react-router-dom"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { AlignCenter, AlignLeft, AlignRight, ArrowLeft, Box, CornerDownRight, Download, FileText, Focus, Image, Library, Link2, Maximize, Minus, MoveHorizontal, PanelLeft, Plus, Redo2, Save, Spline, StickyNote, Trash2, Undo2, X } from "lucide-react"
@@ -12,6 +12,14 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { useDialogs } from "@/components/ui/dialog-provider"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -118,12 +126,25 @@ function sideOfNode(node: CanvasNode, p: { x: number; y: number }): string {
 
 export default function CanvasPage() {
   const { cid } = useParams()
+  const navigate = useNavigate()
   const t = useT()
   const dialogs = useDialogs()
   const [col, setCol] = useState<Collection | null>(null)
   const [nodes, setNodes] = useState<CanvasNode[]>([])
   const [edges, setEdges] = useState<CanvasEdge[]>([])
   const [dirty, setDirty] = useState(false)
+  /** 待离开的目标路径：有未保存修改时点击离开导航先弹确认框（保存并离开/不保存/取消）。 */
+  const [leaveTo, setLeaveTo] = useState<string | null>(null)
+  /** 保存进行中（防连点重复提交）。 */
+  const [saving, setSaving] = useState(false)
+  /** dirty 的 ref 同步副本（供 popstate/beforeunload 等事件监听读取最新值）。 */
+  const dirtyRef = useRef(false)
+
+  /** 同步置 dirty：ref 立即生效，事件监听无需等渲染后 effect 同步（避免「已修改但 ref 仍为旧值」的窗口）。 */
+  function setDirtySync(v: boolean) {
+    dirtyRef.current = v
+    setDirty(v)
+  }
   const [linking, setLinking] = useState<{ fromId: string; fromSide: string } | null>(null)
   const [linkPos, setLinkPos] = useState<{ x: number; y: number } | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -177,7 +198,7 @@ export default function CanvasPage() {
     setSelectedEdgeId(null)
     undoStack.current = []
     redoStack.current = []
-    setDirty(false)
+    setDirtySync(false)
   }, [cid])
 
   useEffect(() => {
@@ -206,18 +227,73 @@ export default function CanvasPage() {
     }
   }, [cid])
 
-  async function save() {
-    if (!cid) return
+  /** 保存画布；返回是否成功（供「保存并离开」复用）。 */
+  async function doSave(): Promise<boolean> {
+    if (!cid || saving) return false
+    setSaving(true)
     try {
       // 若正在编辑文本节点，先将其提交进节点数据再保存（Ctrl+Enter 保存）
       const finalNodes = editingId ? nodes.map((n) => (n.id === editingId ? { ...n, text: editText } : n)) : nodes
       await api.updateCollectionCanvas(cid, finalNodes, edges)
-      setDirty(false)
-      toast.success(t("core.canvas.saved"))
+      setDirtySync(false)
+      return true
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("core.canvas.saveFailed"))
+      return false
+    } finally {
+      setSaving(false)
     }
   }
+
+  async function save() {
+    if (await doSave()) toast.success(t("core.canvas.saved"))
+  }
+
+  /** 离开画布统一入口：有未保存修改时先弹「是否保存」确认框，否则直接跳转。 */
+  function navigateAway(to: string) {
+    if (!dirty) {
+      navigate(to)
+      return
+    }
+    setLeaveTo(to)
+  }
+
+  /** 应用内导航离开：拦截返回库/切换图表的点击（Link 的默认导航被 preventDefault 接管）。 */
+  function interceptLeave(e: React.MouseEvent, to: string) {
+    e.preventDefault()
+    setNavOpen(false)
+    navigateAway(to)
+  }
+
+  /** 浏览器刷新/关闭兜底：有未保存修改时触发原生离开确认（自定义确认框仅能覆盖应用内导航）。 */
+  useEffect(() => {
+    if (!dirty) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ""
+    }
+    window.addEventListener("beforeunload", onBeforeUnload)
+    return () => window.removeEventListener("beforeunload", onBeforeUnload)
+  }, [dirty])
+
+  /** 浏览器前进/后退兜底：有未保存修改时恢复回画布路由并弹「是否保存」确认框。
+   *  BrowserRouter 无官方 useBlocker，故监听 popstate：同步 replace 回画布（同一事件循环内
+   *  与 React Router 的 location 更新批处理，画布不卸载），再走统一确认框。
+   *  注意：此实现依赖 react-router v7 的时序（handlePop 先注册、popstate 时经 startTransition
+   *  延迟渲染）——若未来迁移 data router（RouterProvider），应改用官方 usePrompt 并删除本兜底。 */
+  useEffect(() => {
+    if (!dirty) return
+    const onPop = () => {
+      if (!dirtyRef.current) return
+      const target = window.location.pathname + window.location.search + window.location.hash
+      // 历史栈中 replace 后残留的同 URL 条目（前进/后退落回当前画布）：并非真实离开，直接忽略
+      if (target === `/canvas/${cid}`) return
+      navigate(`/canvas/${cid}`, { replace: true })
+      setLeaveTo(target)
+    }
+    window.addEventListener("popstate", onPop)
+    return () => window.removeEventListener("popstate", onPop)
+  }, [dirty, cid, navigate])
 
   // ---- 历史（撤销/重做） ----
 
@@ -233,7 +309,7 @@ export default function CanvasPage() {
     redoStack.current.push({ nodes: structuredClone(nodes), edges: structuredClone(edges) })
     setNodes(prev.nodes)
     setEdges(prev.edges)
-    setDirty(true)
+    setDirtySync(true)
   }
 
   function redo() {
@@ -242,7 +318,7 @@ export default function CanvasPage() {
     undoStack.current.push({ nodes: structuredClone(nodes), edges: structuredClone(edges) })
     setNodes(next.nodes)
     setEdges(next.edges)
-    setDirty(true)
+    setDirtySync(true)
   }
 
   /** 新建节点（text/file/link/group），文件/链接/分组需弹窗输入（Obsidian 兼容字段）；pos 为画布坐标（右键/双击指定位置）。 */
@@ -287,13 +363,13 @@ export default function CanvasPage() {
     setNodes((n) => [...n, node])
     setSelectedIds([node.id])
     setSelectedEdgeId(null)
-    setDirty(true)
+    setDirtySync(true)
   }
 
   /** 更新节点字段（不进入历史，由调用方决定）。 */
   function updateNode(id: string, patch: Partial<CanvasNode>) {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, ...patch } : n)))
-    setDirty(true)
+    setDirtySync(true)
   }
 
   /** 给所有选中节点应用颜色（hex 或 JSON Canvas 预设串）。 */
@@ -302,7 +378,7 @@ export default function CanvasPage() {
     pushHistory()
     const idSet = new Set(selectedIds)
     setNodes((ns) => ns.map((n) => (idSet.has(n.id) ? { ...n, color } : n)))
-    setDirty(true)
+    setDirtySync(true)
   }
 
   /** 开始拖拽调整节点尺寸（四角手柄）。 */
@@ -342,7 +418,7 @@ export default function CanvasPage() {
     }
     setNodes((n) => [...n, group])
     setSelectedIds([group.id])
-    setDirty(true)
+    setDirtySync(true)
   }
 
   /** 删除一组节点并清理关联边。 */
@@ -353,7 +429,7 @@ export default function CanvasPage() {
     setNodes((n) => n.filter((x) => !idSet.has(x.id)))
     setEdges((e) => e.filter((x) => !idSet.has(x.fromNode) && !idSet.has(x.toNode)))
     setSelectedIds((s) => s.filter((id) => !idSet.has(id)))
-    setDirty(true)
+    setDirtySync(true)
   }
 
   function removeNode(id: string) {
@@ -372,12 +448,12 @@ export default function CanvasPage() {
     pushHistory()
     setEdges((es) => es.filter((x) => x.id !== id))
     setSelectedEdgeId(null)
-    setDirty(true)
+    setDirtySync(true)
   }
 
   function updateEdge(id: string, patch: Partial<CanvasEdge>) {
     setEdges((es) => es.map((x) => (x.id === id ? { ...x, ...patch } : x)))
-    setDirty(true)
+    setDirtySync(true)
   }
 
   /** 切换边端点箭头（fromEnd/toEnd，JSON Canvas 默认 none/arrow）。 */
@@ -386,7 +462,7 @@ export default function CanvasPage() {
     setEdges((es) =>
       es.map((x) => (x.id === id ? { ...x, [end]: x[end] === "arrow" ? "none" : "arrow" } : x)),
     )
-    setDirty(true)
+    setDirtySync(true)
   }
 
   /** 编辑边 label（聚焦时入历史，输入中实时更新）。 */
@@ -424,7 +500,7 @@ export default function CanvasPage() {
     setNodes((ns) => [...ns, ...newNodes])
     setEdges((es) => [...es, ...newEdges])
     setSelectedIds(newNodes.map((n) => n.id))
-    setDirty(true)
+    setDirtySync(true)
   }
 
   // ---- 视图变换：屏幕坐标 ↔ 画布坐标 ----
@@ -744,12 +820,12 @@ export default function CanvasPage() {
       return
     }
     if (resizing) {
-      setDirty(true)
+      setDirtySync(true)
       setResizing(null)
       return
     }
     if (dragState) {
-      if (dragMovedRef.current) setDirty(true)
+      if (dragMovedRef.current) setDirtySync(true)
       setDragState(null)
       dragMovedRef.current = false
     }
@@ -832,7 +908,7 @@ export default function CanvasPage() {
         ...es,
         { id: genId("e"), fromNode: linking.fromId, fromSide: linking.fromSide, toNode: targetId, toSide },
       ])
-      setDirty(true)
+      setDirtySync(true)
     }
     setLinking(null)
     setLinkPos(null)
@@ -880,7 +956,7 @@ export default function CanvasPage() {
     if (editingId) {
       pushHistory()
       setNodes((ns) => ns.map((n) => (n.id === editingId ? { ...n, text: editText } : n)))
-      setDirty(true)
+      setDirtySync(true)
     }
     setEditingId(null)
   }
@@ -932,7 +1008,11 @@ export default function CanvasPage() {
           >
             <PanelLeft className="size-4" />
           </Button>
-          <Link to="/" className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <Link
+            to="/"
+            onClick={(e) => interceptLeave(e, "/")}
+            className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
             <ArrowLeft className="size-4" />
             {t("core.canvas.backToLibrary")}
           </Link>
@@ -974,7 +1054,7 @@ export default function CanvasPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="sm" onClick={save}>
+          <Button size="sm" onClick={save} disabled={saving}>
             <Save className="size-4" />
             {t("common.save")}
           </Button>
@@ -1173,7 +1253,11 @@ export default function CanvasPage() {
                     <textarea
                       autoFocus
                       value={editText}
-                      onChange={(e) => setEditText(e.target.value)}
+                      onChange={(e) => {
+                        setEditText(e.target.value)
+                        // 输入即视为有修改：刷新/关闭/浏览器后退时 beforeunload 与 popstate 兜底才能生效
+                        setDirtySync(true)
+                      }}
                       onBlur={commitEdit}
                       onMouseDown={(e) => e.stopPropagation()}
                       className="h-full w-full resize-none bg-transparent text-xs outline-none"
@@ -1613,7 +1697,7 @@ export default function CanvasPage() {
             <div className="flex-1 overflow-y-auto p-3">
               <Link
                 to="/"
-                onClick={() => setNavOpen(false)}
+                onClick={(e) => interceptLeave(e, "/")}
                 className="mb-3 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
               >
                 <ArrowLeft className="size-4" />
@@ -1629,7 +1713,7 @@ export default function CanvasPage() {
                     <Link
                       key={c.id}
                       to={`/canvas/${c.id}`}
-                      onClick={() => setNavOpen(false)}
+                      onClick={(e) => interceptLeave(e, `/canvas/${c.id}`)}
                       className={cn(
                         "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm",
                         c.id === cid
@@ -1646,6 +1730,46 @@ export default function CanvasPage() {
             </div>
           </aside>
         </>
+      )}
+
+      {/* 未保存修改离开确认框：保存并离开 / 不保存并离开 / 取消（留在页面） */}
+      {leaveTo != null && (
+        <Dialog open onOpenChange={(o) => !o && setLeaveTo(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t("core.canvas.unsavedTitle")}</DialogTitle>
+              <DialogDescription>{t("core.canvas.unsavedDesc")}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2">
+              <Button variant="ghost" onClick={() => setLeaveTo(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const to = leaveTo
+                  setLeaveTo(null)
+                  navigate(to)
+                }}
+              >
+                {t("core.canvas.discardAndLeave")}
+              </Button>
+              <Button
+                disabled={saving}
+                onClick={async () => {
+                  const to = leaveTo
+                  if (await doSave()) {
+                    setLeaveTo(null)
+                    toast.success(t("core.canvas.saved"))
+                    navigate(to)
+                  }
+                }}
+              >
+                {t("core.canvas.saveAndLeave")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )
