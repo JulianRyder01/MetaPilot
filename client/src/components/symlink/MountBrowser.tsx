@@ -8,16 +8,10 @@ import {
   FileImage,
   FileText,
   FileVideo,
-  Folder,
   FolderOpen,
-  Grid3X3,
   Link2,
-  List,
   Pencil,
-  Plus,
-  RefreshCw,
   Save,
-  Search,
   Trash2,
   X,
 } from "lucide-react"
@@ -26,6 +20,7 @@ import { toast } from "@/lib/toast"
 import { useT } from "@/i18n"
 import type { SymlinkItem, SymlinkMount, SymlinkTree } from "@/lib/api"
 import { useLightbox } from "@/components/ui/lightbox"
+import { FileManagerView, FolderBadge, type ContentEntry } from "@/components/library/views"
 import {
   symlinkDelete,
   symlinkMkdir,
@@ -38,7 +33,6 @@ import {
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { MarkdownBlock } from "@/components/learn/blocks/MarkdownBlock"
 import { useDialogs } from "@/components/ui/dialog-provider"
@@ -250,9 +244,57 @@ export function MountBrowser({
   }
 
   const crumbs = path ? path.split("/").filter(Boolean) : []
-  const filteredItems = (tree?.items ?? []).filter((i) =>
-    i.name.toLowerCase().includes(search.trim().toLowerCase()),
-  )
+  const items = tree?.items ?? []
+  const itemById = (id: string) => items.find((i) => i.name === id)
+  /** 文件类型标签（badge 显示，如 MD / JSON / 图片） */
+  function fileExtLabel(name: string) {
+    const i = name.lastIndexOf(".")
+    if (i < 0) return t("symlink.file")
+    return name.slice(i + 1).toUpperCase()
+  }
+  const entries: ContentEntry[] = items.map((it) => ({
+    id: it.name,
+    name: it.name,
+    type: it.type === "dir" ? "folder" : "file",
+    icon: it.type === "dir" ? (
+      <FolderOpen className="size-4 shrink-0 text-primary" />
+    ) : (
+      <span className="flex shrink-0 items-center">
+        <FileTypeIcon name={it.name} />
+      </span>
+    ),
+    badge:
+      it.type === "dir" ? (
+        <FolderBadge label={t("symlink.folder")} />
+      ) : (
+        <Badge variant="secondary">{fileExtLabel(it.name)}</Badge>
+      ),
+    tail: it.type === "file" ? (
+      <span className="text-xs text-muted-foreground">{fmtSize(it.size)}</span>
+    ) : undefined,
+  }))
+  const breadcrumbs: React.ReactNode[] = [
+    <button
+      key="__root__"
+      type="button"
+      onClick={() => loadTree("")}
+      className="shrink-0 font-medium text-primary hover:underline"
+    >
+      {mount.name}
+      {mount.type === "file" ? ` ${t("symlink.singleFile")}` : ""}
+    </button>,
+    ...crumbs.map((c, i) => {
+      const target = crumbs.slice(0, i + 1).join("/")
+      return (
+        <span key={target} className="flex min-w-0 items-center gap-0.5">
+          <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
+          <button type="button" onClick={() => loadTree(target)} className="truncate hover:underline">
+            {c}
+          </button>
+        </span>
+      )
+    }),
+  ]
 
   // ---- 右侧主区 ----
   return (
@@ -260,74 +302,6 @@ export function MountBrowser({
     <div className="min-h-[calc(100vh-240px)] overflow-hidden rounded-lg border">
       {/* 主区：与库一致的文件视图（文件夹 + 文档卡片/列表 + 面包屑导航） */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* 工具栏 */}
-        <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-          {/* 面包屑 */}
-          <div className="flex min-w-0 items-center gap-0.5 text-sm">
-            <button onClick={() => loadTree("")} className="shrink-0 font-medium text-primary hover:underline">
-              {mount.name}
-            </button>
-            {crumbs.map((c, i) => {
-              const target = crumbs.slice(0, i + 1).join("/")
-              return (
-                <span key={i} className="flex min-w-0 items-center gap-0.5">
-                  <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
-                  <button onClick={() => loadTree(target)} className="truncate hover:underline">
-                    {c}
-                  </button>
-                </span>
-              )
-            })}
-            {mount.type === "file" && <Badge variant="outline" className="ml-1">{t("symlink.singleFile")}</Badge>}
-          </div>
-          <div className="ml-auto flex items-center gap-1.5">
-            {mount.type !== "file" && variant === "manager" && (
-              <>
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder={t("symlink.searchPlaceholder")}
-                    className="h-8 w-40 pl-7 text-xs"
-                  />
-                </div>
-                <div className="flex items-center rounded-md border">
-                  <button
-                    onClick={() => setView("grid")}
-                    className={cn(
-                      "rounded-l-md p-1.5",
-                      view === "grid" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
-                    )}
-                    title={t("symlink.gridView")}
-                  >
-                    <Grid3X3 className="size-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setView("list")}
-                    className={cn(
-                      "rounded-r-md p-1.5",
-                      view === "list" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
-                    )}
-                    title={t("symlink.listView")}
-                  >
-                    <List className="size-3.5" />
-                  </button>
-                </div>
-              </>
-            )}
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => loadTree(path)} title={t("common.refresh")}>
-              <RefreshCw className="size-3.5" />
-            </Button>
-            {mount.type !== "file" && (
-              <Button variant="outline" size="sm" className="h-8" onClick={createFolder}>
-                <Plus className="size-3.5" />
-                {t("symlink.newFolder")}
-              </Button>
-            )}
-          </div>
-        </div>
-
         {/* 主体：文件编辑器（选中文件时）或 文件列表 */}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {file && !editing && (
@@ -415,93 +389,37 @@ export function MountBrowser({
               />
             </div>
           ) : (
-            // 文件列表
-            <div className="p-3">
-              {filteredItems.length === 0 ? (
-                <p className="py-10 text-center text-sm text-muted-foreground">
-                  {search
-                    ? t("symlink.noMatch")
-                    : mount.type === "file"
-                      ? t("symlink.singleFileMount")
-                      : t("symlink.emptyDir")}
-                </p>
-              ) : variant === "natural" || view === "grid" ? (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {filteredItems.map((item) => (
-                    <div
-                      key={item.name}
-                      onContextMenu={(e) => {
-                        e.preventDefault()
-                        setCtxMenu({ item, x: e.clientX, y: e.clientY })
-                      }}
-                      className="group relative rounded-lg border p-4 transition-shadow hover:shadow-md"
-                    >
-                      <button onClick={() => openItem(item)} className="flex w-full flex-col items-center gap-2 text-center">
-                        {item.type === "dir" ? (
-                          <FolderOpen className="size-8 text-primary" />
-                        ) : (
-                          <FileTypeIcon name={item.name} />
-                        )}
-                        <span className="line-clamp-2 w-full break-all text-xs font-medium">{item.name}</span>
-                        {item.type === "dir" ? (
-                          <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                            <Folder className="size-2.5" />
-                            {t("symlink.folder")}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground">{fmtSize(item.size)}</span>
-                        )}
-                      </button>
-                      {mount.type !== "file" && (
-                        <button
-                          onClick={() => removeItem(item)}
-                          className="absolute right-1.5 top-1.5 rounded p-1 text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
-                          title={t("common.delete")}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {filteredItems.map((item) => (
-                    <div
-                      key={item.name}
-                      onContextMenu={(e) => {
-                        e.preventDefault()
-                        setCtxMenu({ item, x: e.clientX, y: e.clientY })
-                      }}
-                      className="group flex items-center gap-3 rounded-lg border px-4 py-3 text-sm hover:bg-accent/40"
-                    >
-                      <button onClick={() => openItem(item)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                        {item.type === "dir" ? (
-                          <Folder className="size-4 shrink-0 text-primary" />
-                        ) : (
-                          <FileTypeIcon name={item.name} />
-                        )}
-                        <span className="truncate font-medium">{item.name}</span>
-                        {item.type === "file" ? (
-                          <span className="ml-auto shrink-0 text-xs text-muted-foreground">{fmtSize(item.size)}</span>
-                        ) : (
-                          <Badge variant="secondary">{t("symlink.folder")}</Badge>
-                        )}
-                      </button>
-                      {mount.type !== "file" && (
-                        <button
-                          onClick={() => removeItem(item)}
-                          className="text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
-                          title={t("common.delete")}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <FileManagerView
+              natural={variant === "natural"}
+              breadcrumbs={breadcrumbs}
+              entries={entries}
+              onOpen={(id) => {
+                const it = itemById(id)
+                if (it) void openItem(it)
+              }}
+              onContextMenu={
+                mount.type !== "file"
+                  ? (e, entry) => {
+                      e.preventDefault()
+                      const it = itemById(entry.id)
+                      if (it) setCtxMenu({ item: it, x: e.clientX, y: e.clientY })
+                    }
+                  : undefined
+              }
+              search={search}
+              onSearch={setSearch}
+              view={view}
+              onViewChange={setView}
+              onRefresh={() => loadTree(path)}
+              onCreateFolder={mount.type !== "file" ? createFolder : undefined}
+              emptyHint={
+                search
+                  ? t("symlink.noMatch")
+                  : mount.type === "file"
+                    ? t("symlink.singleFileMount")
+                    : t("symlink.emptyDir")
+              }
+            />
           )}
         </div>
       </div>
