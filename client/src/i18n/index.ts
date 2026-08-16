@@ -97,14 +97,13 @@ type Params = Record<string, string | number>
  *  查找链：该语言动态词典 → 该语言内置词典（仅核心三语有）→ zh-CN 动态词典 → zh-CN 内置词典 → key。 */
 export function translate(key: string, params?: Params, lang?: Lang): string {
   const l = lang ?? useI18nStore.getState().lang
-  const dyn = extraDicts[l]?.[key]
-  if (dyn !== undefined) return dyn
   let tmpl: string | undefined
-  if (l === "zh-CN") tmpl = zhCNDict[key]
+  const dyn = extraDicts[l]?.[key]
+  if (dyn !== undefined) tmpl = dyn
+  else if (l === "zh-CN") tmpl = zhCNDict[key]
   else if (l === "zh-TW") tmpl = zhTWDict[key] ?? zhCNDict[key]
   else if (l === "en") tmpl = enDict[key] ?? zhCNDict[key]
-  if (tmpl !== undefined) return tmpl
-  tmpl = extraDicts["zh-CN"]?.[key] ?? zhCNDict[key]
+  if (tmpl === undefined) tmpl = extraDicts["zh-CN"]?.[key] ?? zhCNDict[key]
   if (tmpl === undefined) return key
   if (!params) return tmpl
   return tmpl.replace(/\{(\w+)\}/g, (_, k: string) => (k in params ? String(params[k]) : `{${k}}`))

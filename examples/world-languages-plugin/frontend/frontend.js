@@ -57,16 +57,22 @@
   function LanguagesPage() {
     var useState = React.useState
     var useEffect = React.useEffect
-    var items = useState([])[0]
-    var setItems = useState([])[1]
-    var loading = useState(true)[0]
-    var setLoading = useState(false)[1]
-    var error = useState("")[0]
-    var setError = useState("")[1]
-    var query = useState("")[0]
-    var setQuery = useState("")[1]
-    var lang = useState(I18N ? I18N.getLang() : "zh-CN")[0]
-    var setLang = useState("")[1]
+    // 注意：必须成对解构 useState（[值, setter]），否则 setter 与值错位导致状态永不更新
+    var itemsState = useState([])
+    var items = itemsState[0]
+    var setItems = itemsState[1]
+    var loadingState = useState(true)
+    var loading = loadingState[0]
+    var setLoading = loadingState[1]
+    var errorState = useState("")
+    var error = errorState[0]
+    var setError = errorState[1]
+    var queryState = useState("")
+    var query = queryState[0]
+    var setQuery = queryState[1]
+    var langState = useState(I18N ? I18N.getLang() : "zh-CN")
+    var lang = langState[0]
+    var setLang = langState[1]
 
     useEffect(function () {
       var cancelled = false

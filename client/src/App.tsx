@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { Route, Routes } from "react-router-dom"
 
 import AppLayout from "@/components/layout/AppLayout"
@@ -9,11 +10,20 @@ import EditPage from "@/pages/EditPage"
 import PluginsPage from "@/pages/PluginsPage"
 import SettingsPage from "@/pages/SettingsPage"
 import { allPluginRoutes, usePluginRuntimeFrontends } from "@/plugins/registry"
+import { ensurePluginsLoaded } from "@/stores/plugins"
 
 export default function App() {
   // 内置官方插件路由 + 第三方插件运行时动态注册的路由（frontend.js）
   const dynamic = usePluginRuntimeFrontends()
   const pluginRoutes = allPluginRoutes(dynamic)
+
+  // 兜底：任何 URL 加载即拉取插件清单并加载 frontend.js（不依赖路由匹配）。
+  // 深链接插件路由（如 /languages）在插件注册前无匹配 → AppLayout 不渲染，
+  // 若仅在 AppLayout 的 useEffect 触发加载会死锁；此处保证插件尽快注册，
+  // 注册后 App 重渲染使 Routes 重新匹配当前 location。
+  useEffect(() => {
+    ensurePluginsLoaded()
+  }, [])
 
   return (
     <Routes>
