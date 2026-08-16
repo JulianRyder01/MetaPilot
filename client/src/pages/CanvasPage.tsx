@@ -824,9 +824,13 @@ export default function CanvasPage() {
   function endLinkOn(targetId: string) {
     if (linking && linking.fromId !== targetId) {
       pushHistory()
+      // 补全 toSide：按两节点中心方位推断目标附着边，保证箭头终点落在目标节点边缘上
+      const na = nodes.find((n) => n.id === linking.fromId)
+      const nb = nodes.find((n) => n.id === targetId)
+      const toSide = na && nb ? sideOfNode(nb, { x: na.x + na.width / 2, y: na.y + na.height / 2 }) : undefined
       setEdges((es) => [
         ...es,
-        { id: genId("e"), fromNode: linking.fromId, fromSide: linking.fromSide, toNode: targetId },
+        { id: genId("e"), fromNode: linking.fromId, fromSide: linking.fromSide, toNode: targetId, toSide },
       ])
       setDirty(true)
     }
@@ -1047,16 +1051,22 @@ export default function CanvasPage() {
               const a = nodeById(e.fromNode)
               const b = nodeById(e.toNode)
               if (!a || !b) return null
-              const p1 = centerOf(a, e.fromSide)
-              const p2 = centerOf(b, e.toSide)
+              // 附着边缺失时（旧数据/直接构造的边）按对方中心方位推断，保证端点始终在边缘上
+              const aCenter = { x: a.x + a.width / 2, y: a.y + a.height / 2 }
+              const bCenter = { x: b.x + b.width / 2, y: b.y + b.height / 2 }
+              const fromSide = e.fromSide ?? sideOfNode(a, bCenter)
+              const toSide = e.toSide ?? sideOfNode(b, aCenter)
+              const p1 = centerOf(a, fromSide)
+              const p2 = centerOf(b, toSide)
               const color = resolveColor(e.color) ?? "#94a3b8"
               const selected = selectedEdgeId === e.id
               const d = edgePath(p1, p2, e.styleAttributes?.pathfindingMethod)
-              // JSON Canvas 默认：fromEnd=none、toEnd=arrow；箭头垂直于卡片边沿
+              // JSON Canvas 默认：fromEnd=none、toEnd=arrow；箭头垂直于卡片边沿、
+              // 尖端落在边缘上、主体在节点外侧（指向内侧会被卡片背景遮挡而不可见）
               const fromEnd = e.fromEnd === "arrow"
               const toEnd = e.toEnd === "arrow" || e.toEnd == null
-              const toAngle = sideAngle(e.toSide)
-              const fromAngle = sideAngle(e.fromSide) + Math.PI
+              const toAngle = sideAngle(toSide) + Math.PI
+              const fromAngle = sideAngle(fromSide) + Math.PI
               return (
                 <g key={e.id}>
                   {/* 连线路径：smooth 曲线 / straight 直线 / square 直角折线（Obsidian pathfindingMethod） */}
@@ -1099,8 +1109,12 @@ export default function CanvasPage() {
             const a = nodeById(e.fromNode)
             const b = nodeById(e.toNode)
             if (!a || !b || !e.label) return null
-            const p1 = centerOf(a, e.fromSide)
-            const p2 = centerOf(b, e.toSide)
+            const aCenter = { x: a.x + a.width / 2, y: a.y + a.height / 2 }
+            const bCenter = { x: b.x + b.width / 2, y: b.y + b.height / 2 }
+            const fromSide = e.fromSide ?? sideOfNode(a, bCenter)
+            const toSide = e.toSide ?? sideOfNode(b, aCenter)
+            const p1 = centerOf(a, fromSide)
+            const p2 = centerOf(b, toSide)
             return (
               <div
                 key={`${e.id}-label`}
