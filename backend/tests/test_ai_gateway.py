@@ -24,6 +24,31 @@ class FakeResponse:
         return self._data
 
 
+class FakeStreamResponse:
+    """流式响应替身：逐行产出 SSE 文本。"""
+
+    def __init__(self, lines):
+        self._lines = lines
+
+    def raise_for_status(self):
+        pass
+
+    async def aiter_lines(self):
+        for ln in self._lines:
+            yield ln
+
+
+class FakeStreamContext:
+    def __init__(self, lines):
+        self._lines = lines
+
+    async def __aenter__(self):
+        return FakeStreamResponse(self._lines)
+
+    async def __aexit__(self, *a):
+        return False
+
+
 class FakeAsyncClient:
     def __init__(self, timeout=None):
         pass
@@ -39,6 +64,12 @@ class FakeAsyncClient:
         CAPTURED["json"] = kwargs.get("json")
         CAPTURED["headers"] = kwargs.get("headers")
         return FakeResponse(REPLIES.pop(0))
+
+    def stream(self, method, url, **kwargs):
+        CAPTURED["url"] = url
+        CAPTURED["json"] = kwargs.get("json")
+        CAPTURED["headers"] = kwargs.get("headers")
+        return FakeStreamContext(REPLIES.pop(0))
 
 
 @pytest.fixture(autouse=True)
@@ -125,6 +156,83 @@ async def test_chat_none_provider_raises(tmp_path):
     gw = _make(tmp_path, provider="none", base="", key="")
     with pytest.raises(NotConfiguredError):
         await gw.chat([{"role": "user", "content": "hi"}])
+    with pytest.raises(NotConfiguredError):
+        async for _ in gw.chat_stream([{"role": "user", "content": "hi"}]):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_openai_deltas_and_usage(tmp_path):
+    REPLIES.append([
+        'data: {"choices":[{"delta":{"content":"你"}}]}',
+        'data: {"choices":[{"delta":{"content":"好"}}]}',
+        'data: {"choices":[]}',
+        'data: {"choices":[],"usage":{"prompt_tokens":10,"prompt_tokens_details":{"cached_tokens":2},"completion_tokens":3}}',
+        "data: [DONE]",
+    ])
+    gw = _make(tmp_path)
+    chunks = []
+    async for d in gw.chat_stream([{"role": "user", "content": "hi"}], plugin="core"):
+        chunks.append(d)
+    assert "".join(chunks) == "你好"
+    # stream=true 与 include_usage 已请求
+    assert CAPTURED["json"]["stream"] is True
+    assert CAPTURED["json"]["stream_options"] == {"include_usage": True}
+    # 用量与缓存命中按流末 usage 记录
+    rec = gw.usage._load()[0]
+    assert rec["inputTokens"] == 10 and rec["cachedTokens"] == 2 and rec["outputTokens"] == 3
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_strips_think_blocks(tmp_path):
+    """<think> 块跨多个增量时仍被过滤，只展示最终回答。"""
+    REPLIES.append([
+        'data: {"choices":[{"delta":{"content":"回答<think>内部"}}]}',
+        'data: {"choices":[{"delta":{"content":"推理</think>完成"}}]}',
+        "data: [DONE]",
+    ])
+    gw = _make(tmp_path)
+    chunks = []
+    async for d in gw.chat_stream([{"role": "user", "content": "hi"}]):
+        chunks.append(d)
+    assert "".join(chunks) == "回答完成"
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_anthropic(tmp_path):
+    REPLIES.append([
+        'data: {"type":"message_start","usage":{"input_tokens":50,"cache_read_input_tokens":5}}',
+        'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"克"}}',
+        'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"劳德"}}',
+        'data: {"type":"message_delta","usage":{"output_tokens":9}}',
+        "data: [DONE]",
+    ])
+    gw = _make(tmp_path, provider="anthropic", base="https://api.anthropic.com",
+               key="ant-key", model="claude-x")
+    chunks = []
+    async for d in gw.chat_stream([{"role": "user", "content": "hi"}]):
+        chunks.append(d)
+    assert "".join(chunks) == "克劳德"
+    # message_start 与 message_delta 的用量合并
+    rec = gw.usage._load()[0]
+    assert rec["inputTokens"] == 50 and rec["cachedTokens"] == 5 and rec["outputTokens"] == 9
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_local(tmp_path):
+    REPLIES.append([
+        'data: {"choices":[{"delta":{"content":"本"}}]}',
+        'data: {"choices":[{"delta":{"content":"地"}}]}',
+        "data: [DONE]",
+    ])
+    gw = _make(tmp_path, provider="local", base="", key="")
+    chunks = []
+    async for d in gw.chat_stream([{"role": "user", "content": "hi"}]):
+        chunks.append(d)
+    assert "".join(chunks) == "本地"
+    assert "127.0.0.1:8761" in CAPTURED["url"]
+    # 本地流式无 Authorization 头
+    assert CAPTURED["headers"] is None or "Authorization" not in CAPTURED["headers"]
 
 
 @pytest.mark.asyncio

@@ -141,10 +141,11 @@ export const insightEmbeddingStop = () =>
 /** 洞察规划执行路线的步骤 id（前端按此顺序展示 todo list；展示名由前端词典提供，后端不写死文案） */
 export type InsightPlanStepId = "retrieve" | "plan" | "review" | "generate" | "save"
 
-/** /plan/stream 的 SSE 事件（协议由 ai_insight 插件前后端约定） */
+/** /plan/stream 的 SSE 事件（协议由 ai_insight 插件前后端约定）
+ *  think 支持两种形态：delta（流式增量，实时追加）与 content（每步结束的完整文本） */
 export type InsightPlanStreamEvent =
   | { type: "step"; step: InsightPlanStepId; status: "start" | "done" }
-  | { type: "think"; step: InsightPlanStepId; content: string }
+  | { type: "think"; step: InsightPlanStepId; content?: string; delta?: string }
   | { type: "done"; result: InsightPlanResult }
   | { type: "error"; code?: string; keys?: string[]; message?: string }
 

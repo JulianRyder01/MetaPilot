@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,35 @@ from ..storage.ai_usage import AIUsageStore
 def _strip_think(text: str) -> str:
     """剥除推理模型（如 MiniMax-M3）的 <think> 块，只保留最终回答。"""
     return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
+
+_THINK_START = "<think>"
+_THINK_END = "</think>"
+
+
+def _filter_think_delta(delta: str, in_think: list[bool]) -> str:
+    """从流式增量中剥除 <think> 块（可能跨多个 delta），返回应展示的文本。
+
+    in_think 记录是否处于 think 块内（跨增量保持状态）。
+    """
+    out: list[str] = []
+    rest = delta
+    while rest:
+        if not in_think[0]:
+            idx = rest.find(_THINK_START)
+            if idx < 0:
+                out.append(rest)
+                break
+            out.append(rest[:idx])
+            in_think[0] = True
+            rest = rest[idx + len(_THINK_START):]
+        else:
+            idx = rest.find(_THINK_END)
+            if idx < 0:
+                break
+            in_think[0] = False
+            rest = rest[idx + len(_THINK_END):]
+    return "".join(out)
 
 
 class AIError(RuntimeError):
@@ -92,6 +122,128 @@ class AIGateway:
         self._record(plugin, result["model"], provider,
                      result["inputTokens"], result["cachedTokens"], result["outputTokens"])
         return result
+
+    # ---------------- chat 流式 ----------------
+
+    async def chat_stream(self, messages: list[dict], model: str = "", temperature: float = 0.3,
+                          max_tokens: int = 1024, response_format: Optional[dict] = None,
+                          plugin: str = "core"):
+        """流式 chat：逐 token 产出文本增量（async generator of str）。
+
+        openai 兼容（含 local）走 /chat/completions stream；anthropic 走 /v1/messages stream，
+        统一按增量文本产出；<think> 块在流式输出时即被过滤（与 chat 行为一致）；
+        流结束时记录用量（服务端未返回 usage 时按 0 记，用量为尽力而为）。
+        """
+        provider = self.config.provider
+        model = model or self.config.chat_model
+        if provider == "none":
+            raise NotConfiguredError("AI 服务未配置（AI_PROVIDER=none），请在设置中配置或改用本地模型")
+
+        in_think: list[bool] = [False]
+        usage: dict = {}
+        if provider == "local":
+            gen = self._chat_openai_stream(messages, model, temperature, max_tokens, response_format,
+                                           self.config.local_llm_url, need_auth=False, local=True)
+        elif provider == "anthropic":
+            gen = self._chat_anthropic_stream(messages, model, temperature, max_tokens)
+        else:
+            gen = self._chat_openai_stream(messages, model, temperature, max_tokens, response_format,
+                                           self.config.base_url, need_auth=True, local=False)
+
+        async for delta, _usage in gen:
+            if _usage:
+                usage.update(_usage)
+            text = _filter_think_delta(delta, in_think)
+            if text:
+                yield text
+
+        input_tokens = int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+        cached_tokens = int((usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+                            or usage.get("cache_read_input_tokens") or 0)
+        output_tokens = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+        self._record(plugin, model, provider, input_tokens, cached_tokens, output_tokens)
+
+    async def _chat_openai_stream(self, messages, model, temperature, max_tokens, response_format,
+                                  base_url, need_auth, local):
+        """OpenAI 兼容流式（含本地 LLM）：产出 (delta, usage_or_None)。"""
+        if not base_url:
+            raise NotConfiguredError("AI 服务未配置 API 地址（AI_BASE_URL）")
+        if need_auth and not self.config.api_key:
+            raise NotConfiguredError("AI 服务未配置 API Key（AI_API_KEY），请在设置中填写")
+        body: dict = {"model": model, "messages": messages,
+                      "temperature": temperature, "max_tokens": max_tokens,
+                      "stream": True, "stream_options": {"include_usage": True}}
+        if response_format:
+            body["response_format"] = response_format
+        url = f"{base_url.rstrip('/')}/chat/completions"
+        headers = {"Authorization": f"Bearer {self.config.api_key}"} if need_auth else {}
+        try:
+            async with httpx.AsyncClient(timeout=300) as client:
+                async with client.stream("POST", url, headers=headers, json=body) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        raw = line[5:].strip()
+                        if not raw or raw == "[DONE]":
+                            continue
+                        try:
+                            chunk = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+                        usage = chunk.get("usage")
+                        if usage:
+                            yield "", usage
+                        for ch in chunk.get("choices") or []:
+                            delta = (ch.get("delta") or {}).get("content")
+                            if delta:
+                                yield delta, None
+        except httpx.HTTPError as e:
+            if local:
+                raise AIError(f"本地 LLM 服务不可用（{base_url}）：{e}。请先在设置中下载并启动内置模型")
+            raise AIError(f"云端 AI 调用失败（{base_url}）：{e}")
+
+    async def _chat_anthropic_stream(self, messages, model, temperature, max_tokens):
+        """Anthropic 流式：产出 (delta, usage_or_None)。"""
+        if not self.config.base_url:
+            raise NotConfiguredError("AI 服务未配置 API 地址（AI_BASE_URL）")
+        if not self.config.api_key:
+            raise NotConfiguredError("AI 服务未配置 API Key（AI_API_KEY），请在设置中填写")
+        system_parts = [m["content"] for m in messages if m.get("role") == "system"]
+        conv = [{"role": m["role"], "content": m["content"]}
+                for m in messages if m.get("role") in ("user", "assistant")]
+        body: dict = {"model": model, "messages": conv, "temperature": temperature,
+                      "max_tokens": max_tokens, "stream": True}
+        if system_parts:
+            body["system"] = "\n\n".join(system_parts)
+        base = self.config.base_url.rstrip("/")
+        url = f"{base}/v1/messages" if not base.endswith("/v1") else f"{base}/messages"
+        headers = {"x-api-key": self.config.api_key, "anthropic-version": "2023-06-01"}
+        try:
+            async with httpx.AsyncClient(timeout=300) as client:
+                async with client.stream("POST", url, headers=headers, json=body) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        raw = line[5:].strip()
+                        if not raw or raw == "[DONE]":
+                            continue
+                        try:
+                            evt = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+                        et = evt.get("type")
+                        if et == "content_block_delta":
+                            d = evt.get("delta") or {}
+                            if d.get("type") == "text_delta":
+                                yield d.get("text", ""), None
+                        elif et in ("message_start", "message_delta"):
+                            usage = evt.get("usage")
+                            if usage:
+                                yield "", usage
+        except httpx.HTTPError as e:
+            raise AIError(f"Anthropic 调用失败（{base}）：{e}")
 
     async def _chat_openai(self, messages, model, temperature, max_tokens, response_format) -> dict:
         if not self.config.base_url:

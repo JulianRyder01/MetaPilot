@@ -518,7 +518,14 @@ export default function AiInsightPage() {
             [evt.step]: { ...prev[evt.step], status: evt.status === "start" ? "running" : "done" },
           }))
         } else if (evt.type === "think") {
-          setPlanSteps((prev) => ({ ...prev, [evt.step]: { ...prev[evt.step], content: evt.content } }))
+          // 流式增量（delta）追加到该步思考内容；每步结束的完整 content 事件直接覆盖
+          setPlanSteps((prev) => ({
+            ...prev,
+            [evt.step]: {
+              ...prev[evt.step],
+              content: evt.delta != null ? (prev[evt.step].content ?? "") + evt.delta : evt.content,
+            },
+          }))
         } else if (evt.type === "done") {
           setPlanResult(evt.result)
           toast.success(t("insight.planDone", { name: evt.result.collectionName }))

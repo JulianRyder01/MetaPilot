@@ -543,6 +543,21 @@ class InsightService:
 
     # ---------------- 洞察规划（多轮 agent + 生成） ----------------
 
+    async def _stream_think(self, fire, step: str, messages: list[dict], temperature: float,
+                            max_tokens: int, response_format: Optional[dict] = None) -> str:
+        """调用 chat_stream 逐 token 推送 think 增量事件（实时展示思考输出），
+        结束时推送完整 content 事件并返回全文。"""
+        full = ""
+        async for delta in self.gateway.chat_stream(messages, temperature=temperature,
+                                                    max_tokens=max_tokens,
+                                                    response_format=response_format,
+                                                    plugin="ai_insight"):
+            full += delta
+            if delta:
+                await fire({"type": "think", "step": step, "delta": delta})
+        await fire({"type": "think", "step": step, "content": full})
+        return full
+
     async def plan(self, sources: list[dict], question: str, output: str = "canvas",
                    library_id: Optional[str] = None, top_k: int = PLAN_TOP_K,
                    emit: Optional[Callable[[dict], Awaitable[None]]] = None) -> dict:
@@ -570,7 +585,7 @@ class InsightService:
 
         # Round 1：主题与联系分析
         await fire({"type": "step", "step": "plan", "status": "start"})
-        r1 = await self.gateway.chat([
+        r1_content = await self._stream_think(fire, "plan", [
             {"role": "system", "content": (
                 "你是 AI 洞察规划引擎。请分析下面资料之间的联系，形成一份主题洞察规划。"
                 "只依据给定资料，不要编造资料中没有的事实。"
@@ -581,14 +596,13 @@ class InsightService:
                 '"outline": ["可教学的知识点标题1", ...]}'
             )},
             {"role": "user", "content": f"{context}\n\n用户目标：{question}"},
-        ], temperature=0.3, max_tokens=1600, response_format={"type": "json_object"}, plugin="ai_insight")
-        await fire({"type": "think", "step": "plan", "content": r1["content"]})
-        plan1 = _extract_json(r1["content"])
+        ], temperature=0.3, max_tokens=1600, response_format={"type": "json_object"})
+        plan1 = _extract_json(r1_content)
         await fire({"type": "step", "step": "plan", "status": "done"})
 
         # Round 2：批判反思，补充遗漏
         await fire({"type": "step", "step": "review", "status": "start"})
-        r2 = await self.gateway.chat([
+        r2_content = await self._stream_think(fire, "review", [
             {"role": "system", "content": (
                 "你是批判性审阅者。以下是第一轮形成的洞察规划。请以批判性视角结合资料审视，"
                 "指出遗漏的联系、可补充的关键点或需要修正的地方。"
@@ -599,9 +613,8 @@ class InsightService:
             {"role": "user", "content": (
                 f"第一轮规划：\n{json.dumps(plan1, ensure_ascii=False, indent=2)}\n\n资料：\n{context}"
             )},
-        ], temperature=0.3, max_tokens=1200, response_format={"type": "json_object"}, plugin="ai_insight")
-        await fire({"type": "think", "step": "review", "content": r2["content"]})
-        plan2 = _extract_json(r2["content"])
+        ], temperature=0.3, max_tokens=1200, response_format={"type": "json_object"})
+        plan2 = _extract_json(r2_content)
         await fire({"type": "step", "step": "review", "status": "done"})
 
         merged = {"plan": plan1, "review": plan2, "question": question, "context": context}
@@ -618,7 +631,7 @@ class InsightService:
                 await emit(evt)
 
         await fire({"type": "step", "step": "generate", "status": "start"})
-        r = await self.gateway.chat([
+        r_content = await self._stream_think(fire, "generate", [
             {"role": "system", "content": (
                 "你是知识图表设计师。请根据洞察规划生成一张知识图表（canvas），用于直观展示概念与联系。"
                 "节点用 text 类型表达概念，连线表达关系。"
@@ -634,9 +647,8 @@ class InsightService:
                 f"洞察规划：\n{json.dumps(merged, ensure_ascii=False, indent=2)[:14000]}"
                 f"\n\n资料：\n{context[:16000]}"
             )},
-        ], temperature=0.4, max_tokens=4000, response_format={"type": "json_object"}, plugin="ai_insight")
-        await fire({"type": "think", "step": "generate", "content": r["content"]})
-        data = _extract_json(r["content"])
+        ], temperature=0.4, max_tokens=4000, response_format={"type": "json_object"})
+        data = _extract_json(r_content)
         await fire({"type": "step", "step": "generate", "status": "done"})
 
         name = str(data.get("name") or plan1.get("theme") or "AI 洞察图表").strip()[:100]
@@ -660,7 +672,7 @@ class InsightService:
                 await emit(evt)
 
         await fire({"type": "step", "step": "generate", "status": "start"})
-        r = await self.gateway.chat([
+        r_content = await self._stream_think(fire, "generate", [
             {"role": "system", "content": (
                 "你是课程设计师。请根据洞察规划生成一门微课程（文档结构），用于循序渐进地教学用户。"
                 "块类型仅使用 markdown（content 为 Markdown 文本，可含 # 标题、列表、表格、示例代码）。"
@@ -675,9 +687,8 @@ class InsightService:
                 f"洞察规划：\n{json.dumps(merged, ensure_ascii=False, indent=2)[:14000]}"
                 f"\n\n资料：\n{context[:16000]}"
             )},
-        ], temperature=0.4, max_tokens=5000, response_format={"type": "json_object"}, plugin="ai_insight")
-        await fire({"type": "think", "step": "generate", "content": r["content"]})
-        data = _extract_json(r["content"])
+        ], temperature=0.4, max_tokens=5000, response_format={"type": "json_object"})
+        data = _extract_json(r_content)
         await fire({"type": "step", "step": "generate", "status": "done"})
 
         name = str(data.get("name") or plan1.get("theme") or "AI 洞察课程").strip()[:100]

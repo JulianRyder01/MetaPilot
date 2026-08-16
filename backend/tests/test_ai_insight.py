@@ -64,6 +64,14 @@ class FakeGateway:
         return {"content": content, "inputTokens": 1, "cachedTokens": 0,
                 "outputTokens": 1, "model": "fake", "provider": "fake"}
 
+    async def chat_stream(self, messages, temperature=0.3, max_tokens=1024, response_format=None, plugin="core"):
+        """流式替身：逐 3 字符产出增量（供流式事件断言）。"""
+        self.captured.setdefault("messages", []).append(messages)
+        content = self.replies.pop(0) if self.replies else \
+            "根据[来源1]，傅里叶变换将信号从时域转换到频域。\n引用来源：[来源1]"
+        for i in range(0, len(content), 3):
+            yield content[i:i + 3]
+
 
 class FakeSymlink:
     """软链接插件服务的测试替身（含目录浏览）。"""
@@ -527,10 +535,12 @@ def test_plan_stream_emits_roadmap_events():
     assert [s["step"] for s in steps] == expected_steps
     assert [s["status"] for s in steps] == ["start", "done"] * 5
 
-    # 三轮 AI 思考输出（plan/review/generate），内容与替身回复一致
+    # 流式思考：增量（delta）逐段推送（实时展示），每步结束推完整 content
     thinks = [e for e in events if e["type"] == "think"]
-    assert [th["step"] for th in thinks] == ["plan", "review", "generate"]
-    assert "时域与频域的联系" in thinks[0]["content"]
+    assert any(th.get("delta") for th in thinks), "应推送增量 delta 事件"
+    contents = [th for th in thinks if "content" in th]
+    assert [th["step"] for th in contents] == ["plan", "review", "generate"]
+    assert "时域与频域的联系" in contents[0]["content"]
 
     # 最终 done 携带创建结果
     done = [e for e in events if e["type"] == "done"]
