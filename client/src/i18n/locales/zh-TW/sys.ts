@@ -42,7 +42,7 @@ export const sysZhTW: Record<string, string> = {
   "sys.plugins.featureCourseProgress": "學習進度與時長統計",
   "sys.plugins.featureCourseGrading": "主觀題 AI 判分",
   "sys.plugins.featureCourseInteractive": "動態互動區塊渲染",
-  "sys.plugins.featureInsightIndex": "多粒度資料源向量索引（庫/文件集/文件/本機目錄）",
+  "sys.plugins.featureInsightIndex": "多粒度資料源向量索引（庫/文件夾/文件/本機目錄）",
   "sys.plugins.featureInsightModes": "四種思考模式（輔助思考/思維漫遊/反思歸納/洞察規劃）",
   "sys.plugins.featureInsightPlan": "多輪推理生成圖表與微課程（.mpf）",
   "sys.plugins.needEnablePrefix": "需要啟用「",

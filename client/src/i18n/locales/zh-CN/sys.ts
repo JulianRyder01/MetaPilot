@@ -42,7 +42,7 @@ export const sysZhCN: Record<string, string> = {
   "sys.plugins.featureCourseProgress": "学习进度与时长统计",
   "sys.plugins.featureCourseGrading": "主观题 AI 判分",
   "sys.plugins.featureCourseInteractive": "动态交互块渲染",
-  "sys.plugins.featureInsightIndex": "多粒度数据源向量索引（库/文档集/文档/本机目录）",
+  "sys.plugins.featureInsightIndex": "多粒度数据源向量索引（库/文件夹/文档/本机目录）",
   "sys.plugins.featureInsightModes": "四种思考模式（辅助思考/思维漫游/反思归纳/洞察规划）",
   "sys.plugins.featureInsightPlan": "多轮推理生成图表与微课程（.mpf）",
   "sys.plugins.needEnablePrefix": "需要启用「",

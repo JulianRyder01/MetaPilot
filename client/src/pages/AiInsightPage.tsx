@@ -161,7 +161,7 @@ function AnswerLink({
   )
 }
 
-/** 数据源树节点行（库/文档集/文档/软链接挂载/挂载内路径） */
+/** 数据源树节点行（库/文件夹/文档/软链接挂载/挂载内路径） */
 function TreeRow({
   label,
   status,
@@ -309,11 +309,11 @@ export default function AiInsightPage() {
     try {
       const r = await insightResources()
       setResources(r)
-      // ?cid=：默认选中该文档集
+      // ?cid=：默认选中该文件夹
       const cid = searchParams.get("cid")
       if (cid && loadedCidRef.current !== cid) {
         loadedCidRef.current = cid
-        const found = r.libraries.flatMap((l) => l.collections ?? []).find((c) => c.id === cid)
+        const found = r.libraries.flatMap((l) => l.folders ?? []).find((c) => c.id === cid)
         if (found) {
           const ref: InsightSourceRef = { type: "collection", id: cid }
           setSel((prev) => {
@@ -359,7 +359,7 @@ export default function AiInsightPage() {
     const keys = new Set<string>()
     for (const lib of resources.libraries) {
       if (lib.status?.indexed) keys.add(srcKey({ type: "library", id: lib.id }))
-      for (const c of lib.collections ?? []) {
+      for (const c of lib.folders ?? []) {
         if (c.status?.indexed) keys.add(srcKey({ type: "collection", id: c.id }))
         for (const d of c.documents ?? []) {
           if (d.status?.indexed) keys.add(srcKey({ type: "document", id: d.id }))
@@ -397,7 +397,7 @@ export default function AiInsightPage() {
       : { type: "library", id: node.id }
     const out: InsightSourceRef[] = []
     if (parent) out.push(self)
-    for (const c of node.collections ?? []) out.push(...collectRefs(c, { type: "collection", id: c.id }))
+    for (const c of node.folders ?? []) out.push(...collectRefs(c, { type: "collection", id: c.id }))
     for (const d of node.documents ?? []) out.push({ type: "document", id: d.id })
     return out
   }
@@ -604,7 +604,7 @@ export default function AiInsightPage() {
               }}
             />
             {expanded.has(lib.id) &&
-              (lib.collections ?? []).map((col) => {
+              (lib.folders ?? []).map((col) => {
                 const colRef: InsightSourceRef = { type: "collection", id: col.id }
                 const colRefs = collectRefs(col, colRef)
                 const colCount = colRefs.filter((r) => set.has(srcKey(r))).length

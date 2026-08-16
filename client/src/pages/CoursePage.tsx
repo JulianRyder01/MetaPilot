@@ -14,7 +14,7 @@ import {
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
-import { api, type Collection, type Progress } from "@/lib/api"
+import { api, type Folder, type Progress } from "@/lib/api"
 import { exportCourseUrl, getProgress } from "@/plugins/course/api"
 import { usePluginEnabled } from "@/stores/plugins"
 import { useSettingsStore } from "@/stores/settings"
@@ -27,13 +27,13 @@ export default function CoursePage() {
   const t = useT()
   const { cid } = useParams()
   const navigate = useNavigate()
-  const [col, setCol] = useState<Collection | null>(null)
+  const [col, setCol] = useState<Folder | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
   const courseEnabled = usePluginEnabled("course")
 
   const load = useCallback(async () => {
     if (!cid) return
-    const c = await api.getCollection(cid)
+    const c = await api.getFolder(cid)
     setCol(c)
     // 学习进度是课程插件能力：仅课程类型加载
     if (c.kind === "course" && courseEnabled) {

@@ -25,7 +25,7 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
         {/* 图表画布（.mpf canvas 类型，官方核心） */}
         <Route path="/canvas/:cid" element={<CanvasPage />} />
-        {/* 文档阅读/编辑（库-文档集-文档-小节，官方核心能力）：
+        {/* 文档阅读/编辑（库-文件夹-文档-小节，官方核心能力）：
             课程等补丁类型在此基础上叠加插件能力（进度/判题/交互块），禁用插件时仍可阅读/编辑文档结构 */}
         <Route path="/learn/:cid/:sid" element={<LearnPage />} />
         <Route path="/edit/:cid" element={<EditPage />} />

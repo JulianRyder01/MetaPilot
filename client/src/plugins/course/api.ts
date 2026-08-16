@@ -2,7 +2,7 @@
  *
  * 端点全部位于 /api/plugins/course/*（规范 §4 统一前缀）。
  */
-import { BASE, request, type Collection, type GradeResult, type Progress, type StatsSummary } from "@/lib/api"
+import { BASE, request, type Folder, type GradeResult, type Progress, type StatsSummary } from "@/lib/api"
 
 export const getProgress = (cid: string) => request<Progress>(`/plugins/course/progress/${cid}`)
 
@@ -41,6 +41,6 @@ export const exportCourseUrl = (cid: string) => `${BASE}/plugins/course/${cid}/e
 
 /** 把文档类集合（笔记/知识库等）转为课程：kind=course + 转换标记（补丁字段）。 */
 export const convertCollection = (cid: string) =>
-  request<{ ok: boolean; collection: Collection }>(`/plugins/course/collections/${cid}/convert`, {
+  request<{ ok: boolean; collection: Folder }>(`/plugins/course/folders/${cid}/convert`, {
     method: "POST",
   })

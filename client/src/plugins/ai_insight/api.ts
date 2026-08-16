@@ -1,7 +1,7 @@
 /** AI 洞察插件 API 客户端（docs/04 §6）。
  *
  * 端点全部位于 /api/plugins/ai_insight/*（规范 §4 统一前缀）。
- * 数据源多粒度：library（库）/ collection（文档集）/ document（文档）/ symlink（软链接挂载或挂载内路径）。
+ * 数据源多粒度：library（库）/ collection（文件夹）/ document（文档）/ symlink（软链接挂载或挂载内路径）。
  */
 import { request, ApiError, BASE, type KbEmbeddingStatus, type KbSource, type SymlinkTree } from "@/lib/api"
 
@@ -33,7 +33,7 @@ export interface InsightResourceNode {
   docType?: string
   root?: string
   type?: string
-  collections?: InsightResourceNode[]
+  folders?: InsightResourceNode[]
   documents?: InsightResourceNode[]
 }
 

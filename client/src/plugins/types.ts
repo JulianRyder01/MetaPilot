@@ -41,7 +41,7 @@ export interface PluginLibrarySection {
 }
 
 /** 集合转换操作涉及的集合最小信息（库列表返回的精简集合，避免核心向插件暴露完整数据结构） */
-export interface CollectionRef {
+export interface FolderRef {
   id: string
   name: string
   kind: string
@@ -72,7 +72,7 @@ export interface CollectionActionCtx {
 /** 「我的库」页集合创建/转换操作扩展点（插件向库首页注入新建按钮与集合转换操作）。
  *
  * - create*：库首页操作区的新建按钮（label 为 i18n key，icon 为 lucide 图标名字符串）；
- * - convert*：文档集卡片上的转换操作（canConvert 返回 true 才显示）；
+ * - convert*：文件夹卡片上的转换操作（canConvert 返回 true 才显示）；
  * - 回调真实调用后端 API（禁止 mock），完成后调用 ctx.refresh() 刷新列表。
  */
 export interface PluginCollectionAction {
@@ -87,8 +87,8 @@ export interface PluginCollectionAction {
   /** 转换操作图标（lucide 图标名） */
   convertIcon?: string
   /** 某集合是否可执行转换（false 则不显示转换操作） */
-  canConvert?: (col: CollectionRef) => boolean
-  onConvert?: (col: CollectionRef, ctx: CollectionActionCtx) => void
+  canConvert?: (col: FolderRef) => boolean
+  onConvert?: (col: FolderRef, ctx: CollectionActionCtx) => void
 }
 
 /** 设置页贡献的分区（如主题选装） */

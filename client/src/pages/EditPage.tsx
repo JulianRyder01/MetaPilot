@@ -5,7 +5,7 @@ import {
   ChevronDown,
   FilePlus2,
   FileText,
-  Folder,
+  Folder as FolderIcon,
   FolderPlus,
   ListPlus,
   Pencil,
@@ -16,9 +16,9 @@ import {
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
-import { api, type Collection, type CollectionKindMeta, type Document } from "@/lib/api"
+import { api, type Document, type Folder, type FolderKindMeta } from "@/lib/api"
 import { cn } from "@/lib/utils"
-import { buildCollectionTree, folderPath, type FolderNode } from "@/lib/tree"
+import { buildFolderTree, folderPath, type FolderNode } from "@/lib/tree"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -37,7 +37,7 @@ import { BLOCK_TYPES, BlockForm } from "@/components/edit/BlockForm"
 import { useDialogs } from "@/components/ui/dialog-provider"
 
 type Selection =
-  | { kind: "collection" }
+  | { kind: "folder" }
   | { kind: "doc"; id: string }
   | { kind: "section"; id: string }
   | { kind: "block"; id: string }
@@ -51,29 +51,29 @@ export default function EditPage() {
   const t = useT()
   const { cid } = useParams()
   const navigate = useNavigate()
-  const [col, setCol] = useState<Collection | null>(null)
-  const [sel, setSel] = useState<Selection>({ kind: "collection" })
+  const [col, setCol] = useState<Folder | null>(null)
+  const [sel, setSel] = useState<Selection>({ kind: "folder" })
   const [newBlockType, setNewBlockType] = useState("markdown")
   const [dirty, setDirty] = useState(false)
-  // 文档集类型元数据（核心 + 插件声明）：kind 下拉动态渲染，不写死插件 kind
-  const [kindMeta, setKindMeta] = useState<Record<string, CollectionKindMeta>>({})
+  // 文件夹类型元数据（核心 + 插件声明）：kind 下拉动态渲染，不写死插件 kind
+  const [kindMeta, setKindMeta] = useState<Record<string, FolderKindMeta>>({})
 
   const load = useCallback(async () => {
-    if (cid) setCol(await api.getCollection(cid))
+    if (cid) setCol(await api.getFolder(cid))
   }, [cid])
 
   useEffect(() => {
     load()
-    api.listCollectionKinds().then(setKindMeta).catch(() => {})
+    api.listFolderKinds().then(setKindMeta).catch(() => {})
   }, [load])
 
   if (!col) {
     return <p className="px-6 py-10 text-sm text-muted-foreground">{t("common.loading")}</p>
   }
 
-  async function saveCollection(patch: Partial<Collection>) {
+  async function saveCollection(patch: Partial<Folder>) {
     if (!col) return
-    await api.updateCollection(col.id, patch)
+    await api.updateFolder(col.id, patch)
     setCol((c) => (c ? { ...c, ...patch } : c))
     setDirty(true)
   }
@@ -132,7 +132,7 @@ export default function EditPage() {
     if (!ok) return
     await api.deleteDocument(docId)
     setCol((c) => (c ? { ...c, documents: c.documents.filter((d) => d.id !== docId) } : c))
-    setSel({ kind: "collection" })
+    setSel({ kind: "folder" })
     setDirty(true)
   }
 
@@ -156,7 +156,7 @@ export default function EditPage() {
           }
         : c,
     )
-    setSel({ kind: "collection" })
+    setSel({ kind: "folder" })
     setDirty(true)
   }
 
@@ -183,7 +183,7 @@ export default function EditPage() {
           }
         : c,
     )
-    setSel({ kind: "collection" })
+    setSel({ kind: "folder" })
     setDirty(true)
   }
 
@@ -219,7 +219,7 @@ export default function EditPage() {
     })
     if (!name?.trim()) return
     try {
-      await api.createFolder(col.id, { name: name.trim(), parentId: parentId || undefined })
+      await api.createSubFolder(col.id, { name: name.trim(), parentId: parentId || undefined })
       await load()
       setDirty(true)
     } catch (e) {
@@ -256,7 +256,7 @@ export default function EditPage() {
     try {
       await api.deleteFolder(fid)
       await load()
-      setSel({ kind: "collection" })
+      setSel({ kind: "folder" })
       setDirty(true)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("core.edit.deleteFailed"))
@@ -277,7 +277,7 @@ export default function EditPage() {
 
   // 右侧编辑内容
   let editor: React.ReactNode = null
-  if (sel.kind === "collection") {
+  if (sel.kind === "folder") {
     editor = (
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">{t("core.edit.collectionInfo")}</h3>
@@ -502,7 +502,7 @@ export default function EditPage() {
   }
 
   // 文件夹树渲染（递归）
-  const editTree = buildCollectionTree(col)
+  const editTree = buildFolderTree(col)
   const renderDocRow = (doc: Document): React.ReactNode => (
     <div key={doc.id} className="space-y-0.5">
       <div className="group flex items-center gap-1 rounded-md px-2 py-1.5 hover:bg-accent/60">
@@ -584,7 +584,7 @@ export default function EditPage() {
     <Collapsible key={node.id}>
       <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-accent/60">
         <ChevronDown className="size-3.5 text-muted-foreground transition-transform [&[data-state=closed]]:-rotate-90" />
-        <Folder className="size-3.5 shrink-0 text-primary" />
+        <FolderIcon className="size-3.5 shrink-0 text-primary" />
         <span className="min-w-0 flex-1 truncate">{node.name}</span>
       </CollapsibleTrigger>
       <CollapsibleContent>
@@ -652,10 +652,10 @@ export default function EditPage() {
         <ScrollArea className="flex-1">
           <div className="p-3">
             <button
-              onClick={() => setSel({ kind: "collection" })}
+              onClick={() => setSel({ kind: "folder" })}
               className={cn(
                 "mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm font-medium",
-                sel.kind === "collection" ? "bg-primary/10 text-primary" : "hover:bg-accent",
+                sel.kind === "folder" ? "bg-primary/10 text-primary" : "hover:bg-accent",
               )}
             >
               <SquareStack className="size-4" />

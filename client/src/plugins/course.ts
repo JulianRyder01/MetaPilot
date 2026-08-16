@@ -51,7 +51,7 @@ export const coursePlugin: PluginFrontend = {
         })
         if (!name?.trim()) return
         try {
-          const col = await api.createCollection(libraryId, {
+          const col = await api.createFolder(libraryId, {
             name: name.trim(),
             kind: "course",
             description: "",

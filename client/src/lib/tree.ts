@@ -1,4 +1,4 @@
-import type { Collection, Document, Folder, Section } from "@/lib/api"
+import type { Document, Folder, FolderItem, Section } from "@/lib/api"
 
 export interface FolderNode {
   id: string
@@ -7,14 +7,14 @@ export interface FolderNode {
   documents: Document[]
 }
 
-export interface CollectionTree {
+export interface FolderTree {
   roots: FolderNode[]
   rootDocuments: Document[]
 }
 
-/** 把文档集的 folders + documents 构造成 文件夹树 + 根级文档。 */
-export function buildCollectionTree(col: Collection): CollectionTree {
-  const folders: Folder[] = col.folders ?? []
+/** 把顶层文件夹的 folders + documents 构造成 文件夹树 + 根级文档。 */
+export function buildFolderTree(col: Folder): FolderTree {
+  const folders: FolderItem[] = col.folders ?? []
   const docs: Document[] = col.documents ?? []
   const nodeMap = new Map<string, FolderNode>()
   for (const f of folders) {
@@ -41,7 +41,7 @@ export function buildCollectionTree(col: Collection): CollectionTree {
 }
 
 /** 递归收集树中全部文档（文件夹内 + 根级），保持顺序。 */
-export function collectAllDocuments(tree: CollectionTree): Document[] {
+export function collectAllDocuments(tree: FolderTree): Document[] {
   const out: Document[] = []
   const walk = (nodes: FolderNode[]) => {
     for (const n of nodes) {
@@ -55,9 +55,9 @@ export function collectAllDocuments(tree: CollectionTree): Document[] {
 }
 
 /** 解析小节引用：返回目标文档及其第一个小节（供跳转）。 */
-export function resolveRefTarget(col: Collection, refDocId?: string): { doc: Document; section: Section } | null {
+export function resolveRefTarget(col: Folder, refDocId?: string): { doc: Document; section: Section } | null {
   if (!refDocId) return null
-  const tree = buildCollectionTree(col)
+  const tree = buildFolderTree(col)
   for (const doc of collectAllDocuments(tree)) {
     if (doc.id === refDocId) {
       if (doc.sections.length === 0) return { doc, section: { id: "", name: "", blocks: [] } }
@@ -68,7 +68,7 @@ export function resolveRefTarget(col: Collection, refDocId?: string): { doc: Doc
 }
 
 /** 获取文件夹的完整路径（用于面包屑/提示），例如 根/子/孙。 */
-export function folderPath(col: Collection, folderId: string): string {
+export function folderPath(col: Folder, folderId: string): string {
   const folders = col.folders ?? []
   const byId = new Map(folders.map((f) => [f.id, f]))
   const parts: string[] = []

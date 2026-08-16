@@ -1,15 +1,15 @@
 import { useState } from "react"
-import { BookOpen, CheckCircle2, ChevronDown, Circle, Folder } from "lucide-react"
+import { BookOpen, CheckCircle2, ChevronDown, Circle, Folder as FolderIcon } from "lucide-react"
 
 import { useT } from "@/i18n"
-import type { Collection, Document } from "@/lib/api"
+import type { Document, Folder } from "@/lib/api"
 import { cn } from "@/lib/utils"
-import { buildCollectionTree, type FolderNode } from "@/lib/tree"
+import { buildFolderTree, type FolderNode } from "@/lib/tree"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Badge } from "@/components/ui/badge"
 
 interface Props {
-  collection: Collection
+  folder: Folder
   currentSectionId: string
   completedSet: Set<string>
   onNavigate: (sectionId: string) => void
@@ -91,7 +91,7 @@ function FolderBlock({
     <Collapsible>
       <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-accent/60">
         <ChevronDown className="size-3.5 text-muted-foreground transition-transform [&[data-state=closed]]:-rotate-90" />
-        <Folder className="size-3.5 shrink-0 text-primary" />
+        <FolderIcon className="size-3.5 shrink-0 text-primary" />
         <span className="min-w-0 flex-1 truncate">{node.name}</span>
       </CollapsibleTrigger>
       <CollapsibleContent className="ml-4 space-y-0.5 border-l pl-2">
@@ -121,8 +121,8 @@ function FolderBlock({
   )
 }
 
-export function OutlineNav({ collection, currentSectionId, completedSet, onNavigate }: Props) {
-  const tree = buildCollectionTree(collection)
+export function OutlineNav({ folder, currentSectionId, completedSet, onNavigate }: Props) {
+  const tree = buildFolderTree(folder)
   return (
     <nav className="space-y-1">
       {tree.roots.map((node) => (

@@ -6,7 +6,7 @@ import { AlignCenter, AlignLeft, AlignRight, ArrowLeft, Box, CornerDownRight, Do
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
-import { api, type CanvasEdge, type CanvasNode, type Collection } from "@/lib/api"
+import { api, type CanvasEdge, type CanvasNode, type Folder } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -129,7 +129,7 @@ export default function CanvasPage() {
   const navigate = useNavigate()
   const t = useT()
   const dialogs = useDialogs()
-  const [col, setCol] = useState<Collection | null>(null)
+  const [col, setCol] = useState<Folder | null>(null)
   const [nodes, setNodes] = useState<CanvasNode[]>([])
   const [edges, setEdges] = useState<CanvasEdge[]>([])
   const [dirty, setDirty] = useState(false)
@@ -190,7 +190,7 @@ export default function CanvasPage() {
 
   const load = useCallback(async () => {
     if (!cid) return
-    const c = await api.getCollection(cid)
+    const c = await api.getFolder(cid)
     setCol(c)
     setNodes(c.canvas?.nodes ?? [])
     setEdges(c.canvas?.edges ?? [])
@@ -214,7 +214,7 @@ export default function CanvasPage() {
         const out: { libId: string; libName: string; canvases: { id: string; name: string }[] }[] = []
         for (const lib of libs) {
           const full = await api.getLibrary(lib.id)
-          const canvases = (full.collections ?? []).filter((c) => c.kind === "canvas")
+          const canvases = (full.folders ?? []).filter((c) => c.kind === "canvas")
           if (canvases.length) out.push({ libId: lib.id, libName: lib.name, canvases })
         }
         if (alive) setDrawerLibs(out)
@@ -234,7 +234,7 @@ export default function CanvasPage() {
     try {
       // 若正在编辑文本节点，先将其提交进节点数据再保存（Ctrl+Enter 保存）
       const finalNodes = editingId ? nodes.map((n) => (n.id === editingId ? { ...n, text: editText } : n)) : nodes
-      await api.updateCollectionCanvas(cid, finalNodes, edges)
+      await api.updateFolderCanvas(cid, finalNodes, edges)
       setDirtySync(false)
       return true
     } catch (e) {
@@ -1068,7 +1068,7 @@ export default function CanvasPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={exportCanvasFile}>{t("core.canvas.exportCanvas")}</DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <a href={cid ? api.exportMpfUrl(cid, "collection") : "#"}>{t("core.canvas.exportMpf")}</a>
+                <a href={cid ? api.exportMpfUrl(cid, "folder") : "#"}>{t("core.canvas.exportMpf")}</a>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

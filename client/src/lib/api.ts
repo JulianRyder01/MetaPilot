@@ -64,32 +64,29 @@ export const api = {
       body: JSON.stringify({ kind, id }),
     }),
 
-  // 文档集（课程）
-  getCollection: (id: string) => request<Collection>(`/collections/${id}`),
-  createCollection: (libId: string, data: Partial<Collection>) =>
-    request<Collection>(`/libraries/${libId}/collections`, { method: "POST", body: JSON.stringify(data) }),
-  updateCollection: (id: string, data: Partial<Collection>) =>
-    request<Collection>(`/collections/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-  updateCollectionCanvas: (id: string, nodes: CanvasNode[], edges: CanvasEdge[]) =>
-    request<Collection>(`/collections/${id}/canvas`, {
+  // 文件夹（顶层：课程/图表/笔记等）
+  getFolder: (id: string) => request<Folder>(`/folders/${id}`),
+  createFolder: (libId: string, data: Partial<Folder>) =>
+    request<Folder>(`/libraries/${libId}/folders`, { method: "POST", body: JSON.stringify(data) }),
+  updateFolder: (id: string, data: Partial<Folder>) =>
+    request<Folder>(`/folders/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  updateFolderCanvas: (id: string, nodes: CanvasNode[], edges: CanvasEdge[]) =>
+    request<Folder>(`/folders/${id}/canvas`, {
       method: "PUT",
       body: JSON.stringify({ nodes, edges }),
     }),
-  deleteCollection: (id: string) => request<{ ok: boolean }>(`/collections/${id}`, { method: "DELETE" }),
+  deleteFolder: (id: string) => request<{ ok: boolean }>(`/folders/${id}`, { method: "DELETE" }),
 
-  // 文档（章节）
-  createDocument: (cid: string, data: { name: string; docType: string; folderId?: string }) =>
-    request<Document>(`/collections/${cid}/documents`, { method: "POST", body: JSON.stringify(data) }),
+  // 文档
+  createDocument: (fid: string, data: { name: string; docType: string; folderId?: string }) =>
+    request<Document>(`/folders/${fid}/documents`, { method: "POST", body: JSON.stringify(data) }),
   updateDocument: (id: string, data: { name: string; docType: string; folderId?: string }) =>
     request<Document>(`/documents/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteDocument: (id: string) => request<{ ok: boolean }>(`/documents/${id}`, { method: "DELETE" }),
 
-  // 文件夹
-  createFolder: (cid: string, data: { name: string; parentId?: string }) =>
-    request<Folder>(`/collections/${cid}/folders`, { method: "POST", body: JSON.stringify(data) }),
-  updateFolder: (id: string, data: { name?: string; parentId?: string }) =>
-    request<Folder>(`/folders/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-  deleteFolder: (id: string) => request<{ ok: boolean }>(`/folders/${id}`, { method: "DELETE" }),
+  // 嵌套文件夹（顶层文件夹内的目录层级）
+  createSubFolder: (fid: string, data: { name: string; parentId?: string }) =>
+    request<FolderItem>(`/folders/${fid}/folders`, { method: "POST", body: JSON.stringify(data) }),
 
   // 小节（知识点）
   createSection: (did: string, data: { name: string }) =>
@@ -117,7 +114,7 @@ export const api = {
     request<PluginInfo>(`/plugins/${id}/${enabled ? "enable" : "disable"}`, { method: "POST" }),
   deletePlugin: (id: string) => request<{ ok: boolean }>(`/plugins/${id}`, { method: "DELETE" }),
   // 集合类型（kind）元数据：核心 + 插件声明（kind → 打开路由/图标/文案）
-  listCollectionKinds: () => request<Record<string, CollectionKindMeta>>("/collection-kinds"),
+  listFolderKinds: () => request<Record<string, FolderKindMeta>>("/folder-kinds"),
 
   // MetaPilot 文件（.mpf）
   importMpf: (file: File, libraryId = "") => {
@@ -133,8 +130,8 @@ export const api = {
       unresolved: { blockType: string; requiredPlugin: string }[]
     }>("/mpf/import", { method: "POST", body: fd })
   },
-  exportMpfUrl: (id: string, kind: "library" | "collection") =>
-    `${BASE}/mpf/${kind === "library" ? "libraries" : "collections"}/${id}/export-mpf`,
+  exportMpfUrl: (id: string, kind: "library" | "folder") =>
+    `${BASE}/mpf/${kind === "library" ? "libraries" : "folders"}/${id}/export-mpf`,
 
   // 插件商店（PLUGIN_STORE_URL 配置后可用）
   storeCatalog: () => request<StorePluginItem[]>("/plugins/store/plugins"),
@@ -170,12 +167,12 @@ export interface LibraryMeta {
   name: string
   description: string
   updatedAt: string
-  collectionCount: number
+  folderCount: number
   /** 置顶（可多个，列表置顶优先） */
   pinned?: boolean
   /** 默认库（唯一，AI 洞察等插件的默认保存目标） */
   isDefault?: boolean
-  collections: { id: string; name: string; kind: string }[]
+  folders: { id: string; name: string; kind: string }[]
 }
 
 export interface Block {
@@ -184,7 +181,8 @@ export interface Block {
   [key: string]: unknown
 }
 
-export interface Folder {
+/** 嵌套文件夹（顶层文件夹内的目录层级） */
+export interface FolderItem {
   id: string
   name: string
   parentId: string
@@ -237,7 +235,8 @@ export interface CanvasEdge {
   styleAttributes?: { pathfindingMethod?: "smooth" | "straight" | "square" }
 }
 
-export interface Collection {
+/** 顶层文件夹（原文件夹：课程/图表/笔记等） */
+export interface Folder {
   id: string
   name: string
   kind: string
@@ -246,7 +245,7 @@ export interface Collection {
   version: string
   packageId?: string
   documents: Document[]
-  folders: Folder[]
+  folders: FolderItem[]
   canvas?: { nodes: CanvasNode[]; edges: CanvasEdge[] }
 }
 
@@ -254,7 +253,7 @@ export interface Library {
   id: string
   name: string
   description: string
-  collections: Collection[]
+  folders: Folder[]
 }
 
 export interface Progress {
@@ -328,8 +327,8 @@ export interface PluginInfo {
   changelog?: { version: string; date?: string; summary: string }[]
 }
 
-/** 集合类型（kind）元数据：由核心注册 + 插件声明（GET /api/collection-kinds） */
-export interface CollectionKindMeta {
+/** 文件夹类型（kind）元数据：由核心注册 + 插件声明（GET /api/folder-kinds） */
+export interface FolderKindMeta {
   /** 类型名 i18n key */
   labelKey: string
   /** lucide 图标名 */

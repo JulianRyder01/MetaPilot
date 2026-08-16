@@ -100,7 +100,7 @@ def summary(range: str = "all", request: Request = None):
                 lib = store.get_library(it["id"])
             except KeyError:
                 continue
-            for c in lib.get("collections", []):
+            for c in lib.get("folders", lib.get("collections", [])):
                 names[c["id"]] = c.get("name") or ""
         for p in data.get("perCollection", []):
             p["name"] = names.get(p["collectionId"], "")

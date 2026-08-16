@@ -4,22 +4,22 @@ import * as Lucide from "lucide-react"
 import { BookOpen, ChevronDown, Folder } from "lucide-react"
 
 import { useT } from "@/i18n"
-import { api, type CollectionKindMeta, type Library } from "@/lib/api"
-import { buildCollectionTree, type FolderNode } from "@/lib/tree"
+import { api, type FolderKindMeta, type Library } from "@/lib/api"
+import { buildFolderTree, type FolderNode } from "@/lib/tree"
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 
 /** 集合类型图标动态解析（kind 元数据 icon，lucide 名） */
-function kindIcon(meta?: CollectionKindMeta) {
+function kindIcon(meta?: FolderKindMeta) {
   if (!meta?.icon) return BookOpen
   const Cmp = (Lucide as unknown as Record<string, unknown>)[meta.icon]
   return typeof Cmp === "function" ? (Cmp as typeof BookOpen) : BookOpen
 }
 
 /** 集合类型打开路由（kind 元数据 openRoute，{id} 占位；空 = 无独立页） */
-function kindHref(meta: CollectionKindMeta | undefined, id: string): string {
+function kindHref(meta: FolderKindMeta | undefined, id: string): string {
   return meta?.openRoute ? meta.openRoute.replace("{id}", id) : ""
 }
 
@@ -67,11 +67,11 @@ export default function LibraryDetail() {
   const { lid } = useParams()
   const t = useT()
   const [lib, setLib] = useState<Library | null>(null)
-  const [kindMeta, setKindMeta] = useState<Record<string, CollectionKindMeta>>({})
+  const [kindMeta, setKindMeta] = useState<Record<string, FolderKindMeta>>({})
 
   useEffect(() => {
     if (lid) api.getLibrary(lid).then(setLib)
-    api.listCollectionKinds().then(setKindMeta).catch(() => {})
+    api.listFolderKinds().then(setKindMeta).catch(() => {})
   }, [lid])
 
   if (!lib) {
@@ -92,8 +92,8 @@ export default function LibraryDetail() {
       </div>
       <ScrollArea className="h-[calc(100vh-220px)]">
         <div className="space-y-4 pr-4">
-          {lib.collections.map((col) => {
-            const tree = buildCollectionTree(col)
+          {lib.folders.map((col) => {
+            const tree = buildFolderTree(col)
             const meta = kindMeta[col.kind]
             const Icon = kindIcon(meta)
             const colHref = kindHref(meta, col.id)
@@ -131,7 +131,7 @@ export default function LibraryDetail() {
               </div>
             )
           })}
-          {lib.collections.length === 0 && (
+          {lib.folders.length === 0 && (
             <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground">
               {t("core.library.emptyLibrary")}
             </div>

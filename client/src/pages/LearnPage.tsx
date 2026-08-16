@@ -12,7 +12,7 @@ import {
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
-import { api, type Collection, type Progress } from "@/lib/api"
+import { api, type Folder, type Progress } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { resolveRefTarget } from "@/lib/tree"
 import { usePluginEnabled } from "@/stores/plugins"
@@ -29,14 +29,14 @@ export default function LearnPage() {
   const { cid, sid } = useParams()
   const navigate = useNavigate()
   const t = useT()
-  const [col, setCol] = useState<Collection | null>(null)
+  const [col, setCol] = useState<Folder | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
   const startRef = useRef(Date.now())
   const courseEnabled = usePluginEnabled("course")
 
   const load = useCallback(async () => {
     if (!cid) return
-    const c = await api.getCollection(cid)
+    const c = await api.getFolder(cid)
     setCol(c)
     // 学习进度是课程插件能力（动态引入，核心页面不静态依赖插件模块）：课程类型才加载
     if (c.kind === "course" && courseEnabled) {
@@ -175,7 +175,7 @@ export default function LearnPage() {
         <ScrollArea className="h-[calc(100%-48px)]">
           <div className="p-3">
             <OutlineNav
-              collection={col}
+              folder={col}
               currentSectionId={sid!}
               completedSet={completedSet}
               onNavigate={go}
@@ -201,7 +201,7 @@ export default function LearnPage() {
                 <ScrollArea className="h-[calc(100%-60px)]">
                   <div className="p-3">
                     <OutlineNav
-                      collection={col}
+                      folder={col}
                       currentSectionId={sid!}
                       completedSet={completedSet}
                       onNavigate={go}

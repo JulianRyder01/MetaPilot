@@ -79,7 +79,7 @@ export const coreEn: Record<string, string> = {
   "core.library.kindCanvas": "Canvas",
   "core.library.empty": "No content yet",
   "core.library.emptyLibrary":
-    "This library is empty. Import a course pack or create a new collection from home.",
+    "This library is empty. Import a course pack or create a new folder from home.",
   "core.library.library": "Libraries",
   "core.library.deleteLibTitle": "Delete library",
   "core.library.deleteLibDesc":
@@ -98,16 +98,16 @@ export const coreEn: Record<string, string> = {
     "No libraries yet. Import a course pack or create a new library from the top right.",
   "core.library.noSymlinks":
     "No symlinks yet. Click on the right to add a local folder or file",
-  "core.library.collectionCount": "{count} collections",
-  "core.library.searchPlaceholder": "Search collections...",
+  "core.library.folderCount": "{count} folders",
+  "core.library.searchPlaceholder": "Search folders...",
   "core.library.gridView": "Grid view",
   "core.library.listView": "List view",
   "core.library.unitChapter": "Sections",
   "core.library.unitCanvas": "Canvas",
   "core.library.unitDoc": "Docs",
-  "core.library.noSearchResults": "No matching collections.",
-  "core.library.emptyCollections":
-    "This library has no collections yet. Import a course pack or create a new one.",
+  "core.library.noSearchResults": "No matching folders.",
+  "core.library.emptyFolders":
+    "This library has no folders yet. Import a course pack or create a new one.",
   "core.library.selectPlaceholder":
     "Select a library or symlink to view its contents.",
   "core.library.newLibTitle": "New library",
@@ -240,7 +240,7 @@ export const coreEn: Record<string, string> = {
   "core.canvas.saved": "Canvas saved",
   "core.canvas.saveFailed": "Failed to save",
   "core.canvas.doubleClickEdit": "Double-click to edit text",
-  "core.canvas.notCanvas": "This collection is not a canvas.",
+  "core.canvas.notCanvas": "This folder is not a canvas.",
   "core.canvas.backToLibrary": "Back to library",
   "core.canvas.badge": "Canvas",
   "core.canvas.dirty": "Unsaved changes",

@@ -17,12 +17,12 @@ import {
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
-import { api, type CollectionKindMeta, type LibraryMeta } from "@/lib/api"
+import { api, type FolderKindMeta, type LibraryMeta } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/stores/app"
 import { usePluginsStore } from "@/stores/plugins"
 import { allCollectionActions, builtinFrontends, usePluginRuntimeFrontends } from "@/plugins/registry"
-import type { CollectionRef } from "@/plugins/types"
+import type { FolderRef } from "@/plugins/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -50,7 +50,7 @@ import { useDialogs } from "@/components/ui/dialog-provider"
 const KIND_ICON_FALLBACK = BookOpen
 
 /** 集合类型图标动态解析：kind 元数据 icon（lucide 名），未知回退 BookOpen */
-function kindIcon(meta?: CollectionKindMeta) {
+function kindIcon(meta?: FolderKindMeta) {
   if (!meta?.icon) return KIND_ICON_FALLBACK
   const Cmp = (Lucide as unknown as Record<string, unknown>)[meta.icon]
   return typeof Cmp === "function" ? (Cmp as typeof BookOpen) : KIND_ICON_FALLBACK
@@ -64,7 +64,7 @@ function actionIcon(name?: string) {
 }
 
 /** 集合类型打开路由：kind 元数据 openRoute（{id} 占位）；空 = 无独立页 */
-function kindHref(meta: CollectionKindMeta | undefined, id: string): string {
+function kindHref(meta: FolderKindMeta | undefined, id: string): string {
   return meta?.openRoute ? meta.openRoute.replace("{id}", id) : ""
 }
 
@@ -76,7 +76,7 @@ export default function LibraryHome() {
   const dynamic = usePluginRuntimeFrontends()
   const [libraries, setLibraries] = useState<LibraryMeta[]>([])
   const [loading, setLoading] = useState(true)
-  const [kindMeta, setKindMeta] = useState<Record<string, CollectionKindMeta>>({})
+  const [kindMeta, setKindMeta] = useState<Record<string, FolderKindMeta>>({})
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"grid" | "list">("grid")
   const { currentLibraryId, setCurrentLibraryId } = useAppStore()
@@ -91,7 +91,7 @@ export default function LibraryHome() {
   useEffect(() => {
     refresh().finally(() => setLoading(false))
     // 集合类型元数据（核心 + 插件声明），渲染图标/名称/打开路由，不写死 kind 映射
-    api.listCollectionKinds().then(setKindMeta).catch(() => {})
+    api.listFolderKinds().then(setKindMeta).catch(() => {})
   }, [refresh])
 
   // 「我的库」页分区扩展点（如软链接插件的挂载分区）：仅渲染已启用插件的分区
@@ -106,7 +106,7 @@ export default function LibraryHome() {
   const createActions = collectionActions.filter((a) => Boolean(a.createLabel && a.onCreate))
 
   /** 某集合可执行的插件转换操作（如文档 → 课程） */
-  function convertActionsFor(col: CollectionRef) {
+  function convertActionsFor(col: FolderRef) {
     return collectionActions.filter(
       (a) => a.convertLabel && a.onConvert && (!a.canConvert || a.canConvert(col)),
     )
@@ -166,7 +166,7 @@ export default function LibraryHome() {
     })
     if (name == null) return
     if (!name.trim()) return
-    const col = await api.createCollection(currentLibraryId, {
+    const col = await api.createFolder(currentLibraryId, {
       name: name.trim(),
       kind: "note",
       description: "",
@@ -188,7 +188,7 @@ export default function LibraryHome() {
     })
     if (name == null) return
     if (!name.trim()) return
-    const col = await api.createCollection(currentLibraryId, {
+    const col = await api.createFolder(currentLibraryId, {
       name: name.trim(),
       kind: "canvas",
       description: "",
@@ -202,9 +202,9 @@ export default function LibraryHome() {
 
   const current = libraries.find((l) => l.id === currentLibraryId)
 
-  // 搜索过滤（仅库内文档集）
+  // 搜索过滤（仅库内文件夹）
   const filteredCollections = current
-    ? current.collections.filter((c) => c.name.toLowerCase().includes(search.trim().toLowerCase()))
+    ? current.folders.filter((c) => c.name.toLowerCase().includes(search.trim().toLowerCase()))
     : []
 
   function selectLibrary(id: string) {
@@ -253,7 +253,7 @@ export default function LibraryHome() {
                   )}
                 </button>
                 <span className="shrink-0 text-xs text-muted-foreground group-hover:hidden">
-                  {lib.collectionCount}
+                  {lib.folderCount}
                 </span>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -314,7 +314,7 @@ export default function LibraryHome() {
                 </div>
                 {current && (
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline">{t("core.library.collectionCount", { count: current.collectionCount })}</Badge>
+                    <Badge variant="outline">{t("core.library.folderCount", { count: current.folderCount })}</Badge>
                     <Button variant="outline" size="sm" onClick={createNoteCollection}>
                       <FileText className="size-4" />
                       {t("core.library.newDoc")}
@@ -501,7 +501,7 @@ export default function LibraryHome() {
                 )
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  {search ? t("core.library.noSearchResults") : t("core.library.emptyCollections")}
+                  {search ? t("core.library.noSearchResults") : t("core.library.emptyFolders")}
                 </p>
               )
             ) : (
