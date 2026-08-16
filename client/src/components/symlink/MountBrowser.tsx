@@ -25,6 +25,7 @@ import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
 import type { SymlinkItem, SymlinkMount, SymlinkTree } from "@/lib/api"
+import { useLightbox } from "@/components/ui/lightbox"
 import {
   symlinkDelete,
   symlinkMkdir,
@@ -98,7 +99,14 @@ function baseName(p: string) {
  * 软链接文件浏览器：左侧可折叠目录面板（挂载名 + 路径层级 + 子文件夹），
  * 右侧工具栏（搜索/网格列表切换）+ 文件列表 或 文件编辑器。
  */
-export function MountBrowser({ mount }: { mount: SymlinkMount }) {
+export function MountBrowser({
+  mount,
+  variant = "manager",
+}: {
+  mount: SymlinkMount
+  /** natural：自然卡片视图（大卡片网格，与普通库一致）；manager：文件管理器视图（网格/列表切换） */
+  variant?: "natural" | "manager"
+}) {
   const t = useT()
   const { confirm, prompt } = useDialogs()
   const [path, setPath] = useState("")
@@ -273,7 +281,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
             {mount.type === "file" && <Badge variant="outline" className="ml-1">{t("symlink.singleFile")}</Badge>}
           </div>
           <div className="ml-auto flex items-center gap-1.5">
-            {mount.type !== "file" && (
+            {mount.type !== "file" && variant === "manager" && (
               <>
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -417,7 +425,7 @@ export function MountBrowser({ mount }: { mount: SymlinkMount }) {
                       ? t("symlink.singleFileMount")
                       : t("symlink.emptyDir")}
                 </p>
-              ) : view === "grid" ? (
+              ) : variant === "natural" || view === "grid" ? (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {filteredItems.map((item) => (
                     <div
@@ -729,6 +737,7 @@ function MediaViewer({
 }) {
   const t = useT()
   const url = symlinkMediaUrl(mount.id, file.path)
+  const { open, node } = useLightbox()
   switch (file.kind) {
     case "image":
       return (
@@ -736,8 +745,10 @@ function MediaViewer({
           <img
             src={url}
             alt={file.name}
-            className="max-h-[70vh] max-w-full rounded-md border object-contain"
+            className="max-h-[70vh] max-w-full cursor-zoom-in rounded-md border object-contain transition-shadow hover:shadow-md"
+            onClick={() => open({ src: url, alt: file.name })}
           />
+          {node}
         </div>
       )
     case "pdf":

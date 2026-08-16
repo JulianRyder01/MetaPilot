@@ -149,6 +149,8 @@ export const coreZhCN: Record<string, string> = {
   "core.library.renameLib": "重命名",
   "core.library.renameLibTitle": "重命名库",
   "core.library.renamedLib": "已重命名库",
+  "core.library.modeNatural": "自然卡片",
+  "core.library.modeManager": "文件管理器",
   "core.library.menuMore": "更多操作",
   "core.library.addSymlink": "添加软链接",
 

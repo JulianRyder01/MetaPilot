@@ -157,6 +157,8 @@ export const coreEn: Record<string, string> = {
   "core.library.renameLib": "Rename",
   "core.library.renameLibTitle": "Rename library",
   "core.library.renamedLib": "Library renamed",
+  "core.library.modeNatural": "Cards",
+  "core.library.modeManager": "Files",
   "core.library.menuMore": "More actions",
   "core.library.addSymlink": "Add symlink",
 

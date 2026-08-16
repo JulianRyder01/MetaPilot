@@ -4,7 +4,9 @@ import * as Lucide from "lucide-react"
 import {
   BookOpen,
   FileText,
+  FolderTree,
   Grid3X3,
+  LayoutGrid,
   List,
   MoreHorizontal,
   Pin,
@@ -45,6 +47,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ImportDialog } from "@/components/library/ImportDialog"
+import { LibraryManagerView } from "@/components/library/LibraryManagerView"
 import { MountBrowser } from "@/components/symlink/MountBrowser"
 import { symlinkMounts } from "@/plugins/symlink/api"
 import { useDialogs } from "@/components/ui/dialog-provider"
@@ -81,6 +84,8 @@ export default function LibraryHome() {
   const [kindMeta, setKindMeta] = useState<Record<string, FolderKindMeta>>({})
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"grid" | "list">("grid")
+  // 显示模式：natural 自然卡片视图（普通库样式）/ manager 文件管理器视图（软链接样式），库与软链接统一
+  const [mode, setMode] = useState<"natural" | "manager">("natural")
   const { currentLibraryId, setCurrentLibraryId, currentMountId, setCurrentMountId } = useAppStore()
   // 当前软链接（软链接视为库，在右侧直接浏览；不再跳独立文件浏览器页）
   const [mounts, setMounts] = useState<SymlinkMount[]>([])
@@ -318,8 +323,37 @@ export default function LibraryHome() {
 
       {/* 右侧：库内容 / 软链接内容（软链接视为库，直接在此浏览） */}
       <section className="min-w-0 flex-1">
+        {/* 显示模式切换：自然卡片视图 / 文件管理器视图（库与软链接共用同一套） */}
+        <div className="mb-3 flex items-center justify-end">
+          <div className="flex items-center rounded-md border">
+            <button
+              onClick={() => setMode("natural")}
+              className={cn(
+                "flex items-center gap-1 rounded-l-md px-2.5 py-1.5 text-xs",
+                mode === "natural" ? "bg-accent font-medium text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+              title={t("core.library.modeNatural")}
+            >
+              <LayoutGrid className="size-3.5" />
+              {t("core.library.modeNatural")}
+            </button>
+            <button
+              onClick={() => setMode("manager")}
+              className={cn(
+                "flex items-center gap-1 rounded-r-md px-2.5 py-1.5 text-xs",
+                mode === "manager" ? "bg-accent font-medium text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+              title={t("core.library.modeManager")}
+            >
+              <FolderTree className="size-3.5" />
+              {t("core.library.modeManager")}
+            </button>
+          </div>
+        </div>
         {currentMount ? (
-          <MountBrowser mount={currentMount} />
+          <MountBrowser mount={currentMount} variant={mode === "manager" ? "manager" : "natural"} />
+        ) : current && mode === "manager" ? (
+          <LibraryManagerView libraryId={current.id} />
         ) : (
         <>
             {/* 库头：搜索 + 视图切换 */}

@@ -144,6 +144,8 @@ export const coreZhTW: Record<string, string> = {
   "core.library.renameLib": "重新命名",
   "core.library.renameLibTitle": "重新命名庫",
   "core.library.renamedLib": "已重新命名庫",
+  "core.library.modeNatural": "自然卡片",
+  "core.library.modeManager": "檔案管理員",
   "core.library.menuMore": "更多操作",
   "core.library.addSymlink": "新增軟連結",
 
