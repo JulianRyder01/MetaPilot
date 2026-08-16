@@ -110,7 +110,7 @@ class LibraryStore:
             if not parsed["ok"]:
                 raise KeyError(f"库文件损坏: {lid}: {'; '.join(parsed['errors'])}")
             meta = parsed["meta"]
-            return {
+            lib = {
                 "id": lid,
                 "name": meta["name"],
                 "description": meta["description"],
@@ -118,6 +118,13 @@ class LibraryStore:
                 "updatedAt": meta.get("updatedAt") or now_iso(),
                 "collections": parsed["content"]["collections"],
             }
+            # 置顶/默认标记存索引摘要（index.json），不进入 .mpf 内容
+            for it in self._load_index():
+                if it["id"] == lid:
+                    lib["pinned"] = bool(it.get("pinned"))
+                    lib["isDefault"] = bool(it.get("isDefault"))
+                    break
+            return lib
         if json_path.exists():
             # 旧 .json 格式：读取并自动迁移为 .mpf
             lib = _read_json(json_path, None)
@@ -147,6 +154,8 @@ class LibraryStore:
             "name": lib["name"],
             "description": lib.get("description", ""),
             "updatedAt": lib.get("updatedAt"),
+            "pinned": bool(lib.get("pinned")),
+            "isDefault": bool(lib.get("isDefault")),
             "collectionCount": len(lib.get("collections", [])),
             "collections": [
                 {"id": c["id"], "name": c["name"], "kind": c.get("kind", "note")}
@@ -163,7 +172,9 @@ class LibraryStore:
 
     # ---- 库级 ----
     def list_libraries(self) -> list[dict]:
-        return self._load_index()
+        """库摘要列表（置顶优先，其余保持创建顺序）。"""
+        items = self._load_index()
+        return sorted(items, key=lambda it: not bool(it.get("pinned")))
 
     def get_library(self, lid: str) -> dict:
         return self._load_lib(lid)
@@ -174,6 +185,8 @@ class LibraryStore:
                 "id": gen_id(),
                 "name": name,
                 "description": description,
+                "pinned": False,
+                "isDefault": False,
                 "createdAt": now_iso(),
                 "updatedAt": now_iso(),
                 "collections": [],
@@ -181,16 +194,38 @@ class LibraryStore:
             self._save_lib(lib)
             return lib
 
-    def update_library(self, lid: str, name: Optional[str] = None, description: Optional[str] = None) -> dict:
+    def update_library(self, lid: str, name: Optional[str] = None, description: Optional[str] = None,
+                       pinned: Optional[bool] = None, is_default: Optional[bool] = None) -> dict:
         with self.lock:
             lib = self._load_lib(lid)
             if name is not None:
                 lib["name"] = name
             if description is not None:
                 lib["description"] = description
+            if pinned is not None:
+                lib["pinned"] = bool(pinned)
+            if is_default is not None:
+                # 默认库唯一：设当前为默认时，其它库的默认标记清除
+                if bool(is_default):
+                    self._clear_default_flag(lid)
+                lib["isDefault"] = bool(is_default)
             lib["updatedAt"] = now_iso()
             self._save_lib(lib)
             return lib
+
+    def set_default_library(self, lid: str) -> dict:
+        """把指定库设为默认（唯一），其它库的默认标记清除。"""
+        return self.update_library(lid, is_default=True)
+
+    def _clear_default_flag(self, except_lid: str) -> None:
+        items = self._load_index()
+        changed = False
+        for it in items:
+            if it["id"] != except_lid and it.get("isDefault"):
+                it["isDefault"] = False
+                changed = True
+        if changed:
+            self._save_index(items)
 
     def delete_library(self, lid: str) -> None:
         with self.lock:

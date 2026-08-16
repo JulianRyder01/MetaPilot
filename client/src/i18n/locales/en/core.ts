@@ -145,6 +145,19 @@ export const coreEn: Record<string, string> = {
   "core.library.courseFileLabel": "Course pack file (.zip, contains manifest.json)",
   "core.library.noteGateHint": "Import Markdown notes",
   "core.library.noteFileLabel": "Markdown / Obsidian file (.md)",
+  // ---- Library management (row menu) ----
+  "core.library.pin": "Pin",
+  "core.library.unpin": "Unpin",
+  "core.library.pinned": "Pinned",
+  "core.library.pinnedLib": "Pinned to top",
+  "core.library.unpinnedLib": "Unpinned",
+  "core.library.setDefault": "Set as default",
+  "core.library.defaultLib": "Default",
+  "core.library.defaultSet": "Set as default library",
+  "core.library.renameLib": "Rename",
+  "core.library.renameLibTitle": "Rename library",
+  "core.library.renamedLib": "Library renamed",
+  "core.library.menuMore": "More actions",
 
   // ---- Editor ----
   "core.edit.block.markdown": "Display (Markdown)",

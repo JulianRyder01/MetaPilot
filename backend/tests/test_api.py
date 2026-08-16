@@ -68,6 +68,36 @@ def test_library_crud():
     assert client.get("/api/libraries/nope").status_code == 404
 
 
+def test_library_pin_and_default():
+    """置顶可多个；默认库唯一（设新默认后旧默认清除）；列表置顶优先。"""
+    a = client.post("/api/libraries", json={"name": "库A"}).json()
+    b = client.post("/api/libraries", json={"name": "库B"}).json()
+    try:
+        # 默认标记初始为 False
+        assert client.get(f"/api/libraries/{a['id']}").json()["isDefault"] is False
+        # 设为默认（唯一性）
+        client.post(f"/api/libraries/{a['id']}/default")
+        assert client.get(f"/api/libraries/{a['id']}").json()["isDefault"] is True
+        client.post(f"/api/libraries/{b['id']}/default")
+        assert client.get(f"/api/libraries/{a['id']}").json()["isDefault"] is False
+        assert client.get(f"/api/libraries/{b['id']}").json()["isDefault"] is True
+        # 置顶（可多个）
+        client.put(f"/api/libraries/{a['id']}", json={"name": "库A", "pinned": True})
+        client.put(f"/api/libraries/{b['id']}", json={"name": "库B", "pinned": True})
+        listed = client.get("/api/libraries").json()
+        assert listed[0]["pinned"] is True and listed[1]["pinned"] is True
+        # 取消置顶后回到普通位置
+        client.put(f"/api/libraries/{a['id']}", json={"name": "库A", "pinned": False})
+        listed = client.get("/api/libraries").json()
+        assert any(it["id"] == a["id"] and it["pinned"] is False for it in listed)
+        # 摘要字段带 pinned/isDefault
+        entry = next(it for it in listed if it["id"] == b["id"])
+        assert entry["pinned"] is True and entry["isDefault"] is True
+    finally:
+        client.delete(f"/api/libraries/{a['id']}")
+        client.delete(f"/api/libraries/{b['id']}")
+
+
 def test_tree_crud():
     t = _make_tree()
     # 文档集信息

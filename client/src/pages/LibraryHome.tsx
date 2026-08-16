@@ -6,8 +6,11 @@ import {
   FileText,
   Grid3X3,
   List,
+  MoreHorizontal,
+  Pin,
   Plus,
   Search,
+  Star,
   Trash2,
   Workflow,
 } from "lucide-react"
@@ -32,6 +35,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ImportDialog } from "@/components/library/ImportDialog"
@@ -115,6 +125,37 @@ export default function LibraryHome() {
     refresh()
   }
 
+  /** 置顶 / 取消置顶（可多个） */
+  async function togglePin(lib: LibraryMeta) {
+    await api.updateLibrary(lib.id, {
+      name: lib.name,
+      description: lib.description,
+      pinned: !lib.pinned,
+    })
+    toast.success(t(lib.pinned ? "core.library.unpinnedLib" : "core.library.pinnedLib"))
+    refresh()
+  }
+
+  /** 设为默认库（唯一）：AI 洞察等插件的默认保存目标 */
+  async function setDefault(lib: LibraryMeta) {
+    await api.setDefaultLibrary(lib.id)
+    toast.success(t("core.library.defaultSet"))
+    refresh()
+  }
+
+  /** 重命名库 */
+  async function renameLib(lib: LibraryMeta) {
+    const name = await prompt({
+      title: t("core.library.renameLibTitle"),
+      placeholder: t("core.library.namePlaceholder"),
+      initialValue: lib.name,
+    })
+    if (name == null || !name.trim() || name.trim() === lib.name) return
+    await api.updateLibrary(lib.id, { name: name.trim() })
+    toast.success(t("core.library.renamedLib"))
+    refresh()
+  }
+
   /** 在当前库中新建空白文档（kind=note，官方核心），创建后跳转文档编辑页。 */
   async function createNoteCollection() {
     if (!currentLibraryId) return
@@ -189,19 +230,63 @@ export default function LibraryHome() {
         ) : (
           <div className="space-y-1">
             {libraries.map((lib) => (
-              <button
+              <div
                 key={lib.id}
-                onClick={() => selectLibrary(lib.id)}
                 className={cn(
-                  "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors",
+                  "group flex items-center gap-1 rounded-md px-2 py-1.5 transition-colors",
                   lib.id === currentLibraryId
                     ? "bg-accent font-medium text-accent-foreground"
                     : "hover:bg-accent/60",
                 )}
               >
-                <span className="truncate">{lib.name}</span>
-                <span className="text-xs text-muted-foreground">{lib.collectionCount}</span>
-              </button>
+                <button
+                  onClick={() => selectLibrary(lib.id)}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm"
+                >
+                  <span className="truncate">{lib.name}</span>
+                  {lib.pinned && <Pin className="size-3 shrink-0 text-primary" aria-label={t("core.library.pinned")} />}
+                  {lib.isDefault && (
+                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-primary/15 px-1 py-px text-[10px] font-medium text-primary">
+                      <Star className="size-2.5" />
+                      {t("core.library.defaultLib")}
+                    </span>
+                  )}
+                </button>
+                <span className="shrink-0 text-xs text-muted-foreground group-hover:hidden">
+                  {lib.collectionCount}
+                </span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="hidden shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent group-hover:block"
+                      aria-label={t("core.library.menuMore")}
+                    >
+                      <MoreHorizontal className="size-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => togglePin(lib)}>
+                      {lib.pinned ? <Pin className="text-muted-foreground" /> : <Pin className="text-muted-foreground" />}
+                      {t(lib.pinned ? "core.library.unpin" : "core.library.pin")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setDefault(lib)} disabled={lib.isDefault}>
+                      <Star className="text-muted-foreground" />
+                      {t("core.library.setDefault")}
+                      {lib.isDefault && <span className="ml-auto text-xs text-muted-foreground">{t("core.library.defaultLib")}</span>}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => renameLib(lib)}>
+                      <FileText className="text-muted-foreground" />
+                      {t("core.library.renameLib")}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" onClick={() => handleDelete(lib.id)}>
+                      <Trash2 />
+                      {t("common.delete")}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             ))}
             {libraries.length === 0 && (
               <p className="px-2 text-sm text-muted-foreground">

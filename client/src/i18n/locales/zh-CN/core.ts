@@ -137,6 +137,19 @@ export const coreZhCN: Record<string, string> = {
   "core.library.courseFileLabel": "课程包文件（.zip，含 manifest.json）",
   "core.library.noteGateHint": "导入 Markdown 笔记",
   "core.library.noteFileLabel": "Markdown / Obsidian 文件（.md）",
+  // ---- 库管理（行菜单） ----
+  "core.library.pin": "置顶",
+  "core.library.unpin": "取消置顶",
+  "core.library.pinned": "已置顶",
+  "core.library.pinnedLib": "已置顶",
+  "core.library.unpinnedLib": "已取消置顶",
+  "core.library.setDefault": "设为默认",
+  "core.library.defaultLib": "默认",
+  "core.library.defaultSet": "已设为默认库",
+  "core.library.renameLib": "重命名",
+  "core.library.renameLibTitle": "重命名库",
+  "core.library.renamedLib": "已重命名库",
+  "core.library.menuMore": "更多操作",
 
   // ---- 编辑页 ----
   "core.edit.block.markdown": "展示（Markdown）",

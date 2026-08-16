@@ -7,6 +7,9 @@ from pydantic import BaseModel, ConfigDict, Field
 class LibraryIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = ""
+    # 管理标记（置顶可多个；默认库唯一）：PUT 更新时可选传入
+    pinned: Optional[bool] = None
+    isDefault: Optional[bool] = None
 
 
 class CollectionIn(BaseModel):

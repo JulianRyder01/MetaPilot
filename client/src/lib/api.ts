@@ -51,8 +51,10 @@ export const api = {
   createLibrary: (name: string, description = "") =>
     request<Library>("/libraries", { method: "POST", body: JSON.stringify({ name, description }) }),
   getLibrary: (id: string) => request<Library>(`/libraries/${id}`),
-  updateLibrary: (id: string, name: string, description: string) =>
-    request<Library>(`/libraries/${id}`, { method: "PUT", body: JSON.stringify({ name, description }) }),
+  updateLibrary: (id: string, data: { name?: string; description?: string; pinned?: boolean; isDefault?: boolean }) =>
+    request<Library>(`/libraries/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  /** 设为默认库（唯一）：AI 洞察等插件的默认保存目标 */
+  setDefaultLibrary: (id: string) => request<Library>(`/libraries/${id}/default`, { method: "POST" }),
   deleteLibrary: (id: string) => request<{ ok: boolean }>(`/libraries/${id}`, { method: "DELETE" }),
 
   // 文档集（课程）
@@ -162,6 +164,10 @@ export interface LibraryMeta {
   description: string
   updatedAt: string
   collectionCount: number
+  /** 置顶（可多个，列表置顶优先） */
+  pinned?: boolean
+  /** 默认库（唯一，AI 洞察等插件的默认保存目标） */
+  isDefault?: boolean
   collections: { id: string; name: string; kind: string }[]
 }
 
