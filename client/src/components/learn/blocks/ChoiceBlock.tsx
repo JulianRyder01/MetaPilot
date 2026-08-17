@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { CheckCircle2, XCircle } from "lucide-react"
+import { CheckCircle2, Send, Square, SquareCheck, XCircle } from "lucide-react"
 
 import { useT } from "@/i18n"
 import { cn } from "@/lib/utils"
@@ -122,7 +122,8 @@ export function ChoiceBlock({ block }: Props) {
             >
               <span
                 className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
+                  "flex size-6 shrink-0 items-center justify-center border text-xs font-semibold",
+                  multiple ? "rounded" : "rounded-full",
                   submitted && isCorrectOpt
                     ? "border-emerald-500 bg-emerald-500 text-white"
                     : submitted && isSel
@@ -132,29 +133,51 @@ export function ChoiceBlock({ block }: Props) {
                         : "border-muted-foreground/40",
                 )}
               >
-                {submitted && isCorrectOpt ? <CheckCircle2 className="size-4" /> : submitted && isSel ? <XCircle className="size-4" /> : LETTERS[i]}
+                {multiple ? (
+                  isSel ? (
+                    <SquareCheck className="size-4" />
+                  ) : (
+                    <Square className="size-3.5" />
+                  )
+                ) : submitted && isCorrectOpt ? (
+                  <CheckCircle2 className="size-4" />
+                ) : submitted && isSel ? (
+                  <XCircle className="size-4" />
+                ) : (
+                  LETTERS[i]
+                )}
               </span>
               {opt}
             </button>
           )
         })}
       </div>
-      <div className="mt-4 flex items-center gap-3">
-        <Button size="sm" onClick={submit} disabled={submitted || locked || selected.length === 0}>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          {submitted && (
+            <Badge variant={isCorrect ? "success" : "destructive"}>
+              {isCorrect ? t("core.learn.correct") : t("core.learn.incorrect")}
+            </Badge>
+          )}
+          {!submitted && multiple && (
+            <p className="text-xs text-muted-foreground">{t("core.learn.multiTip")}</p>
+          )}
+          <RetryButton
+            q={q}
+            onRetry={() => {
+              setSelected([])
+              setSubmitted(false)
+            }}
+          />
+        </div>
+        <Button
+          onClick={submit}
+          disabled={submitted || locked || selected.length === 0}
+          className="gap-2 px-8 font-medium"
+        >
           {t("core.learn.submit")}
+          <Send className="size-4" />
         </Button>
-        {submitted && (
-          <Badge variant={isCorrect ? "success" : "destructive"}>
-            {isCorrect ? t("core.learn.correct") : t("core.learn.incorrect")}
-          </Badge>
-        )}
-        <RetryButton
-          q={q}
-          onRetry={() => {
-            setSelected([])
-            setSubmitted(false)
-          }}
-        />
       </div>
       <TimedLockNotice q={q} />
       {submitted && block.explanation && (

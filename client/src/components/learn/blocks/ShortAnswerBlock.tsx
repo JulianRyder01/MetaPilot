@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { Loader2, Sparkles } from "lucide-react"
+import { Loader2, Send, Sparkles } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
@@ -94,6 +94,20 @@ export function ShortAnswerBlock({ block }: Props) {
         value={answer}
         onFocus={() => q.reveal()}
         onChange={(e) => setAnswer(e.target.value)}
+        onKeyDown={(e) => {
+          // 回车提交（排除输入法组词确认与换行修饰键）；Ctrl/⌘/Shift+回车为换行
+          if (
+            e.key === "Enter" &&
+            !e.shiftKey &&
+            !e.ctrlKey &&
+            !e.metaKey &&
+            !e.nativeEvent.isComposing &&
+            answer.trim()
+          ) {
+            e.preventDefault()
+            submit()
+          }
+        }}
         disabled={locked}
         className="min-h-28"
       />
@@ -102,23 +116,30 @@ export function ShortAnswerBlock({ block }: Props) {
           {t("core.learn.keywords", { text: block.keywords.join("、") })}
         </p>
       )}
-      <div className="mt-3 flex items-center gap-3">
-        <Button size="sm" onClick={submit} disabled={grading || locked || !answer.trim()}>
-          {grading ? <Loader2 className="size-4 animate-spin" /> : null}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          {result && (
+            <Badge variant={result.isCorrect ? "success" : "destructive"}>
+              {t("core.learn.accuracy", { score: result.score })}
+            </Badge>
+          )}
+          {!result && <p className="text-xs text-muted-foreground">{t("core.learn.enterSubmitNewline")}</p>}
+          <RetryButton
+            q={q}
+            onRetry={() => {
+              setResult(null)
+              setAnswer("")
+            }}
+          />
+        </div>
+        <Button
+          onClick={submit}
+          disabled={grading || locked || !answer.trim()}
+          className="gap-2 px-8 font-medium"
+        >
+          {grading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
           {t("core.learn.submitGrade")}
         </Button>
-        {result && (
-          <Badge variant={result.isCorrect ? "success" : "destructive"}>
-            {t("core.learn.accuracy", { score: result.score })}
-          </Badge>
-        )}
-        <RetryButton
-          q={q}
-          onRetry={() => {
-            setResult(null)
-            setAnswer("")
-          }}
-        />
       </div>
       <TimedLockNotice q={q} />
       {result?.feedback && (

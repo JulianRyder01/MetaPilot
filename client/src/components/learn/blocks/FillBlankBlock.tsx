@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { Loader2, Sparkles } from "lucide-react"
+import { Loader2, Send, Sparkles } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
@@ -105,27 +105,41 @@ export function FillBlankBlock({ block }: Props) {
             value={inputs[i] ?? ""}
             onFocus={() => q.reveal()}
             onChange={(e) => setInputs((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))}
+            onKeyDown={(e) => {
+              // 回车提交（排除输入法组词确认；全部空已填才触发，与按钮 disabled 一致）
+              if (e.key === "Enter" && !e.nativeEvent.isComposing && inputs.every((v) => v.trim())) {
+                e.preventDefault()
+                submit()
+              }
+            }}
             disabled={locked}
           />
         ))}
       </div>
-      <div className="mt-4 flex items-center gap-3">
-        <Button size="sm" onClick={submit} disabled={grading || locked || inputs.some((v) => !v.trim())}>
-          {grading ? <Loader2 className="size-4 animate-spin" /> : null}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          {result && (
+            <Badge variant={result.isCorrect ? "success" : "destructive"}>
+              {t("core.learn.accuracy", { score: result.score })}
+            </Badge>
+          )}
+          {!result && <p className="text-xs text-muted-foreground">{t("core.learn.enterToSubmit")}</p>}
+          <RetryButton
+            q={q}
+            onRetry={() => {
+              setResult(null)
+              setInputs(blanks.map(() => ""))
+            }}
+          />
+        </div>
+        <Button
+          onClick={submit}
+          disabled={grading || locked || inputs.some((v) => !v.trim())}
+          className="gap-2 px-8 font-medium"
+        >
+          {grading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
           {t("core.learn.submit")}
         </Button>
-        {result && (
-          <Badge variant={result.isCorrect ? "success" : "destructive"}>
-            {t("core.learn.accuracy", { score: result.score })}
-          </Badge>
-        )}
-        <RetryButton
-          q={q}
-          onRetry={() => {
-            setResult(null)
-            setInputs(blanks.map(() => ""))
-          }}
-        />
       </div>
       <TimedLockNotice q={q} />
       {result?.feedback && <p className="mt-3 text-sm text-muted-foreground">{result.feedback}</p>}
