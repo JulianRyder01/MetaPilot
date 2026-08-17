@@ -125,7 +125,7 @@ def test_disable_course_blocks_import_and_notes():
     resp = client.post("/api/plugins/course/import",
                        files={"file": ("c.zip", make_zip(), "application/zip")})
     assert resp.status_code == 503
-    assert "课程" in resp.json()["detail"]
+    assert "交互式学习" in resp.json()["detail"]
     assert "启用" in resp.json()["detail"]
 
     assert client.get("/api/plugins/course/progress/demo").status_code == 503
@@ -283,8 +283,8 @@ def test_plugin_metadata_source_is_plugin_json():
     # plugin.json 为唯一元数据源：真实插件元数据来自 plugin.json，类上不再重复声明
     p = manager.get("course")
     assert p is not None
-    assert p.name == "课程"
-    assert p.description.startswith("课程包")
+    assert p.name == "交互式学习"
+    assert p.description.startswith("交互式学习")
     assert p.author == "MetaPilot"
     assert p.source == "official"
     assert p.spec_version == "1.1"
