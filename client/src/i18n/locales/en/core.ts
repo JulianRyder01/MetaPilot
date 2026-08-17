@@ -2,6 +2,7 @@
 export const coreEn: Record<string, string> = {
   // ---- Navigation ----
   "nav.library": "My Library",
+  "nav.tutorials": "Tutorials",
   "nav.plugins": "Plugins",
   "nav.settings": "Settings",
   "nav.stats": "Stats",

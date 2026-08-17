@@ -2,6 +2,7 @@
 export const coreZhTW: Record<string, string> = {
   // ---- 导航 ----
   "nav.library": "我的文件庫",
+  "nav.tutorials": "使用教學",
   "nav.plugins": "外掛",
   "nav.settings": "設定",
   "nav.stats": "統計",

@@ -5,6 +5,7 @@ import { courseZhCN } from "./zh-CN/course"
 import { insightZhCN } from "./zh-CN/insight"
 import { symlinkZhCN } from "./zh-CN/symlink"
 import { sysZhCN } from "./zh-CN/sys"
+import { tutorialZhCN } from "./zh-CN/tutorial"
 
 import { commonZhTW } from "./zh-TW/common"
 import { coreZhTW } from "./zh-TW/core"
@@ -12,6 +13,7 @@ import { courseZhTW } from "./zh-TW/course"
 import { insightZhTW } from "./zh-TW/insight"
 import { symlinkZhTW } from "./zh-TW/symlink"
 import { sysZhTW } from "./zh-TW/sys"
+import { tutorialZhTW } from "./zh-TW/tutorial"
 
 import { commonEn } from "./en/common"
 import { coreEn } from "./en/core"
@@ -19,6 +21,7 @@ import { courseEn } from "./en/course"
 import { insightEn } from "./en/insight"
 import { symlinkEn } from "./en/symlink"
 import { sysEn } from "./en/sys"
+import { tutorialEn } from "./en/tutorial"
 
 export const zhCN: Record<string, string> = {
   ...commonZhCN,
@@ -27,6 +30,7 @@ export const zhCN: Record<string, string> = {
   ...insightZhCN,
   ...symlinkZhCN,
   ...sysZhCN,
+  ...tutorialZhCN,
 }
 
 export const zhTW: Record<string, string> = {
@@ -36,6 +40,7 @@ export const zhTW: Record<string, string> = {
   ...insightZhTW,
   ...symlinkZhTW,
   ...sysZhTW,
+  ...tutorialZhTW,
 }
 
 export const en: Record<string, string> = {
@@ -45,4 +50,5 @@ export const en: Record<string, string> = {
   ...insightEn,
   ...symlinkEn,
   ...sysEn,
+  ...tutorialEn,
 }

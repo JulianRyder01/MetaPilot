@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet } from "react-router-dom"
 import { useEffect, useState } from "react"
-import { BookOpen, Globe, Library, Puzzle, Settings2, type LucideIcon } from "lucide-react"
+import { BookOpen, BookOpenText, Globe, Library, Puzzle, Settings2, type LucideIcon } from "lucide-react"
 import * as Lucide from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -32,8 +32,11 @@ function resolveIcon(icon: LucideIcon | string): LucideIcon {
   return typeof Cmp === "function" ? (Cmp as LucideIcon) : Puzzle
 }
 
-// 核心导航：文档库（前置）与系统页（后置）；插件导航（统计/知识库等）由注册表贡献并居中
-const leadingNav: NavItem[] = [{ to: "/", label: "nav.library", icon: Library }]
+// 核心导航：文档库、使用教程（前置）与系统页（后置）；插件导航（统计/知识库等）由注册表贡献并居中
+const leadingNav: NavItem[] = [
+  { to: "/", label: "nav.library", icon: Library },
+  { to: "/tutorials", label: "nav.tutorials", icon: BookOpenText },
+]
 const trailingNav: NavItem[] = [
   { to: "/plugins", label: "nav.plugins", icon: Puzzle },
   { to: "/settings", label: "nav.settings", icon: Settings2 },

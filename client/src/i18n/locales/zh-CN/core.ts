@@ -2,6 +2,7 @@
 export const coreZhCN: Record<string, string> = {
   // ---- 导航 ----
   "nav.library": "我的库",
+  "nav.tutorials": "使用教程",
   "nav.plugins": "插件",
   "nav.settings": "设置",
   "nav.stats": "统计",

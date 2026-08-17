@@ -9,6 +9,7 @@ import LearnPage from "@/pages/LearnPage"
 import EditPage from "@/pages/EditPage"
 import PluginsPage from "@/pages/PluginsPage"
 import SettingsPage from "@/pages/SettingsPage"
+import TutorialsPage from "@/pages/TutorialsPage"
 import { allPluginRoutes, usePluginRuntimeFrontends } from "@/plugins/registry"
 import { ensurePluginsLoaded } from "@/stores/plugins"
 
@@ -31,6 +32,7 @@ export default function App() {
         {/* 核心路由：文档库与系统页面 */}
         <Route path="/" element={<LibraryHome />} />
         <Route path="/library/:lid" element={<LibraryDetail />} />
+        <Route path="/tutorials" element={<TutorialsPage />} />
         <Route path="/plugins" element={<PluginsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         {/* 图表画布（.mpf canvas 类型，官方核心）；软链接 .canvas 源文件在挂载内直接阅读 */}
