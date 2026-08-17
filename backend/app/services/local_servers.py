@@ -117,6 +117,10 @@ class LocalServersManager:
             return {"started": True, "pid": 0, "message": f"复用已在 {m['url']} 运行的服务"}
 
         conda = shutil.which("conda")
+        if getattr(sys, "frozen", False) and not conda:
+            # 桌面打包（PyInstaller）下 sys.executable 是后端可执行文件本身，不是 Python 解释器，
+            # 直接拉起会变成第二个后端实例 —— 本地模型服务需 conda 环境（或安装目录外置 Python 不可行），显式提示。
+            return {"started": False, "error": "桌面版启动本地模型服务需要 conda 环境（见 .env CONDA_ENV），请先安装 conda 或改用云端 AI"}
         if not conda:
             cmd = [sys.executable, str(m["script"]), "--port", str(self._port(m["url"])), "--model", model]
             launcher = "当前 Python"

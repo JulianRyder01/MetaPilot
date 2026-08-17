@@ -1,7 +1,7 @@
 // MetaPilot 桌面端主进程（Electron）
 // 职责：启动后端（开发=系统 python 源码 / 生产=随包 PyInstaller 可执行文件）→ 等待就绪 → 加载页面 → 退出清理。
 const { app, BrowserWindow } = require("electron");
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const net = require("net");
 const path = require("path");
 const fs = require("fs");
@@ -9,9 +9,16 @@ const fs = require("fs");
 const IS_DEV = !!process.env.METAPILOT_DEV_MODE;
 const APP_VERSION = require("./package.json").version;
 
+// 单实例锁：防止双击启动多个实例（多实例会各启一个后端并并发铺用户数据目录）
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+}
+
 let backendProc = null;
 let mainWindow = null;
 let failed = false;
+let quitting = false;
 
 // ---------- 端口 ----------
 function findFreePort() {
@@ -65,6 +72,7 @@ function resolveBackendCommand(port) {
       BACKEND_HOST: "127.0.0.1",
       BACKEND_PORT: String(port),
       METAPILOT_ROOT: backendDir,
+      METAPILOT_DATA_DIR: path.join(userData, "data"),
       METAPILOT_FRONTEND_DIST: path.join(res, "frontend"),
       METAPILOT_PLUGINS_DIR: pluginsDir,
       METAPILOT_SCRIPTS_DIR: path.join(res, "scripts"),
@@ -75,6 +83,8 @@ function resolveBackendCommand(port) {
 
 function ensureUserData(res, userData, pluginsDir, envFile) {
   fs.mkdirSync(userData, { recursive: true });
+  // 数据目录（vault）随 userData，安装目录不可写且升级会被整体替换
+  fs.mkdirSync(path.join(userData, "data"), { recursive: true });
   // 内置插件 → 用户目录（用户可安装/删除插件，内置仅首次铺入）
   const builtinPlugins = path.join(res, "plugins");
   if (fs.existsSync(builtinPlugins) && !fs.existsSync(pluginsDir)) {
@@ -101,7 +111,8 @@ function startBackend(port) {
     if (backendProc.stderr) backendProc.stderr.on("data", collect);
     backendProc.on("error", (err) => reject(new Error(`后端启动失败: ${err.message}\n${log}`)));
     backendProc.on("exit", (code) => {
-      if (!failed) {
+      // 正常退出流程（before-quit 里已置 quitting）不当作崩溃
+      if (!quitting && !failed) {
         console.error(`后端进程退出(code=${code})\n${log}`);
         app.exit(code || 1);
       }
@@ -158,11 +169,21 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => {
+// 单实例锁：二次启动时聚焦已有窗口
+app.on("second-instance", () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+});
+
+app.on("before-quit", (e) => {
+  quitting = true;
   if (backendProc && backendProc.pid) {
     try {
       if (process.platform === "win32") {
-        spawn("taskkill", ["/pid", String(backendProc.pid), "/T", "/F"]);
+        // 同步等待整个进程树被强杀后主进程再退出，避免后端残留孤儿进程
+        spawnSync("taskkill", ["/pid", String(backendProc.pid), "/T", "/F"], { stdio: "ignore" });
       } else {
         process.kill(-backendProc.pid, "SIGTERM");
       }

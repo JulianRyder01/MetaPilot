@@ -32,6 +32,10 @@ BACKEND_DIR = ROOT_DIR / "backend" if not FROZEN else ROOT_DIR
 # .env 位置：源码在项目根；打包由 Electron 指向用户数据目录（无则回退资源目录）
 ENV_FILE = _env_or_default("METAPILOT_ENV_FILE", ROOT_DIR / ".env")
 
+# 数据目录（vault）：桌面打包由 Electron 传入用户数据目录（安装目录不可写、升级会整体替换 → 数据必须放 userData）
+# 优先级：环境变量 METAPILOT_DATA_DIR > .env 的 DATA_DIR > 默认（源码=backend/data，打包=资源目录旁 data）
+METAPILOT_DATA_DIR = os.environ.get("METAPILOT_DATA_DIR", "").strip()
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -63,4 +67,6 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-DATA_DIR = Path(settings.data_dir) if settings.data_dir else (BACKEND_DIR / "data")
+DATA_DIR = Path(settings.data_dir) if settings.data_dir else (
+    Path(METAPILOT_DATA_DIR) if METAPILOT_DATA_DIR else (BACKEND_DIR / "data")
+)
