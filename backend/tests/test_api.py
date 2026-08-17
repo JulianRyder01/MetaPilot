@@ -65,7 +65,7 @@ def test_vault_migrate_copies_then_deletes(tmp_path, monkeypatch):
     (src / "libraries").mkdir()
     (src / "libraries" / "x.mpf").write_text('{"format":"meta-pilot"}', encoding="utf-8")
     monkeypatch.setattr(settings_mod, "DATA_DIR", src)
-    monkeypatch.setattr(settings_mod, "ROOT_DIR", tmp_path)  # .env 写入 tmp，不碰真实 .env
+    monkeypatch.setattr(settings_mod, "ENV_FILE", tmp_path / ".env")  # .env 写入 tmp，不碰真实 .env
 
     target = tmp_path / "dst-vault"
     target.mkdir()

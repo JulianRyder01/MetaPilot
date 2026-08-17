@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -17,7 +18,15 @@ from ..config import settings
 from .ai_config import AIConfig, LOCAL_MODELS
 from . import model_hub
 
-SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
+# 本地模型服务脚本目录：源码在 backend/scripts；桌面打包由 Electron 通过 METAPILOT_SCRIPTS_DIR 传入
+# （打包后随应用资源目录携带），无则回退源码布局。
+_env_scripts = os.environ.get("METAPILOT_SCRIPTS_DIR", "").strip()
+if _env_scripts:
+    SCRIPTS_DIR = Path(_env_scripts)
+elif getattr(sys, "frozen", False):
+    SCRIPTS_DIR = Path(os.environ.get("METAPILOT_ROOT") or Path(sys.executable).resolve().parent) / "scripts"
+else:
+    SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
 
 
 class LocalServersManager:

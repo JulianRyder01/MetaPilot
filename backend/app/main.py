@@ -3,11 +3,13 @@
 MetaPilot 核心 = 文档库阅读器：库-文档集-文档-小节 的浏览与 Markdown 阅读、
 Markdown 笔记导入、插件管理。课程/学习/知识库等能力由 backend/plugins/ 下的插件提供。
 """
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
 
 from .config import DATA_DIR, settings
 from .version import VERSION as APP_VERSION
@@ -88,3 +90,25 @@ for info in manager.list():
 @app.get("/api/health")
 def health():
     return {"ok": True, "version": APP_VERSION, "dataDir": str(DATA_DIR)}
+
+
+# ---------------- 桌面打包：托管前端构建产物（SPA） ----------------
+# 前端 dist 目录由 Electron 通过 METAPILOT_FRONTEND_DIST 传入（打包后随应用资源目录携带）。
+# 页面与 /api 同源，前端相对路径请求无需代理；未匹配 /api 的路径回退 index.html。
+from fastapi.staticfiles import StaticFiles
+
+FRONTEND_DIST = os.environ.get("METAPILOT_FRONTEND_DIST", "").strip()
+if FRONTEND_DIST and Path(FRONTEND_DIST).is_dir():
+    class SPAStaticFiles(StaticFiles):
+        """SPA 静态托管：文件存在则返回文件，否则回退 index.html（/api 未命中仍返回 404 JSON）。"""
+
+        async def get_response(self, path: str, scope):
+            response = await super().get_response(path, scope)
+            if response.status_code == 404:
+                if path.startswith("api/"):
+                    return JSONResponse({"detail": "Not Found"}, status_code=404)
+                response = await super().get_response("index.html", scope)
+            return response
+
+    app.mount("/", SPAStaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
+    print(f"[main] 托管前端构建产物: {FRONTEND_DIST}")

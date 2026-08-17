@@ -1,15 +1,41 @@
-"""应用配置：从项目根目录的 .env 读取。"""
+"""应用配置：从 .env 读取。
+
+路径语义：
+- 源码运行：ROOT_DIR = 项目根目录（backend/app/config.py 上溯三级），.env 在项目根。
+- 桌面打包（PyInstaller frozen）：ROOT_DIR 由环境变量 METAPILOT_ROOT 指定（Electron 传入应用资源目录）；
+  .env 由 METAPILOT_ENV_FILE 指定（Electron 指向用户数据目录），数据目录默认用户数据目录（也支持 .env 的 DATA_DIR）。
+"""
+import os
+import sys
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ROOT_DIR = Path(__file__).resolve().parents[2]  # 项目根目录
-BACKEND_DIR = ROOT_DIR / "backend"
+
+def _env_or_default(key: str, default: Path) -> Path:
+    """环境变量给出的路径 => Path；未设置/为空串 => 默认。"""
+    raw = os.environ.get(key, "").strip()
+    return Path(raw) if raw else default
+
+
+FROZEN = bool(getattr(sys, "frozen", False))
+
+if FROZEN:
+    # 桌面打包：应用资源目录由 Electron 传入（含 plugins/scripts/frontend 等）
+    ROOT_DIR = Path(os.environ.get("METAPILOT_ROOT") or Path(sys.executable).resolve().parent)
+else:
+    # 源码运行：backend/app/config.py → 上溯三级 = 项目根目录
+    ROOT_DIR = Path(__file__).resolve().parents[2]
+
+BACKEND_DIR = ROOT_DIR / "backend" if not FROZEN else ROOT_DIR
+
+# .env 位置：源码在项目根；打包由 Electron 指向用户数据目录（无则回退资源目录）
+ENV_FILE = _env_or_default("METAPILOT_ENV_FILE", ROOT_DIR / ".env")
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=ROOT_DIR / ".env",
+        env_file=str(ENV_FILE),
         env_file_encoding="utf-8",
         extra="ignore",
     )

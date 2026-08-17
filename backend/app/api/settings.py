@@ -12,7 +12,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.config import DATA_DIR, ROOT_DIR, settings
+from app.config import DATA_DIR, ENV_FILE, settings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -22,8 +22,8 @@ class VaultIn(BaseModel):
 
 
 def _env_set(key: str, value: str) -> None:
-    """更新项目根 .env 中的键值（无则追加）。"""
-    env_path = ROOT_DIR / ".env"
+    """更新 .env 中的键值（无则追加）；.env 位置随 config.ENV_FILE（源码=项目根，桌面打包=用户数据目录）。"""
+    env_path = ENV_FILE
     lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
     out: list[str] = []
     replaced = False

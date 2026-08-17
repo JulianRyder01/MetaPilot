@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -18,7 +20,15 @@ from ..services.mpf import register_block_requirement
 if TYPE_CHECKING:
     pass
 
-PLUGINS_DIR = Path(__file__).resolve().parents[2] / "plugins"  # backend/plugins
+# 插件物理目录：源码在 backend/plugins；桌面打包由 Electron 通过 METAPILOT_PLUGINS_DIR 传入
+# （打包后用户数据目录，可写，支持安装/删除插件），无则回退源码布局。
+_env_plugins = os.environ.get("METAPILOT_PLUGINS_DIR", "").strip()
+if _env_plugins:
+    PLUGINS_DIR = Path(_env_plugins)
+elif getattr(sys, "frozen", False):
+    PLUGINS_DIR = Path(os.environ.get("METAPILOT_ROOT") or Path(sys.executable).resolve().parent) / "plugins"
+else:
+    PLUGINS_DIR = Path(__file__).resolve().parents[2] / "plugins"  # backend/plugins
 
 # 加载器支持的规范版本（docs/04 §0）。高于此版本的插件警告后仍尝试加载（宽松兼容）。
 SUPPORTED_SPEC_VERSION = "1.1"

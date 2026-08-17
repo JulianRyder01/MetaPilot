@@ -12,9 +12,9 @@ from typing import Optional
 
 from dotenv import dotenv_values, set_key
 
-from ..config import ROOT_DIR
+from ..config import ENV_FILE
 
-ENV_PATH = ROOT_DIR / ".env"
+ENV_PATH = ENV_FILE
 
 # 云端 provider 类型
 CLOUD_PROVIDERS = ["openai", "anthropic"]
