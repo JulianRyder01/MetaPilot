@@ -84,6 +84,12 @@ def load_plugins(data_dir: str | Path) -> PluginManager:
     if not PLUGINS_DIR.exists():
         return manager
 
+    # 确保 plugins 包可导入：把 PLUGINS_DIR 的父目录加入 sys.path（打包后内置插件在 bundle 内，
+    # 用户新装插件在物理目录，标准 import 机制可命中；重复插入无副作用）。
+    parent = str(PLUGINS_DIR.parent)
+    if parent not in sys.path:
+        sys.path.insert(0, parent)
+
     for child in sorted(PLUGINS_DIR.iterdir()):
         if not child.is_dir():
             continue
