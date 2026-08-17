@@ -22,8 +22,13 @@ export function BlockRenderer({ block, collectionId }: { block: Block; collectio
     return <MarkdownBlock content={block.content as string | undefined} />
   }
 
-  // 块渲染器：插件经扩展点（PluginFrontend.blockRenderers）注册，按块类型查
-  const Renderer = frontends.map((p) => p.blockRenderers?.[block.type]).find(Boolean)
+  // 块渲染器：插件经扩展点（PluginFrontend.blockRenderers）注册，按块类型查。
+  // 仅「已启用」插件的渲染器生效：关闭插件后其扩展点不再提供渲染，
+  // 题目/交互块回退为下方按 content_types 反查的原始数据占位（倒计时等插件能力随之不可用）。
+  const Renderer = frontends
+    .filter((p) => usePluginsStore.getState().isEnabled(p.id))
+    .map((p) => p.blockRenderers?.[block.type])
+    .find(Boolean)
   if (Renderer) {
     return <Renderer block={block} collectionId={collectionId} />
   }
