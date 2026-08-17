@@ -32,8 +32,11 @@ BACKEND_DIR = ROOT_DIR / "backend" if not FROZEN else ROOT_DIR
 # .env 位置：源码在项目根；打包由 Electron 指向用户数据目录（无则回退资源目录）
 ENV_FILE = _env_or_default("METAPILOT_ENV_FILE", ROOT_DIR / ".env")
 
-# 数据目录（vault）：桌面打包由 Electron 传入用户数据目录（安装目录不可写、升级会整体替换 → 数据必须放 userData）
-# 优先级：环境变量 METAPILOT_DATA_DIR > .env 的 DATA_DIR > 默认（源码=backend/data，打包=资源目录旁 data）
+# 数据目录（vault）：
+# 优先级：.env 的 DATA_DIR（用户显式配置/迁移后写回，绝对路径优先）> METAPILOT_DATA_DIR（Electron 传入的 userData/data，桌面打包默认）
+#         > 默认（源码=backend/data，打包=资源目录旁 data）。
+# 桌面打包：Electron 首次铺 .env 模板时剥离其中的 DATA_DIR 相对路径行，数据默认落 userData/data（安装目录不可写、升级会被整体替换）；
+# 用户经「设置 → 数据目录迁移」迁移后会在 .env 写回绝对路径 DATA_DIR，重启后优先生效。
 METAPILOT_DATA_DIR = os.environ.get("METAPILOT_DATA_DIR", "").strip()
 
 
