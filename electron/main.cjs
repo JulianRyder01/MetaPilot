@@ -104,11 +104,12 @@ function mainEntry() {
         return content
           .split(/\r?\n/)
           .filter((line) => {
-            const m = line.match(/^\s*DATA_DIR\s*=\s*(.*)\s*$/);
+            const m = line.match(/^[ \t]*DATA_DIR[ \t]*=[ \t]*(.*)[ \t]*$/i);
             if (!m) return true;
-            const v = m[1].trim();
-            // 绝对路径（含盘符/~/开头）保留；相对路径被剥离（打包环境相对 cwd 会落到安装目录）
-            return /^([A-Za-z]:[\\/]|\/|~\/)/.test(v);
+            const v = m[1].trim().replace(/^["']|["']$/g, ""); // 去首尾引号（dotenv 合法）
+            if (!v) return false; // DATA_DIR= 空值剥离
+            // 绝对路径保留：Windows 盘符 / UNC 共享 / Unix 根 / ~ 开头（~ 由后端 expanduser 展开）
+            return /^([A-Za-z]:[\\/]|\\\\|[/~])/.test(v);
           })
           .join("\n");
       };

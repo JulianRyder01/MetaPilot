@@ -70,6 +70,9 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-DATA_DIR = Path(settings.data_dir) if settings.data_dir else (
-    Path(METAPILOT_DATA_DIR) if METAPILOT_DATA_DIR else (BACKEND_DIR / "data")
-)
+if settings.data_dir:
+    DATA_DIR = Path(os.path.expanduser(settings.data_dir))
+elif METAPILOT_DATA_DIR:
+    DATA_DIR = Path(os.path.expanduser(METAPILOT_DATA_DIR))
+else:
+    DATA_DIR = BACKEND_DIR / "data"
