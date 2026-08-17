@@ -14,6 +14,8 @@ __pycache__/
 .venv/
 venv/
 backend/data/
+backend/dist/
+backend/build/pyinstaller/
 .pytest_cache/
 .mypy_cache/
 
