@@ -138,4 +138,12 @@ export const sysZhTW: Record<string, string> = {
   "sys.ai.modelKindLlm": "對話",
   "sys.ai.modelKindRerank": "重排",
   "sys.ai.localOnlyHint": "以上設定僅存於本機 .env，不會上傳到任何服務。",
+  "sys.vault.title": "資料目錄（Vault）",
+  "sys.vault.desc": "MetaPilot 文件庫的本地儲存位置（庫檔案 / 進度 / 統計 / AI 索引）。預設 backend/data；可遷移到任意空目錄，遷移會先整體複製再刪除來源檔案（移動前後資料一致），重啟後端生效。",
+  "sys.vault.current": "目前路徑",
+  "sys.vault.placeholder": "新目錄絕對路徑（必須為空）",
+  "sys.vault.migrate": "遷移",
+  "sys.vault.migrating": "遷移中...",
+  "sys.vault.migrated": "已遷移到 {path}，重啟後端生效",
+  "sys.vault.migrateFailed": "遷移失敗",
 }

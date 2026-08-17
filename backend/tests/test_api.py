@@ -44,7 +44,53 @@ def test_health():
     r = client.get("/api/health")
     assert r.status_code == 200
     assert r.json()["ok"] is True
-    assert r.json()["version"] == "1.1.2"
+    assert r.json()["version"] == "1.1.3"
+
+
+def test_vault_get_path():
+    r = client.get("/api/settings/vault")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["path"]
+    assert isinstance(data["configured"], bool)
+
+
+def test_vault_migrate_copies_then_deletes(tmp_path, monkeypatch):
+    """迁移：整体复制到新目录 → 校验一致 → 删除源文件 → 更新 .env（先复制后删除）。"""
+    import app.api.settings as settings_mod
+
+    src = tmp_path / "src-vault"
+    src.mkdir()
+    (src / "index.json").write_text('{"libraries": []}', encoding="utf-8")
+    (src / "libraries").mkdir()
+    (src / "libraries" / "x.mpf").write_text('{"format":"meta-pilot"}', encoding="utf-8")
+    monkeypatch.setattr(settings_mod, "DATA_DIR", src)
+    monkeypatch.setattr(settings_mod, "ROOT_DIR", tmp_path)  # .env 写入 tmp，不碰真实 .env
+
+    target = tmp_path / "dst-vault"
+    target.mkdir()
+    r = client.post("/api/settings/vault/migrate", json={"path": str(target)})
+    assert r.status_code == 200, r.text
+    assert r.json()["migrated"] is True and r.json()["restartRequired"] is True
+    # 新目录数据一致
+    assert (target / "index.json").read_text(encoding="utf-8") == '{"libraries": []}'
+    assert (target / "libraries" / "x.mpf").exists()
+    # 源文件已删除
+    assert not src.exists() or not any(src.iterdir())
+    # .env 已更新
+    env = (tmp_path / ".env").read_text(encoding="utf-8")
+    assert f"DATA_DIR={target}" in env
+
+
+def test_vault_migrate_rejects_unsafe(tmp_path):
+    """目标为空目录校验：不存在 / 非空 均拒绝。"""
+    r = client.post("/api/settings/vault/migrate", json={"path": str(tmp_path / "nope")})
+    assert r.status_code == 400
+    nonempty = tmp_path / "nonempty"
+    nonempty.mkdir()
+    (nonempty / "a.txt").write_text("x", encoding="utf-8")
+    r2 = client.post("/api/settings/vault/migrate", json={"path": str(nonempty)})
+    assert r2.status_code == 400
 
 
 def test_library_crud():

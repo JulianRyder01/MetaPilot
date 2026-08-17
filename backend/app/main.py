@@ -15,6 +15,7 @@ from .services.ai_gateway import AIGateway
 from .services.local_servers import LocalServersManager
 from .storage.store import LibraryStore
 from .api import ai_settings, documents, kinds, libraries, mpf, notes, plugin_store, plugins, stats_core
+from .api import settings as settings_router
 from .plugins.base import manager
 from .plugins.loader import load_plugins
 from .services.importer import CourseImporter
@@ -22,7 +23,7 @@ from .services.mpf import register_core_mpf_types
 from .services.stats_core import init_stats_core
 from .stats_widgets import register_core_widgets
 
-APP_VERSION = "1.1.2"
+APP_VERSION = "1.1.3"
 
 
 @asynccontextmanager
@@ -71,6 +72,7 @@ app.include_router(notes.router)
 app.include_router(plugins.router)
 app.include_router(plugin_store.router)
 app.include_router(stats_core.router)
+app.include_router(settings_router.router)
 app.include_router(mpf.router)
 app.include_router(kinds.router)
 app.include_router(ai_settings.router)

@@ -138,4 +138,12 @@ export const sysZhCN: Record<string, string> = {
   "sys.ai.modelKindLlm": "对话",
   "sys.ai.modelKindRerank": "重排",
   "sys.ai.localOnlyHint": "以上配置仅存于本机 .env，不会上传到任何服务。",
+  "sys.vault.title": "数据目录（Vault）",
+  "sys.vault.desc": "MetaPilot 文档库的本地存储位置（库文件 / 进度 / 统计 / AI 索引）。默认 backend/data；可迁移到任意空目录，迁移会先整体复制再删除源文件（移动前后数据一致），重启后端生效。",
+  "sys.vault.current": "当前路径",
+  "sys.vault.placeholder": "新目录绝对路径（必须为空）",
+  "sys.vault.migrate": "迁移",
+  "sys.vault.migrating": "迁移中...",
+  "sys.vault.migrated": "已迁移到 {path}，重启后端生效",
+  "sys.vault.migrateFailed": "迁移失败",
 }

@@ -167,6 +167,13 @@ export default function LibraryHome() {
     refresh()
   }
 
+  /** 取消默认库（与置顶相互独立，可单独取消） */
+  async function clearDefault(lib: LibraryMeta) {
+    await api.clearDefaultLibrary(lib.id)
+    toast.success(t("core.library.defaultCleared"))
+    refresh()
+  }
+
   /** 重命名库 */
   async function renameLib(lib: LibraryMeta) {
     const name = await prompt({
@@ -283,7 +290,7 @@ export default function LibraryHome() {
                   {lib.pinned && <Pin className="size-3 shrink-0 text-primary" aria-label={t("core.library.pinned")} />}
                   {lib.isDefault && (
                     <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-primary/15 px-1 py-px text-[10px] font-medium text-primary">
-                      <Star className="size-2.5" />
+                      <Star className="size-2.5 fill-current" />
                       {t("core.library.defaultLib")}
                     </span>
                   )}
@@ -309,11 +316,17 @@ export default function LibraryHome() {
                       {lib.pinned ? <Pin className="text-muted-foreground" /> : <Pin className="text-muted-foreground" />}
                       {t(lib.pinned ? "core.library.unpin" : "core.library.pin")}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setDefault(lib)} disabled={lib.isDefault}>
-                      <Star className="text-muted-foreground" />
-                      {t("core.library.setDefault")}
-                      {lib.isDefault && <span className="ml-auto text-xs text-muted-foreground">{t("core.library.defaultLib")}</span>}
-                    </DropdownMenuItem>
+                    {lib.isDefault ? (
+                      <DropdownMenuItem onClick={() => clearDefault(lib)}>
+                        <Star className="fill-current text-muted-foreground" />
+                        {t("core.library.unsetDefault")}
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onClick={() => setDefault(lib)}>
+                        <Star className="text-muted-foreground" />
+                        {t("core.library.setDefault")}
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={() => renameLib(lib)}>
                       <FileText className="text-muted-foreground" />
                       {t("core.library.renameLib")}
@@ -484,7 +497,7 @@ export default function LibraryHome() {
                           <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-base">
                               <Icon className="size-4 text-primary" />
-                              <span className="truncate">{isFolder ? col.name : `${col.name}.mpf`}</span>
+                              <span className="truncate">{col.name}</span>
                               {convertActions.length > 0 && (
                                 <span className="ml-auto flex items-center gap-0.5">
                                   {convertActions.map((a) => {
@@ -549,7 +562,7 @@ export default function LibraryHome() {
                         <div className="flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors hover:bg-accent/40">
                           <Icon className="size-4 shrink-0 text-primary" />
                           <span className="min-w-0 flex-1 truncate font-medium">
-                            {isFolder ? col.name : `${col.name}.mpf`}
+                            {col.name}
                           </span>
                           <Badge variant="secondary">
                             {isFolder ? t("core.library.folder") : t(meta?.labelKey ?? "core.library.kindNote")}

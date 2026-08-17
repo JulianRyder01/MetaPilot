@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch"
 import { ThemeSelector } from "@/components/theme/ThemeSelector"
 import { AiProviderCard } from "@/components/settings/AiProviderCard"
 import { LocalModelsCard } from "@/components/settings/LocalModelsCard"
+import { VaultCard } from "@/components/settings/VaultCard"
 import { cn } from "@/lib/utils"
 
 export default function SettingsPage() {
@@ -64,6 +65,9 @@ export default function SettingsPage() {
       {/* AI 统一网关：provider 配置（写回 .env）+ 内置本地模型 */}
       <AiProviderCard />
       <LocalModelsCard />
+
+      {/* 数据目录（vault）：MetaPilot 文档库的本地存储位置 */}
+      <VaultCard />
 
       <Card>
         <CardHeader>

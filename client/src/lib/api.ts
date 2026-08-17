@@ -55,6 +55,9 @@ export const api = {
     request<Library>(`/libraries/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   /** 设为默认库（唯一）：AI 洞察等插件的默认保存目标 */
   setDefaultLibrary: (id: string) => request<Library>(`/libraries/${id}/default`, { method: "POST" }),
+  /** 取消默认库（与置顶相互独立，可单独取消） */
+  clearDefaultLibrary: (id: string) =>
+    request<{ kind: "library" | "symlink"; id: string }>(`/libraries/${id}/default`, { method: "DELETE" }),
   deleteLibrary: (id: string) => request<{ ok: boolean }>(`/libraries/${id}`, { method: "DELETE" }),
   // 默认保存目标（库 / 软链接统一，全局唯一）：AI 洞察等插件的默认保存位置
   getDefaultTarget: () => request<{ kind: "library" | "symlink"; id: string }>("/default-target"),
@@ -158,6 +161,14 @@ export const api = {
       { method: "POST", body: fd },
     )
   },
+
+  // 数据目录（vault）：MetaPilot 文档库的本地存储位置
+  getVault: () => request<{ path: string; configured: boolean }>("/settings/vault"),
+  migrateVault: (path: string) =>
+    request<{ path: string; migrated: boolean; restartRequired: boolean }>("/settings/vault/migrate", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    }),
 }
 
 // ---------- 类型 ----------

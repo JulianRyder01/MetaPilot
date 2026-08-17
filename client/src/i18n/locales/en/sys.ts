@@ -138,4 +138,12 @@ export const sysEn: Record<string, string> = {
   "sys.ai.modelKindLlm": "LLM",
   "sys.ai.modelKindRerank": "Rerank",
   "sys.ai.localOnlyHint": "This config stays in the local .env and is never uploaded anywhere.",
+  "sys.vault.title": "Data directory (Vault)",
+  "sys.vault.desc": "Local storage of the MetaPilot document library (libraries / progress / stats / AI indexes). Defaults to backend/data; you can migrate to any empty directory. Migration copies everything first, verifies, then deletes the source, keeping data consistent. Restart the backend to apply.",
+  "sys.vault.current": "Current path",
+  "sys.vault.placeholder": "Absolute path to an empty directory",
+  "sys.vault.migrate": "Migrate",
+  "sys.vault.migrating": "Migrating...",
+  "sys.vault.migrated": "Migrated to {path}. Restart backend to apply",
+  "sys.vault.migrateFailed": "Migration failed",
 }

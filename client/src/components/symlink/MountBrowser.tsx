@@ -1,3 +1,4 @@
+import * as React from "react"
 import { useCallback, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import {
@@ -389,7 +390,9 @@ export function MountBrowser({
               )}
             </div>
           ) : file && !editing && file.kind === "mpf" ? (
-            <MpfViewer mount={mount} path={file.path} />
+            <MpfBoundary>
+              <MpfViewer mount={mount} path={file.path} />
+            </MpfBoundary>
           ) : file && !editing && file.kind !== "text" ? (
             <MediaViewer mount={mount} file={file} />
           ) : editing ? (
@@ -502,10 +505,28 @@ export function MountBrowser({
   )
 }
 
+/** .mpf 渲染错误边界：结构异常时显示错误提示而非白屏。 */
+class MpfBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <p className="p-6 text-sm text-destructive">
+          文档渲染失败：{String(this.state.error.message ?? this.state.error)}
+        </p>
+      )
+    }
+    return this.props.children
+  }
+}
+
 /** MetaPilot 文档（.mpf）阅读视图：doc 类型渲染内容大纲 + Markdown；canvas 类型渲染只读概览。 */
 interface MpfBlock {
   type: string
-  content?: string
+  content?: unknown
   [k: string]: unknown
 }
 interface MpfSection {
@@ -527,9 +548,11 @@ interface MpfFolder {
 
 function firstSection(folders: MpfFolder[]): { docName: string; secName: string; blocks: MpfBlock[] } | null {
   for (const f of folders) {
+    if (!f) continue
     const sub = firstSection(f.folders ?? [])
     if (sub) return sub
     for (const d of f.documents ?? []) {
+      if (!d) continue
       const s = (d.sections ?? [])[0]
       if (s) return { docName: d.name, secName: s.name, blocks: s.blocks ?? [] }
     }
@@ -610,52 +633,55 @@ function MpfViewer({ mount, path }: { mount: SymlinkMount; path: string }) {
   }
 
   // doc：左侧内容大纲 + 右侧小节内容（与库文档一致的阅读方式）
-  const renderFolder = (f: MpfFolder, depth: number): React.ReactNode => (
-    <div key={f.id ?? f.name}>
-      <p
-        className="flex items-center gap-1 truncate px-1 py-0.5 text-xs font-medium text-muted-foreground"
-        style={{ paddingLeft: `${8 + depth * 12}px` }}
-      >
-        <FolderOpen className="size-3 shrink-0" />
-        <span className="truncate">{f.name}</span>
-      </p>
-      {(f.folders ?? []).map((sf) => renderFolder(sf, depth + 1))}
-      {(f.documents ?? []).map((d) => (
-        <div key={d.id ?? d.name}>
-          <p
-            className="flex items-center gap-1 truncate px-1 py-0.5 text-xs font-medium"
-            style={{ paddingLeft: `${8 + (depth + 1) * 12}px` }}
-          >
-            <FileText className="size-3 shrink-0 text-primary" />
-            <span className="truncate">{d.name}</span>
-          </p>
-          {(d.sections ?? []).map((s) => {
-            const sel = active?.docName === d.name && active?.secName === s.name
-            return (
-              <button
-                key={s.id ?? s.name}
-                onClick={() => setActive({ docName: d.name, secName: s.name, blocks: s.blocks ?? [] })}
-                className={cn(
-                  "flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-xs",
-                  sel ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
-                )}
-                style={{ paddingLeft: `${8 + (depth + 2) * 12}px` }}
-              >
-                <Circle className="size-1.5 shrink-0" />
-                <span className="truncate">{s.name}</span>
-              </button>
-            )
-          })}
-        </div>
-      ))}
-    </div>
-  )
+  const renderFolder = (f: MpfFolder, depth: number): React.ReactNode => {
+    if (!f || typeof f !== "object") return null
+    return (
+      <div key={f.id ?? f.name ?? depth}>
+        <p
+          className="flex items-center gap-1 truncate px-1 py-0.5 text-xs font-medium text-muted-foreground"
+          style={{ paddingLeft: `${8 + depth * 12}px` }}
+        >
+          <FolderOpen className="size-3 shrink-0" />
+          <span className="truncate">{f.name ?? ""}</span>
+        </p>
+        {(f.folders ?? []).filter(Boolean).map((sf) => renderFolder(sf, depth + 1))}
+        {(f.documents ?? []).filter(Boolean).map((d) => (
+          <div key={d.id ?? d.name}>
+            <p
+              className="flex items-center gap-1 truncate px-1 py-0.5 text-xs font-medium"
+              style={{ paddingLeft: `${8 + (depth + 1) * 12}px` }}
+            >
+              <FileText className="size-3 shrink-0 text-primary" />
+              <span className="truncate">{d.name ?? ""}</span>
+            </p>
+            {(d.sections ?? []).filter(Boolean).map((s) => {
+              const sel = active?.docName === d.name && active?.secName === s.name
+              return (
+                <button
+                  key={s.id ?? s.name}
+                  onClick={() => setActive({ docName: d.name ?? "", secName: s.name ?? "", blocks: s.blocks ?? [] })}
+                  className={cn(
+                    "flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-xs",
+                    sel ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                  style={{ paddingLeft: `${8 + (depth + 2) * 12}px` }}
+                >
+                  <Circle className="size-1.5 shrink-0" />
+                  <span className="truncate">{s.name ?? ""}</span>
+                </button>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-[50vh]">
       <aside className="w-56 shrink-0 overflow-y-auto border-r p-2">
         <p className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">{t("symlink.mpfDocOutline")}</p>
-        {(parsed.folders ?? []).map((f) => renderFolder(f, 0))}
+        {(parsed.folders ?? []).filter(Boolean).map((f) => renderFolder(f, 0))}
       </aside>
       <div className="min-w-0 flex-1 overflow-y-auto p-4">
         {active ? (
@@ -664,9 +690,9 @@ function MpfViewer({ mount, path }: { mount: SymlinkMount; path: string }) {
               {active.docName} · {active.secName}
             </p>
             {active.blocks
-              .filter((b) => b.type === "markdown" && b.content)
+              .filter((b) => b && b.type === "markdown" && b.content != null)
               .map((b, i) => (
-                <MarkdownBlock key={i} content={b.content} />
+                <MarkdownBlock key={i} content={String(b.content ?? "")} />
               ))}
             {active.blocks.length === 0 && <p className="text-xs text-muted-foreground">{t("symlink.mpfEmpty")}</p>}
           </div>
