@@ -159,6 +159,12 @@ export const coreEn: Record<string, string> = {
   "core.library.renamedLib": "Library renamed",
   "core.library.modeNatural": "Cards",
   "core.library.modeManager": "Files",
+  "core.library.newFolder": "New folder",
+  "core.library.newFolderTitle": "New folder",
+  "core.library.newFolderPlaceholder": "Folder name",
+  "core.library.newFolderDefault": "Untitled folder",
+  "core.library.createdFolder": "Folder created",
+  "core.library.folder": "Folder",
   "core.library.menuMore": "More actions",
   "core.library.addSymlink": "Add symlink",
 

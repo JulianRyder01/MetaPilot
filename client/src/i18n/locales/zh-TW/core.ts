@@ -146,6 +146,12 @@ export const coreZhTW: Record<string, string> = {
   "core.library.renamedLib": "已重新命名庫",
   "core.library.modeNatural": "自然卡片",
   "core.library.modeManager": "檔案管理員",
+  "core.library.newFolder": "新增資料夾",
+  "core.library.newFolderTitle": "新增資料夾",
+  "core.library.newFolderPlaceholder": "資料夾名稱",
+  "core.library.newFolderDefault": "未命名資料夾",
+  "core.library.createdFolder": "已建立資料夾",
+  "core.library.folder": "資料夾",
   "core.library.menuMore": "更多操作",
   "core.library.addSymlink": "新增軟連結",
 

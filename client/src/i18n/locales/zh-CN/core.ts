@@ -151,6 +151,12 @@ export const coreZhCN: Record<string, string> = {
   "core.library.renamedLib": "已重命名库",
   "core.library.modeNatural": "自然卡片",
   "core.library.modeManager": "文件管理器",
+  "core.library.newFolder": "新建文件夹",
+  "core.library.newFolderTitle": "新建文件夹",
+  "core.library.newFolderPlaceholder": "文件夹名称",
+  "core.library.newFolderDefault": "未命名文件夹",
+  "core.library.createdFolder": "已创建文件夹",
+  "core.library.folder": "文件夹",
   "core.library.menuMore": "更多操作",
   "core.library.addSymlink": "添加软链接",
 

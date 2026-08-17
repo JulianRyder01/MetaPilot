@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import * as Lucide from "lucide-react"
-import { BookOpen, ChevronRight, FolderTree } from "lucide-react"
+import { BookOpen, ChevronRight, FileText, FolderPlus, FolderTree, Workflow } from "lucide-react"
 
 import { useT } from "@/i18n"
+import { toast } from "@/lib/toast"
 import { api, type Document, type Folder, type FolderItem, type FolderKindMeta, type Library } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -64,22 +65,59 @@ export function LibraryManagerView({ libraryId }: { libraryId: string }) {
     return { top, folders: f.folders as FolderItem[], docs: (f.documents ?? []).filter((d) => d.folderId === f.id) }
   }, [lib, path])
 
-  async function createSubfolder() {
-    if (!current || !current.top) return
+  /** 新建文件夹：库根建纯目录顶层（kind=folder）；文件夹内建嵌套文件夹 */
+  async function createFolderNow() {
     const name = await prompt({
-      title: t("symlink.newFolder"),
-      placeholder: t("symlink.newFolderPlaceholder"),
+      title: t("core.library.newFolderTitle"),
+      placeholder: t("core.library.newFolderPlaceholder"),
       confirmText: t("common.create"),
     })
     if (!name?.trim()) return
-    const parentId = path.length > 1 ? path[path.length - 1].id : ""
-    try {
-      await api.createSubFolder(current.top.id, { name: name.trim(), parentId })
-      load()
-    } catch (e) {
-      // 提示由 api 错误信息承载
-      console.error(e)
+    if (path.length === 0) {
+      await api.createFolder(libraryId, { name: name.trim(), kind: "folder" })
+    } else {
+      await api.createSubFolder(path[0].id, {
+        name: name.trim(),
+        parentId: path.length > 1 ? path[path.length - 1].id : "",
+      })
     }
+    load()
+  }
+
+  /** 新建文档：库根建 kind=note 顶层；文件夹内建文档到当前文件夹 */
+  async function createDocNow() {
+    const name = await prompt({
+      title: t("core.library.newDocTitle"),
+      placeholder: t("core.library.newDocPlaceholder"),
+      initialValue: t("core.library.newDocDefault"),
+      confirmText: t("common.create"),
+    })
+    if (!name?.trim()) return
+    if (path.length === 0) {
+      await api.createFolder(libraryId, { name: name.trim(), kind: "note" })
+    } else {
+      await api.createDocument(path[0].id, {
+        name: name.trim(),
+        docType: "study",
+        folderId: path.length > 1 ? path[path.length - 1].id : "",
+      })
+    }
+    load()
+    toast.success(t("core.library.createdDoc"))
+  }
+
+  /** 新建图表（kind=canvas 顶层，仅库根可用） */
+  async function createCanvasNow() {
+    const name = await prompt({
+      title: t("core.library.newCanvasTitle"),
+      placeholder: t("core.library.newCanvasPlaceholder"),
+      initialValue: t("core.library.newCanvasDefault"),
+      confirmText: t("common.create"),
+    })
+    if (!name?.trim()) return
+    await api.createFolder(libraryId, { name: name.trim(), kind: "canvas" })
+    load()
+    toast.success(t("core.library.createdCanvas"))
   }
 
   if (!lib || !current) {
@@ -172,7 +210,13 @@ export function LibraryManagerView({ libraryId }: { libraryId: string }) {
       view={view}
       onViewChange={setView}
       onRefresh={load}
-      onCreateFolder={current.top ? createSubfolder : undefined}
+      createActions={[
+        { label: t("core.library.newFolder"), icon: <FolderPlus className="size-4" />, action: () => void createFolderNow() },
+        { label: t("core.library.newDoc"), icon: <FileText className="size-4" />, action: () => void createDocNow() },
+        ...(path.length === 0
+          ? [{ label: t("core.library.newCanvas"), icon: <Workflow className="size-4" />, action: () => void createCanvasNow() }]
+          : []),
+      ]}
       emptyHint={t("core.library.empty")}
     />
   )

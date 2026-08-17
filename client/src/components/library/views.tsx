@@ -7,6 +7,12 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 /** 统一内容条目：库与软链接的文件夹/文档条目（图标与徽标由调用方提供，组件只负责布局） */
 export interface ContentEntry {
@@ -50,7 +56,7 @@ export function NaturalCardsView({
   )
 }
 
-/** 文件管理器视图：面包屑工具栏（搜索/视图切换/刷新/新建文件夹）+ 网格/列表（库与软链接共用）。
+/** 文件管理器视图：面包屑工具栏（搜索/视图切换/刷新/新建菜单）+ 网格/列表（库与软链接共用）。
  *  natural=true 时隐藏网格/列表切换，主体渲染自然卡片网格（NaturalCardsView）。 */
 export function FileManagerView({
   breadcrumbs,
@@ -62,7 +68,7 @@ export function FileManagerView({
   view,
   onViewChange,
   onRefresh,
-  onCreateFolder,
+  createActions,
   emptyHint,
   natural = false,
 }: {
@@ -75,7 +81,8 @@ export function FileManagerView({
   view: "grid" | "list"
   onViewChange: (v: "grid" | "list") => void
   onRefresh: () => void
-  onCreateFolder?: () => void
+  /** 新建菜单项（新建文件夹/文档/图表等） */
+  createActions?: { label: string; icon?: React.ReactNode; action: () => void }[]
   emptyHint: React.ReactNode
   natural?: boolean
 }) {
@@ -129,11 +136,23 @@ export function FileManagerView({
             <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onRefresh} title={t("common.refresh")}>
               <RefreshCw className="size-3.5" />
             </Button>
-            {onCreateFolder && (
-              <Button variant="outline" size="sm" className="h-8" onClick={onCreateFolder}>
-                <Plus className="size-3.5" />
-                {t("symlink.newFolder")}
-              </Button>
+            {createActions && createActions.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8">
+                    <Plus className="size-3.5" />
+                    {t("common.create")}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {createActions.map((a) => (
+                    <DropdownMenuItem key={a.label} onClick={a.action}>
+                      {a.icon}
+                      {a.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         </div>

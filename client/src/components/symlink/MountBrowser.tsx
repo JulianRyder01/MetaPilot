@@ -13,6 +13,7 @@ import {
   Pencil,
   Save,
   Trash2,
+  Workflow,
   X,
 } from "lucide-react"
 import { toast } from "@/lib/toast"
@@ -224,6 +225,30 @@ export function MountBrowser({
     }
   }
 
+  /** 在挂载内新建 MetaPilot 文档（.mpf）：doc 类型（文档）或 canvas 类型（图表）。 */
+  async function createMpf(kind: "doc" | "canvas") {
+    const isDoc = kind === "doc"
+    const name = await prompt({
+      title: t(isDoc ? "core.library.newDocTitle" : "core.library.newCanvasTitle"),
+      placeholder: t(isDoc ? "core.library.newDocPlaceholder" : "core.library.newCanvasPlaceholder"),
+      initialValue: t(isDoc ? "core.library.newDocDefault" : "core.library.newCanvasDefault"),
+      confirmText: t("common.create"),
+    })
+    if (!name?.trim()) return
+    const title = name.trim()
+    const payload = isDoc
+      ? { format: "meta-pilot", formatVersion: 1, type: "doc", name: title, folders: [] }
+      : { format: "meta-pilot", formatVersion: 1, type: "canvas", name: title, canvas: { nodes: [], edges: [] } }
+    const filename = `${title.replace(/[\\/:*?"<>|\s]+/g, "_").slice(0, 80)}.mpf`
+    try {
+      await symlinkWriteFile(mount.id, joinPath(path, filename), JSON.stringify(payload, null, 2))
+      await loadTree(path)
+      toast.success(t(isDoc ? "core.library.createdDoc" : "core.library.createdCanvas"))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("symlink.createFailed"))
+    }
+  }
+
   async function removeItem(item: SymlinkItem) {
     setCtxMenu(null)
     const target = joinPath(path, item.name)
@@ -411,7 +436,15 @@ export function MountBrowser({
               view={view}
               onViewChange={setView}
               onRefresh={() => loadTree(path)}
-              onCreateFolder={mount.type !== "file" ? createFolder : undefined}
+              createActions={
+                mount.type !== "file"
+                  ? [
+                      { label: t("symlink.newFolder"), icon: <FolderOpen className="size-4" />, action: () => void createFolder() },
+                      { label: t("core.library.newDoc"), icon: <FileText className="size-4" />, action: () => void createMpf("doc") },
+                      { label: t("core.library.newCanvas"), icon: <Workflow className="size-4" />, action: () => void createMpf("canvas") },
+                    ]
+                  : undefined
+              }
               emptyHint={
                 search
                   ? t("symlink.noMatch")

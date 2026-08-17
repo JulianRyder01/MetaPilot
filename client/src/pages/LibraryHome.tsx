@@ -178,6 +178,21 @@ export default function LibraryHome() {
     refresh()
   }
 
+  /** 在当前库中新建纯目录文件夹（kind=folder，无内容类型），用于组织文档。 */
+  async function createFolderCollection() {
+    if (!currentLibraryId) return
+    const name = await prompt({
+      title: t("core.library.newFolderTitle"),
+      placeholder: t("core.library.newFolderPlaceholder"),
+      initialValue: t("core.library.newFolderDefault"),
+    })
+    if (name == null) return
+    if (!name.trim()) return
+    await api.createFolder(currentLibraryId, { name: name.trim(), kind: "folder" })
+    toast.success(t("core.library.createdFolder"))
+    await refresh()
+  }
+
   /** 在当前库中新建空白文档（kind=note，官方核心），创建后跳转文档编辑页。 */
   async function createNoteCollection() {
     if (!currentLibraryId) return
@@ -366,6 +381,10 @@ export default function LibraryHome() {
                 {current && (
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{t("core.library.folderCount", { count: current.folderCount })}</Badge>
+                    <Button variant="outline" size="sm" onClick={createFolderCollection}>
+                      <FolderTree className="size-4" />
+                      {t("core.library.newFolder")}
+                    </Button>
                     <Button variant="outline" size="sm" onClick={createNoteCollection}>
                       <FileText className="size-4" />
                       {t("core.library.newDoc")}
@@ -450,16 +469,17 @@ export default function LibraryHome() {
                 view === "grid" ? (
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {filteredCollections.map((col) => {
+                      const isFolder = col.kind === "folder"
                       const meta = kindMeta[col.kind]
-                      const Icon = kindIcon(meta)
-                      const href = kindHref(meta, col.id)
+                      const Icon = isFolder ? FolderTree : kindIcon(meta)
+                      const href = isFolder ? "" : kindHref(meta, col.id)
                       const convertActions = convertActionsFor(col)
                       const card = (
                         <Card className="h-full transition-shadow hover:shadow-md">
                           <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-base">
                               <Icon className="size-4 text-primary" />
-                              <span className="truncate">{col.name}</span>
+                              <span className="truncate">{isFolder ? col.name : `${col.name}.mpf`}</span>
                               {convertActions.length > 0 && (
                                 <span className="ml-auto flex items-center gap-0.5">
                                   {convertActions.map((a) => {
@@ -486,11 +506,23 @@ export default function LibraryHome() {
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
-                            <Badge variant="secondary">{t(meta?.labelKey ?? "core.library.kindNote")}</Badge>
-                            <span>{t(meta?.unitLabelKey ?? "core.library.unitDoc")}</span>
+                            <Badge variant="secondary">
+                              {isFolder ? t("core.library.folder") : t(meta?.labelKey ?? "core.library.kindNote")}
+                            </Badge>
+                            <span>
+                              {isFolder ? "" : t(meta?.unitLabelKey ?? "core.library.unitDoc")}
+                            </span>
                           </CardContent>
                         </Card>
                       )
+                      if (isFolder) {
+                        // 纯目录文件夹：进入文件管理器视图浏览
+                        return (
+                          <button key={col.id} type="button" onClick={() => setMode("manager")} className="text-left">
+                            {card}
+                          </button>
+                        )
+                      }
                       return href ? (
                         <Link key={col.id} to={href}>
                           {card}
@@ -503,17 +535,22 @@ export default function LibraryHome() {
                 ) : (
                   <div className="space-y-2">
                     {filteredCollections.map((col) => {
+                      const isFolder = col.kind === "folder"
                       const meta = kindMeta[col.kind]
-                      const Icon = kindIcon(meta)
-                      const href = kindHref(meta, col.id)
+                      const Icon = isFolder ? FolderTree : kindIcon(meta)
+                      const href = isFolder ? "" : kindHref(meta, col.id)
                       const convertActions = convertActionsFor(col)
                       const row = (
                         <div className="flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors hover:bg-accent/40">
                           <Icon className="size-4 shrink-0 text-primary" />
-                          <span className="min-w-0 flex-1 truncate font-medium">{col.name}</span>
-                          <Badge variant="secondary">{t(meta?.labelKey ?? "core.library.kindNote")}</Badge>
+                          <span className="min-w-0 flex-1 truncate font-medium">
+                            {isFolder ? col.name : `${col.name}.mpf`}
+                          </span>
+                          <Badge variant="secondary">
+                            {isFolder ? t("core.library.folder") : t(meta?.labelKey ?? "core.library.kindNote")}
+                          </Badge>
                           <span className="shrink-0 text-xs text-muted-foreground">
-                            {t(meta?.unitLabelKey ?? "core.library.unitDoc")}
+                            {isFolder ? "" : t(meta?.unitLabelKey ?? "core.library.unitDoc")}
                           </span>
                           {convertActions.length > 0 && (
                             <span className="flex shrink-0 items-center gap-0.5">
@@ -540,6 +577,18 @@ export default function LibraryHome() {
                           )}
                         </div>
                       )
+                      if (isFolder) {
+                        return (
+                          <button
+                            key={col.id}
+                            type="button"
+                            onClick={() => setMode("manager")}
+                            className="block w-full text-left"
+                          >
+                            {row}
+                          </button>
+                        )
+                      }
                       return href ? (
                         <Link key={col.id} to={href} className="block">
                           {row}
