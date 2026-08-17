@@ -508,6 +508,13 @@ export interface AIUsageSummary {
 
 export const aiGetConfig = () => request<AIConfigPublic>("/ai/config")
 
+/** 核心通用 AI 对话（复用用户配置的统一 AI 网关；上下文由调用方维护并整体发送）。 */
+export const aiChat = (messages: { role: "system" | "user" | "assistant"; content: string }[]) =>
+  request<{ content: string; model: string; provider: string }>("/ai/chat", {
+    method: "POST",
+    body: JSON.stringify({ messages }),
+  })
+
 export const aiPutConfig = (data: Record<string, unknown>) =>
   request<AIConfigPublic>("/ai/config", { method: "PUT", body: JSON.stringify(data) })
 
