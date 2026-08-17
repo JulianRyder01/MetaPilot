@@ -66,7 +66,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,  # CI runner 上 upx 版本可能与 PyInstaller 不兼容，关闭更稳健
     console=True,  # 保留控制台便于诊断；正式发布可改 False
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -79,7 +79,7 @@ coll = COLLECT(
     a.binaries,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,  # CI runner 上 upx 版本可能与 PyInstaller 不兼容，关闭更稳健
     upx_exclude=[],
     name="metapilot-backend",
 )
