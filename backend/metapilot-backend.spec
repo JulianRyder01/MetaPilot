@@ -17,8 +17,8 @@ from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_submodules
 
-# 本项目根目录（spec 位于 backend/ 下）
-ROOT = Path(SPECPATH).resolve().parent
+# 本项目根目录（spec 位于 backend/ 下；SPECPATH 即 spec 所在目录）
+ROOT = Path(SPECPATH).resolve()
 
 # 入口：backend/run.py
 entry = str(ROOT / "run.py")
