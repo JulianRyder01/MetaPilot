@@ -117,6 +117,44 @@ def test_storage_migrates_old_json_to_mpf():
     assert '"type": "doc"' in content
 
 
+def test_canvas_mpf_roundtrip():
+    """JSON Canvas dict → .mpf 文本 → 反向 → JSON Canvas 标准文本，无穷循环损失。"""
+    canvas_data = {
+        "nodes": [
+            {"id": "n1", "type": "text", "x": 10, "y": 10, "width": 200, "height": 80, "text": "# 主题", "color": "4"},
+            {"id": "n2", "type": "link", "x": 300, "y": 10, "width": 180, "height": 60, "url": "https://a.b", "styleAttributes": {"textAlign": "center"}},
+        ],
+        "edges": [
+            {"id": "e1", "fromNode": "n1", "fromSide": "right", "toNode": "n2", "toSide": "left", "label": "link", "color": "2", "toEnd": "arrow"},
+        ],
+    }
+    # .canvas → .mpf 文本
+    mpf_text = mpf_service.canvas_data_to_mpf_text(canvas_data, name="思维图")
+    parsed = mpf_service.parse_mpf(mpf_text)
+    assert parsed["ok"] is True and parsed["type"] == "canvas"
+    assert parsed["meta"]["name"] == "思维图"
+    # 编辑（增删改）后写回：删 n1 边的 label，新增节点
+    content = parsed["content"]
+    content["nodes"].append({"id": "n3", "type": "text", "x": 0, "y": 0, "width": 100, "height": 50, "text": "B"})
+    content["edges"][0]["label"] = "改"
+    out = mpf_service.mpf_canvas_to_canvas_text(content)
+    restored = json.loads(out)
+    # 标准 JSON Canvas：顶层 nodes/edges，无 format 包装头
+    assert set(restored.keys()) == {"nodes", "edges"}
+    assert restored["nodes"][0] == canvas_data["nodes"][0]
+    assert restored["edges"][0]["label"] == "改"
+    ids = {n["id"] for n in restored["nodes"]}
+    assert "n3" in ids
+    # Obsidian 扩展字段（styleAttributes）原样保留
+    assert restored["nodes"][1]["styleAttributes"] == {"textAlign": "center"}
+
+
+def test_mpf_canvas_to_canvas_text_tolerates_bad_input():
+    """反向转换对异常输入宽容：非列表一律空数组。"""
+    out = json.loads(mpf_service.mpf_canvas_to_canvas_text({"nodes": "坏", "edges": None}))
+    assert out == {"nodes": [], "edges": []}
+
+
 def test_mpf_types_list():
     types = {t["type"] for t in mpf_service.list_mpf_types()}
     assert "doc" in types

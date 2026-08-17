@@ -185,15 +185,7 @@ class CourseImporter:
     @staticmethod
     def canvas_json_to_mpf(data: dict, name: str = "") -> str:
         """把 JSON Canvas（.canvas 文件）内容转换为 .mpf canvas 文本（宽容解析）。"""
-        canvas = {
-            "nodes": [dict(n) for n in data.get("nodes", []) if isinstance(n, dict)],
-            "edges": [dict(e) for e in data.get("edges", []) if isinstance(e, dict)],
-        }
-        return mpf_service.serialize_mpf({
-            "type": "canvas",
-            "name": name or "导入的图表",
-            "canvas": canvas,
-        })
+        return mpf_service.canvas_data_to_mpf_text(data, name=name)
 
     def export_collection_mpf(self, collection_id: str) -> str:
         """导出文档集为 .mpf：canvas → canvas 类型；其它 → doc 类型。"""

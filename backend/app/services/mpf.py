@@ -74,6 +74,38 @@ def serialize_mpf(data: dict) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
+# ---------------- JSON Canvas（.canvas）↔ .mpf canvas 双向转换 ----------------
+
+def canvas_data_to_mpf_text(data: dict, name: str = "") -> str:
+    """把 JSON Canvas（.canvas 文件）内容转换为 .mpf canvas 文本（宽容解析）。
+
+    .canvas 是 Obsidian 原生格式（顶层 nodes/edges，无 format 头）；
+    .mpf canvas 是 MetaPilot 统一格式对 JSON Canvas 规范 v1.0 的对齐承载。
+    """
+    canvas = {
+        "nodes": [dict(n) for n in data.get("nodes", []) if isinstance(n, dict)],
+        "edges": [dict(e) for e in data.get("edges", []) if isinstance(e, dict)],
+    }
+    return serialize_mpf({
+        "type": "canvas",
+        "name": name or "导入的图表",
+        "canvas": canvas,
+    })
+
+
+def mpf_canvas_to_canvas_text(canvas: dict) -> str:
+    """把 .mpf canvas 内容（{nodes, edges}）序列化为 JSON Canvas 标准文本。
+
+    输出为 Obsidian 可直接打开的原生 .canvas 文件内容（顶层 nodes/edges，
+    无 .mpf 包装头），用于把编辑后的图表写回源 .canvas 文件。
+    """
+    payload = {
+        "nodes": canvas.get("nodes", []) if isinstance(canvas.get("nodes"), list) else [],
+        "edges": canvas.get("edges", []) if isinstance(canvas.get("edges"), list) else [],
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
 def parse_mpf(text: str) -> dict:
     """解析 .mpf 文本：返回 {type, meta, content, unresolved, errors}。"""
     try:
