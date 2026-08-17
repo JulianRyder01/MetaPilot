@@ -338,6 +338,20 @@ export interface PluginInfo {
   frontendUrl?: string
   /** 更新历史（roadmap）：[{version, date, summary}]，最新在前 */
   changelog?: { version: string; date?: string; summary: string }[]
+  /** 本插件自带的使用教程（schema v1.7）：[{id, title, summary?, content(markdown)}]，插件声明即生效 */
+  tutorials?: TutorialItem[]
+}
+
+/** 插件贡献的使用教程条目（plugin.json tutorials 字段，核心「使用教程」页聚合展示） */
+export interface TutorialItem {
+  /** 教程唯一 id（同一插件内不得重复；可用于锚点定位 #id） */
+  id: string
+  /** 教程标题 */
+  title: string
+  /** 一句话摘要（列表视图展示，可选） */
+  summary?: string
+  /** 教程正文（Markdown） */
+  content: string
 }
 
 /** 文件夹类型（kind）元数据：由核心注册 + 插件声明（GET /api/folder-kinds） */

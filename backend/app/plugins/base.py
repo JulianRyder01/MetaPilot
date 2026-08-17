@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Optional
 from fastapi import HTTPException, Request
 
 from ..version import VERSION
+from .core_tutorials import CORE_TUTORIALS
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -68,6 +69,9 @@ class Plugin:
     # 本插件负责的集合类型（kind → 元数据 {labelKey, icon, openRoute, unitLabelKey}）
     # （schema v1.3 起）：kind→打开路由等由插件声明，核心不写死插件 kind 的映射
     collection_kinds: dict[str, dict] = {}
+    # 本插件自带的使用教程（schema v1.7 起）：[{id, title, summary?, content(markdown)}]，
+    # 核心「使用教程」页聚合各插件的 tutorials 统一展示，插件声明即生效，核心不写死任何插件内容
+    tutorials: list[dict] = []
     # 前端展示元数据（schema v1.2 起）：功能列表 / 图标名（lucide），缺失时前端回退通用展示
     features: list[str] = []
     icon: str = ""
@@ -207,6 +211,7 @@ class PluginManager:
             "contentTypes": ["markdown"],
             "features": ["库-文档集-文档-小节浏览与阅读", "Markdown / Obsidian 笔记导入", "插件管理与插件商店", "统一 AI 网关与用量统计", "本地模型管理"],
             "icon": "BookOpen",
+            "tutorials": CORE_TUTORIALS,
             "changelog": [
                 {"version": VERSION, "date": "", "summary": "版本号统一为单一来源（backend/app/version.py，= 项目版本 = 桌面打包版本）；支持桌面端 Electron 打包分发（后端/前端/插件随应用内置，数据目录与 .env 迁移至用户数据目录，前端静态资源由后端同源托管）"},
                 {"version": "1.1.2", "date": "", "summary": "核心文档能力独立于课程插件：库页可新建文档（笔记文档集）；文档阅读（/learn）与编辑（/edit）改为官方核心路由，禁用课程插件后文档仍可正常阅读/编辑（课程补丁能力才依赖插件并提示）；文档集类型元数据 note/kb 打开路由指向核心编辑页；核心创建集合默认 kind 为 note（不默认课程）"},
@@ -242,6 +247,7 @@ class PluginManager:
             "contentTypes": list(p.content_types),
             "features": list(p.features),
             "icon": p.icon,
+            "tutorials": p.tutorials or [],
             "hasFrontend": bool(p.frontend_path),
             "frontendUrl": f"/api/plugins/{p.id}/frontend.js" if p.frontend_path else "",
             "changelog": p.changelog or [],

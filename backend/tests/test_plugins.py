@@ -70,6 +70,24 @@ def test_plugin_list_contains_loaded_plugins():
         assert "source" in p
         assert "locked" in p
         assert "removable" in p
+        # 教程字段（schema v1.7）：每个插件均返回 tutorials（可能为空），结构统一
+        assert "tutorials" in p
+
+
+def test_plugin_tutorials():
+    """插件自带使用教程（schema v1.7）：清单下发 tutorials，核心自带教程且结构合法。"""
+    by_id = {p["id"]: p for p in client.get("/api/plugins").json()}
+    core = by_id["core"]
+    assert isinstance(core["tutorials"], list) and len(core["tutorials"]) > 0
+    ids = set()
+    for item in core["tutorials"]:
+        assert set(item) >= {"id", "title", "content"}
+        assert isinstance(item["title"], str) and item["title"].strip()
+        assert isinstance(item["content"], str) and item["content"].strip()
+        ids.add(item["id"])
+    assert len(ids) == len(core["tutorials"]), "教程 id 必须唯一"
+    # 未声明教程的字段缺省为空列表
+    assert "tutorials" in by_id["course"] and isinstance(by_id["course"]["tutorials"], list)
 
 
 def test_plugin_classification():
