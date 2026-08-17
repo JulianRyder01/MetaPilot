@@ -9,6 +9,7 @@ import { useThemeStore } from "@/stores/theme"
 import { usePluginsStore, ensurePluginsLoaded } from "@/stores/plugins"
 import { allPluginNavItems, usePluginRuntimeFrontends } from "@/plugins/registry"
 import ThemeToggle from "@/components/layout/ThemeToggle"
+import CopyPageButton from "@/components/layout/CopyPageButton"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -105,6 +106,7 @@ export default function AppLayout() {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-1">
+            <CopyPageButton />
             <DropdownMenu open={langOpen} onOpenChange={setLangOpen}>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-9" title={t("common.language")}>

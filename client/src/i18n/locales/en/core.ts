@@ -20,6 +20,14 @@ export const coreEn: Record<string, string> = {
   "core.theme.toDark": "Switch to dark mode",
   "core.theme.selectTheme": "Choose theme",
 
+  // ---- Copy current page (for AI to understand it quickly) ----
+  "core.copyPage": "Copy page (HTML / Markdown)",
+  "core.copyPageHtml": "Copy as HTML",
+  "core.copyPageMarkdown": "Copy as Markdown",
+  "core.copiedHtml": "Page HTML copied",
+  "core.copiedMarkdown": "Page Markdown copied",
+  "core.copyPageFailed": "Copy failed",
+
   // ---- Learning page ----
   "core.learn.markedCompleted": "Marked as completed",
   "core.learn.unmarkedCompleted": "Marked as not completed",

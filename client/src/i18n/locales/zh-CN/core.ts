@@ -20,6 +20,14 @@ export const coreZhCN: Record<string, string> = {
   "core.theme.toDark": "切换到黑夜模式",
   "core.theme.selectTheme": "选择主题",
 
+  // ---- 复制整页（供 AI 快速理解页面） ----
+  "core.copyPage": "复制整页（HTML / Markdown）",
+  "core.copyPageHtml": "复制为 HTML",
+  "core.copyPageMarkdown": "复制为 Markdown",
+  "core.copiedHtml": "已复制页面 HTML",
+  "core.copiedMarkdown": "已复制页面 Markdown",
+  "core.copyPageFailed": "复制失败",
+
   // ---- 学习页 ----
   "core.learn.markedCompleted": "已标记学完",
   "core.learn.unmarkedCompleted": "已取消标记",
