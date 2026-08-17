@@ -519,8 +519,10 @@ export default function LibraryHome() {
                         <Card className="h-full transition-shadow hover:shadow-md">
                           <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-base">
-                              <Icon className="size-4 text-primary" />
-                              <span className="truncate">{col.name}</span>
+                              <Icon className="size-4 shrink-0 text-primary" />
+                              <span className="min-w-0 flex-1 break-words leading-snug line-clamp-2">
+                                {col.name}
+                              </span>
                               {convertActions.length > 0 && (
                                 <span className="ml-auto flex items-center gap-0.5">
                                   {convertActions.map((a) => {

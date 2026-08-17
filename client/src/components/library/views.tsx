@@ -42,7 +42,7 @@ export function NaturalCardsView({
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               {e.icon}
-              <span className="truncate">{e.name}</span>
+              <span className="min-w-0 flex-1 break-words leading-snug line-clamp-2">{e.name}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
