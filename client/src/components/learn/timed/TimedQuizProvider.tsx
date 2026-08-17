@@ -220,8 +220,14 @@ export function TimedQuizProvider({ children }: { children: ReactNode }) {
     setEntries((list) =>
       list.map((e) => {
         if (e.id !== id) return e
-        // 重试 = 重新完整作答一轮并重新计时（不沿用前序截止时间）
-        const n = { ...e, status: "pending" as const, deadline: null }
+        // 重试 = 重新完整作答一轮：隐藏题回到隐藏态（再次点击查看才开始计时），
+        // 非隐藏题重新计时（不沿用前序截止时间）
+        const n = {
+          ...e,
+          status: "pending" as const,
+          deadline: null,
+          revealed: e.hiddenBefore ? false : e.revealed,
+        }
         if (n.timeLimitSec > 0 && !n.hiddenBefore) {
           return { ...n, status: "running" as const, deadline: Date.now() + n.timeLimitSec * 1000 }
         }

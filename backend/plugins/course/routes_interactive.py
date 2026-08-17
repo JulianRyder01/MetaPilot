@@ -15,7 +15,7 @@ import re
 from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.plugins.base import requires_plugin
 from app.services.ai_gateway import AIGateway, NotConfiguredError
@@ -53,6 +53,23 @@ class GenerateTextIn(BaseModel):
     prompt: str
     context: list[str] = []
 
+    @field_validator("prompt")
+    @classmethod
+    def _prompt_len(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("prompt 不能为空")
+        if len(v) > 10000:
+            raise ValueError("prompt 过长（上限 10000 字符）")
+        return v
+
+    @field_validator("context")
+    @classmethod
+    def _ctx_len(cls, v: list[str]) -> list[str]:
+        if len(v) > 50:
+            raise ValueError("context 条目过多（上限 50 条）")
+        return v
+
 
 @ai_router.post("/generate_text")
 async def generate_text(body: GenerateTextIn, request: Request):
@@ -89,6 +106,15 @@ class JudgeContextItem(BaseModel):
 
     type: Literal["text", "image"]
     content: str
+
+    @field_validator("content")
+    @classmethod
+    def _content_len(cls, v: str) -> str:
+        # 文本 ≤ 5000 字符；图片 data URL（base64）≤ 5MB（约 6.7M 字符）
+        limit = 6_700_000 if v.startswith("data:image/") else 5000
+        if len(v) > limit:
+            raise ValueError(f"上下文条目过大（上限 {limit} 字符）")
+        return v
 
 
 class JudgeInteractiveIn(BaseModel):

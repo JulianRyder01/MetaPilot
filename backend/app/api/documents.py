@@ -88,8 +88,11 @@ def delete_section(sid: str, request: Request):
 
 @router.post("/sections/{sid}/blocks")
 def add_block(sid: str, body: BlockIn, request: Request):
+    data = body.model_dump(exclude_unset=True, exclude_none=True, by_alias=True)
+    if not data.get("type"):
+        raise HTTPException(status_code=422, detail="缺少块类型 type")
     try:
-        return _store(request).add_block(sid, body.model_dump(exclude_unset=True, exclude_none=True))
+        return _store(request).add_block(sid, data)
     except KeyError as e:
         _not_found(e)
 
@@ -105,7 +108,7 @@ def reorder_blocks(sid: str, body: ReorderIn, request: Request):
 @router.put("/blocks/{bid}")
 def update_block(bid: str, body: BlockIn, request: Request):
     try:
-        return _store(request).update_block(bid, body.model_dump(exclude_unset=True, exclude_none=True))
+        return _store(request).update_block(bid, body.model_dump(exclude_unset=True, exclude_none=True, by_alias=True))
     except KeyError as e:
         _not_found(e)
 

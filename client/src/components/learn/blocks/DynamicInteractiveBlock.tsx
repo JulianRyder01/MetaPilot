@@ -147,7 +147,7 @@ export function DynamicInteractiveBlock({ collectionId, block }: Props) {
         const r = await generateText({ prompt, context: payload.context ?? [] })
         frameRef.current?.contentWindow?.postMessage(
           { type: "metapilot:generate:result", requestId, text: r.text, ok: true },
-          "*",
+          window.location.origin,
         )
       } catch (e) {
         frameRef.current?.contentWindow?.postMessage(
@@ -158,7 +158,7 @@ export function DynamicInteractiveBlock({ collectionId, block }: Props) {
             ok: false,
             error: e instanceof Error ? e.message : t("course.dynamic.generateFailed"),
           },
-          "*",
+          window.location.origin,
         )
       }
     })()
@@ -284,6 +284,9 @@ export function DynamicInteractiveBlock({ collectionId, block }: Props) {
             style={{ height: expanded ? undefined : height }}
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           />
+          {/* 资产 iframe 保留 allow-same-origin：高度自适应需同源测量内容；课程包资产由制作者
+              （导入方）提供，威胁模型与既有静态交互块一致。AI 评判结果页 srcdoc 使用严格
+              sandbox="allow-scripts"（无 same-origin，opaque origin 防脚本访问父页面）。 */}
           {/* 右下角：结束并提交给 AI 评判（即使 HTML 未调用埋点接口也可手动结束） */}
           <div className="pointer-events-none absolute bottom-4 right-4 z-20">
             <Button

@@ -65,9 +65,12 @@ class SectionIn(BaseModel):
 
 
 class BlockIn(BaseModel):
-    """组件流单元输入：按 type 使用对应字段（type 由插件/核心注册表解释，不在此枚举写死）。"""
+    """组件流单元输入：按 type 使用对应字段（type 由插件/核心注册表解释，不在此枚举写死）。
 
-    type: str
+    type 允许缺省（局部更新场景，如只保存 lastResult）；新增块时由 add_block 显式校验非空。
+    """
+
+    type: Optional[str] = None
     content: Optional[str] = None          # markdown
     question: Optional[str] = None         # 题目类
     options: Optional[list[str]] = None    # 选择题选项
@@ -81,6 +84,17 @@ class BlockIn(BaseModel):
     title: Optional[str] = None            # interactive
     file: Optional[str] = None             # interactive 资产相对路径（interactives/x.html）
     height: int = 480                      # interactive iframe 高度
+    # 限时答题模块（v1.1.0，题目块通用可选字段）
+    time_limit_sec: Optional[int] = Field(default=None, alias="timeLimitSec")      # 答题秒数（0/缺省=不限时）
+    hidden_before: Optional[bool] = Field(default=None, alias="hiddenBefore")      # 隐藏题目（点击输入框/查看题目后显示并计时）
+    auto_submit_on_timeout: Optional[bool] = Field(default=None, alias="autoSubmitOnTimeout")  # 超时按已填内容自动提交
+    retryable: Optional[bool] = None       # 可重试（重新完整作答一轮）
+    continue_prev: Optional[bool] = Field(default=None, alias="continuePrev")      # 接续上一题限时（后台配置）
+    # 动态交互 HTML（v1.1.0，interactive mode=dynamic）
+    mode: Optional[str] = None             # "static" | "dynamic"（缺省静态）
+    multimodal: Optional[bool] = None      # 配置的模型是否支持多模态输入
+    scenario: Optional[str] = None         # 情景设定（AI 评判的规则/标准/输出格式）
+    last_result: Optional[dict] = Field(default=None, alias="lastResult")          # AI 评判结果 {markdown, html, updatedAt}
 
 
 class ReorderIn(BaseModel):
