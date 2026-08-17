@@ -94,17 +94,36 @@ function mainEntry() {
     if (fs.existsSync(builtinPlugins) && !fs.existsSync(pluginsDir)) {
       fs.cpSync(builtinPlugins, pluginsDir, { recursive: true });
     }
-    // .env 模板 → 用户目录（已有则不覆盖，避免覆盖用户配置）。
-    // 注意：剥离模板中的 DATA_DIR 行 —— 桌面版数据目录（vault）位置由 Electron 固定为 userData/data，
-    // 模板里的相对路径 DATA_DIR=./data 在打包环境下会落到安装目录；用户自定义数据位置用「设置 → 数据目录迁移」写回绝对路径。
+    // .env 模板 → 用户目录；对已有 .env 也做 DATA_DIR 行净化。
+    // 桌面版数据目录（vault）位置由 Electron 固定为 userData/data；模板里的相对路径 DATA_DIR=./data
+    // 在打包环境下会相对 cwd=resources/backend 解析落到安装目录（升级/覆盖会被整体替换 → 数据丢失）。
+    // 用户自定义数据位置用「设置 → 数据目录迁移」写回绝对路径后，此处保留（不破坏迁移结果）。
     const builtinEnv = path.join(res, ".env.example");
-    if (fs.existsSync(builtinEnv) && !fs.existsSync(envFile)) {
-      const template = fs.readFileSync(builtinEnv, "utf-8");
-      const filtered = template
-        .split(/\r?\n/)
-        .filter((line) => !/^\s*DATA_DIR\s*=/.test(line))
-        .join("\n");
-      fs.writeFileSync(envFile, filtered, "utf-8");
+    if (fs.existsSync(builtinEnv)) {
+      const sanitize = (content) => {
+        return content
+          .split(/\r?\n/)
+          .filter((line) => {
+            const m = line.match(/^\s*DATA_DIR\s*=\s*(.*)\s*$/);
+            if (!m) return true;
+            const v = m[1].trim();
+            // 绝对路径（含盘符/~/开头）保留；相对路径被剥离（打包环境相对 cwd 会落到安装目录）
+            return /^([A-Za-z]:[\\/]|\/|~\/)/.test(v);
+          })
+          .join("\n");
+      };
+      if (!fs.existsSync(envFile)) {
+        const template = fs.readFileSync(builtinEnv, "utf-8");
+        fs.writeFileSync(envFile, sanitize(template), "utf-8");
+      } else {
+        // 存量 .env（升级场景）：若其中 DATA_DIR 是相对路径，剥离该行（防止数据落回安装目录）
+        const existing = fs.readFileSync(envFile, "utf-8");
+        const cleaned = sanitize(existing);
+        if (cleaned !== existing) {
+          fs.writeFileSync(envFile, cleaned, "utf-8");
+          console.log(`[main] 已净化 ${envFile} 中的相对路径 DATA_DIR（桌面包数据位置固定为 ${dataDir}）`);
+        }
+      }
     }
   }
 
