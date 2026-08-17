@@ -6,6 +6,7 @@
 """
 import os
 import shutil
+import sys
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -41,6 +42,25 @@ def _env_set(key: str, value: str) -> None:
 def get_vault():
     """当前数据目录（vault）绝对路径；configured = 是否经 DATA_DIR 显式配置。"""
     return {"path": str(DATA_DIR.resolve()), "configured": bool(settings.data_dir)}
+
+
+@router.post("/vault/reveal")
+def reveal_vault():
+    """在用户本机的系统文件管理器中显示当前数据目录（vault）。仅本机运行场景。"""
+    import os
+    import subprocess
+
+    current = DATA_DIR.resolve()
+    try:
+        if os.name == "nt":
+            os.startfile(str(current))  # type: ignore[attr-defined]
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(current)])
+        else:
+            subprocess.Popen(["xdg-open", str(current)])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"打开失败：{e}")
+    return {"ok": True, "path": str(current)}
 
 
 @router.post("/vault/migrate")

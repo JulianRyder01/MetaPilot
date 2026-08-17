@@ -28,7 +28,7 @@ from app.storage.store import _read_json, _write_json, gen_id
 TEXT_EXTENSIONS = {
     ".md", ".markdown", ".txt", ".text", ".json", ".yaml", ".yml",
     ".csv", ".tsv", ".log", ".xml", ".html", ".css", ".js", ".ts",
-    ".py", ".toml", ".ini", ".conf", ".cfg", ".mpf", ".canvas", ".canvas",
+    ".py", ".toml", ".ini", ".conf", ".cfg", ".mpf", ".canvas",
 }
 # 可内联预览的媒体扩展名 → MIME（前端据此选择 <img>/<iframe>/<video>/<audio> 渲染）
 MEDIA_TYPES = {
