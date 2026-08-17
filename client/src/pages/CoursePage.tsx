@@ -3,25 +3,27 @@ import { Link, useNavigate, useParams } from "react-router-dom"
 import {
   ArrowLeft,
   BookOpen,
-  CheckCircle2,
-  Circle,
   Download,
   GraduationCap,
   Pencil,
   Play,
   Sparkles,
+  Trash2,
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
 import { api, type Folder, type Progress } from "@/lib/api"
-import { exportCourseUrl, getProgress } from "@/plugins/course/api"
+import { cn } from "@/lib/utils"
+import { exportCourseUrl, getProgress, toggleCompleted } from "@/plugins/course/api"
 import { usePluginEnabled } from "@/stores/plugins"
 import { useSettingsStore } from "@/stores/settings"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress as ProgressBar } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { SectionRing } from "@/components/learn/SectionRing"
 
 export default function CoursePage() {
   const t = useT()
@@ -29,6 +31,7 @@ export default function CoursePage() {
   const navigate = useNavigate()
   const [col, setCol] = useState<Folder | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
+  const [armedSid, setArmedSid] = useState<string | null>(null)
   const courseEnabled = usePluginEnabled("course")
 
   const load = useCallback(async () => {
@@ -69,6 +72,25 @@ export default function CoursePage() {
       a.click()
     } catch {
       toast.error(t("course.exportFailed"))
+    }
+  }
+
+  /** 目录圆圈二次点击：清除某小节的完成进度（仅对已完成的小节生效）。 */
+  async function clearSection(sidToClear: string) {
+    setArmedSid(null)
+    try {
+      await toggleCompleted(cid!, sidToClear)
+      setProgress((p) =>
+        p
+          ? {
+              ...p,
+              completedSections: p.completedSections.filter((x) => x !== sidToClear),
+            }
+          : p,
+      )
+      toast.success(t("core.learn.clearedProgress"))
+    } catch {
+      /* 清空失败不阻断 */
     }
   }
 
@@ -180,26 +202,66 @@ export default function CoursePage() {
             </div>
             <div className="divide-y">
               {doc.sections.map((sec) => {
-                const done = progress?.completedSections.includes(sec.id)
+                const done = progress?.completedSections.includes(sec.id) ?? false
+                const armed = armedSid === sec.id && done
                 return (
-                  <Link
+                  <div
                     key={sec.id}
-                    to={`/learn/${cid}/${sec.id}`}
-                    className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent/50"
+                    className="group flex items-center gap-1 px-4 py-2.5 text-sm hover:bg-accent/50"
+                    onMouseLeave={() => setArmedSid((v) => (v === sec.id ? null : v))}
                   >
-                    {done ? (
-                      <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
-                    ) : (
-                      <Circle className="size-4 shrink-0 text-muted-foreground/50" />
-                    )}
-                    <span className={done ? "text-muted-foreground" : ""}>{sec.name}</span>
-                    <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-                      {sec.blocks.length > 0 && <Sparkles className="size-3" />}
-                      {sec.blocks.filter((b) => b.type === "interactive").length > 0 && (
-                        <GraduationCap className="size-3 text-primary" />
-                      )}
-                    </span>
-                  </Link>
+                    <Tooltip
+                      open={armed || undefined}
+                      onOpenChange={(o) => {
+                        if (!o) setArmedSid((v) => (v === sec.id ? null : v))
+                      }}
+                    >
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label={sec.name}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (!done) return
+                            if (armed) {
+                              clearSection(sec.id)
+                            } else {
+                              setArmedSid(sec.id)
+                            }
+                          }}
+                          className="shrink-0 rounded-full p-0.5 hover:bg-accent focus-visible:outline-none"
+                        >
+                          {done ? (
+                            armed ? (
+                              <span className="relative inline-flex size-4 shrink-0 items-center justify-center">
+                                <SectionRing pct={1} className="text-red-500" />
+                                <Trash2 className="absolute size-2.5 text-red-500" />
+                              </span>
+                            ) : (
+                              <SectionRing done />
+                            )
+                          ) : (
+                            <SectionRing pct={0} className="text-muted-foreground/50" />
+                          )}
+                        </button>
+                      </TooltipTrigger>
+                      {armed && <TooltipContent side="right">{t("core.learn.clearProgressHint")}</TooltipContent>}
+                    </Tooltip>
+                    <Link
+                      to={`/learn/${cid}/${sec.id}`}
+                      className="flex min-w-0 flex-1 items-center gap-3 py-0.5"
+                    >
+                      <span className={cn("min-w-0 flex-1 truncate", done && "text-muted-foreground")}>
+                        {sec.name}
+                      </span>
+                      <span className="ml-auto flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                        {sec.blocks.length > 0 && <Sparkles className="size-3" />}
+                        {sec.blocks.filter((b) => b.type === "interactive").length > 0 && (
+                          <GraduationCap className="size-3 text-primary" />
+                        )}
+                      </span>
+                    </Link>
+                  </div>
                 )
               })}
               {doc.sections.length === 0 && (
