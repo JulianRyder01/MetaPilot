@@ -163,15 +163,23 @@ export default function LibraryHome() {
 
   /** 设为默认库（唯一）：AI 洞察等插件的默认保存目标 */
   async function setDefault(lib: LibraryMeta) {
-    await api.setDefaultLibrary(lib.id)
-    toast.success(t("core.library.defaultSet"))
+    try {
+      await api.setDefaultLibrary(lib.id)
+      toast.success(t("core.library.defaultSet"))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("core.library.defaultFailed"))
+    }
     refresh()
   }
 
   /** 取消默认库（与置顶相互独立，可单独取消） */
   async function clearDefault(lib: LibraryMeta) {
-    await api.clearDefaultLibrary(lib.id)
-    toast.success(t("core.library.defaultCleared"))
+    try {
+      await api.clearDefaultLibrary(lib.id)
+      toast.success(t("core.library.defaultCleared"))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("core.library.defaultFailed"))
+    }
     refresh()
   }
 
@@ -313,8 +321,9 @@ export default function LibraryHome() {
                     <button
                       type="button"
                       className={cn(
-                        "shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent",
-                        openMenuId === lib.id ? "block" : "hidden group-hover:block",
+                        "shrink-0 rounded p-0.5 text-muted-foreground transition-opacity hover:bg-accent",
+                        // 用 opacity 而非 display 切换：菜单打开时 trigger 保持占位，避免 Radix 定位漂移到左上角
+                        openMenuId === lib.id ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
                       )}
                       aria-label={t("core.library.menuMore")}
                     >

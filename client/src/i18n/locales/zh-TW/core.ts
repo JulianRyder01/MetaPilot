@@ -150,6 +150,7 @@ export const coreZhTW: Record<string, string> = {
   "core.library.setDefault": "設為預設",
   "core.library.unsetDefault": "取消預設",
   "core.library.defaultLib": "預設",
+  "core.library.defaultFailed": "設定預設儲存目標失敗",
   "core.library.defaultSet": "已設為預設庫",
   "core.library.defaultCleared": "已取消預設",
   "core.library.renameLib": "重新命名",

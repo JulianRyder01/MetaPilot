@@ -155,6 +155,7 @@ export const coreZhCN: Record<string, string> = {
   "core.library.setDefault": "设为默认",
   "core.library.unsetDefault": "取消默认",
   "core.library.defaultLib": "默认",
+  "core.library.defaultFailed": "设置默认保存目标失败",
   "core.library.defaultSet": "已设为默认库",
   "core.library.defaultCleared": "已取消默认",
   "core.library.renameLib": "重命名",

@@ -80,15 +80,23 @@ export function SymlinkLibrarySection() {
 
   /** 设为默认保存目标（全局唯一，与库统一） */
   async function setDefault(m: SymlinkMount) {
-    await symlinkSetDefaultMount(m.id)
-    toast.success(t("core.library.defaultSet"))
+    try {
+      await symlinkSetDefaultMount(m.id)
+      toast.success(t("core.library.defaultSet"))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("core.library.defaultFailed"))
+    }
     loadMounts()
   }
 
   /** 取消默认保存目标（与置顶相互独立，可单独取消） */
   async function clearDefault(m: SymlinkMount) {
-    await symlinkClearDefaultMount(m.id)
-    toast.success(t("core.library.defaultCleared"))
+    try {
+      await symlinkClearDefaultMount(m.id)
+      toast.success(t("core.library.defaultCleared"))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("core.library.defaultFailed"))
+    }
     loadMounts()
   }
 
@@ -147,8 +155,9 @@ export function SymlinkLibrarySection() {
               <button
                 type="button"
                 className={cn(
-                  "shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent",
-                  openMenuId === m.id ? "block" : "hidden group-hover:block",
+                  "shrink-0 rounded p-0.5 text-muted-foreground transition-opacity hover:bg-accent",
+                  // opacity 而非 display：菜单打开时 trigger 保持占位，避免 Radix 定位漂移到左上角
+                  openMenuId === m.id ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
                 )}
                 aria-label={t("core.library.menuMore")}
               >

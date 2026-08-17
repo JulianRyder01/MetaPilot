@@ -163,6 +163,7 @@ export const coreEn: Record<string, string> = {
   "core.library.setDefault": "Set as default",
   "core.library.unsetDefault": "Unset default",
   "core.library.defaultLib": "Default",
+  "core.library.defaultFailed": "Failed to set default target",
   "core.library.defaultSet": "Set as default library",
   "core.library.defaultCleared": "Default cleared",
   "core.library.renameLib": "Rename",
