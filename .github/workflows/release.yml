@@ -1,0 +1,81 @@
+# MetaPilot 桌面端自动发布（GitHub Actions）
+# 触发：推送 v* 标签（如 v1.1.4）→ 三平台矩阵构建 → 创建 GitHub Release 并上传安装包。
+# 与 scripts/package-electron.mjs 共用同一打包链路；版本号取自 backend/app/version.py（官方核心插件版本号=项目版本）。
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            args: --win
+          - name: macos
+            os: macos-latest
+            args: --mac
+          - name: linux
+            os: ubuntu-latest
+            args: --linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            electron/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: 安装后端依赖
+        run: pip install -r backend/requirements.txt
+
+      - name: 安装前端依赖并构建
+        working-directory: client
+        run: |
+          npm ci
+          npm run build
+
+      - name: 安装桌面打包依赖（PyInstaller + electron）
+        run: |
+          pip install pyinstaller
+          cd electron && npm ci
+
+      - name: 桌面打包
+        run: node scripts/package-electron.mjs --skip-frontend ${{ matrix.args }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 收集产物
+        shell: bash
+        run: |
+          mkdir -p dist-assets
+          cp electron/release/*.exe electron/release/*.blockmap dist-assets/ 2>/dev/null || true
+          cp electron/release/*.dmg electron/release/*.zip dist-assets/ 2>/dev/null || true
+          cp electron/release/*.AppImage electron/release/*.deb dist-assets/ 2>/dev/null || true
+
+      - name: 上传产物到 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-assets/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false

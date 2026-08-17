@@ -1,6 +1,8 @@
 # MetaPilot
 
-> 版本 **1.1.4**（版本单一来源：`backend/app/version.py`，官方核心插件版本号 = 项目版本 = 桌面打包版本）· 交互式学习网站 · 课程学习 / 个人笔记 / AI 洞察
+> 版本 **1.1.4**（版本单一来源：`backend/app/version.py`，官方核心插件版本号 = 项目版本 = 桌面打包版本）· 交互式学习平台 · 学 / 练 / 玩 / 库 · 支持桌面端（Electron）分发
+
+![MetaPilot 首页截图](docs/screenshot.png)
 
 MetaPilot 是一个把「学、练、玩」结合起来的交互式学习平台：
 
@@ -8,8 +10,9 @@ MetaPilot 是一个把「学、练、玩」结合起来的交互式学习平台�
 - **练**：每章可标记学完，课程进度一目了然；学习进度独立缓存，随时回到上次学习的位置。
 - **玩**：动态交互块让抽象的知识点变得可操作、可观察（如卷积可视化、频谱变换实验）。
 - **库**：基础结构是「库 → 文件夹 → 文档 → 小节」，课程只是其中一种文件夹类型；还支持导入 Markdown / Obsidian 笔记，并用 AI 洞察查阅资料联系、问答溯源并生成图表/课程。
+- **桌面端**：整体打包为 Electron 桌面应用，分发给 Windows / macOS / Linux（安装包见下方「桌面打包发布」）。
 
-## 快速开始
+## 快速开始（开发模式）
 
 ### 1. 后端（FastAPI）
 
@@ -31,7 +34,7 @@ npm run dev              # http://localhost:5173
 
 ### 3. 导入官方课程（可选）
 
-后端启动后，在客户端「库」页面选择「导入课程包」，选择 `courses/digital-image-processing/` 打包后的 zip 或目录即可。也可直接用 `courses/` 下的现成课程包。
+后端启动后，在客户端「库」页面选择「导入课程包」，选择 `courses/` 下的课程包（zip 或目录）即可。
 
 ## 功能清单
 
@@ -41,36 +44,35 @@ npm run dev              # http://localhost:5173
 | 学习页 | 组件流渲染（markdown / 题目 / 交互块），左栏大纲导航，底部上/下一个知识点 |
 | 主观题 AI 判分 | 统一 AI 网关（可配 OpenAI 兼容 / Anthropic / 本地模型）对比用户输入与参考答案，输出准确率与评语 |
 | 学习进度 | 每课程独立缓存：标记学完、上次学习位置、课程页打勾 |
-| 学习统计 | 记录每节学习时长，支持 今日/本周/本月/全部 汇总 |
+| 学习统计 | 记录每节学习时长，支持 今日/本周/本月/全部 汇总；统计页组件由官方核心与各插件共同注册 |
 | 编辑模式 | 一切可改：库、文件夹、章节、小节、题目与答案 |
 | 课程包 | 独立打包、导入/更新课程；开发者可自行制作（见 docs/03） |
-| AI 统一网关 | 设置页配置 API 服务商（key/地址/模型/价格存 .env 不上云），插件经 MetaPilot 中转调用；统计页展示调用次数 / token / 成本；内置本地模型（Qwen3 Embedding 0.6B/4B、Qwen3-4B、Reranker）一键下载 |
-| AI 洞察插件 | 多粒度向量索引（库/文件夹/文档/本机目录），四种思考模式与洞察规划生成图表/课程（docs/05） |
+| AI 统一网关 | 设置页配置 API 服务商（key/地址/模型/价格存 `.env` 不上云），插件经 MetaPilot 中转调用；统计页展示调用次数 / token / 成本；内置本地模型一键下载启动 |
+| 插件体系 | 扩展点协议 + kind 注册 + 能力服务 + i18n 动态注入；插件能力清单由各插件自身声明，核心不写死插件细节（docs/04） |
 | 插件商店 | 独立部署的 plugins-store 服务：浏览/筛选/安装商店插件，上传自制插件（本地安装或发布商店） |
 | 笔记导入 | 导入 Markdown / Obsidian 格式文档查看 |
+
+功能细节以各插件自带的 `plugin.json`（changelog/features）为准，本项目不做重复铺陈。
 
 ## 目录结构
 
 ```
-docs/        文档（架构、数据模型、课程制作、插件、知识库、API）
-backend/     FastAPI 后端（含插件）
-client/      React 前端
-courses/     官方课程包（含动态交互块资产）
-plugins-store/  插件应用商店（独立部署：清单/下载/上传，含插件开发规范副本）
+docs/         文档（架构、数据模型、课程制作、插件、知识库、API）
+backend/      FastAPI 后端（含插件）｜ app/ 核心 + plugins/ 插件目录 + scripts/ 本地模型脚本
+client/       React 前端（Vite + TS + Tailwind）
+courses/      官方课程包（含动态交互块资产）
+electron/     桌面端 Electron 壳（main.cjs + electron-builder 三平台配置）
+scripts/      工具脚本（桌面打包 / 截图等）
+plugins-store/ 插件应用商店（独立部署：清单/下载/上传，含插件开发规范副本）
 ```
 
 详见 [docs/01-架构总览.md](docs/01-架构总览.md)。
 
 ## 技术栈
 
-React 18 · Vite · TypeScript · Tailwind CSS · shadcn/ui · FastAPI · MiniMax-M3 · Qwen3-Embedding-0.6B
+React 18 · Vite · TypeScript · Tailwind CSS · shadcn/ui · FastAPI · MiniMax-M3 · Qwen3-Embedding-0.6B · Electron · PyInstaller
 
-## 版本与发布
-
-- 语义化版本；大核心修改（架构 / 数据格式变更）发布新版本；课程包 `manifest.json` 独立 `formatVersion` 演进。
-- **版本号单一来源**：`backend/app/version.py`（官方核心插件版本号 = 项目版本 = 桌面打包版本）。改版本只改这一个文件。
-
-### 桌面端打包发布（Electron）
+## 桌面打包发布（Electron）
 
 像 Obsidian / VSCode 一样把整个 MetaPilot 打成桌面安装包分发给各端（Windows / macOS / Linux）：
 
@@ -84,7 +86,7 @@ node scripts/package-electron.mjs --linux    # 仅 Linux（AppImage + deb）
 一键脚本自动完成：构建前端 → PyInstaller 编译后端 → 组装资源（后端/前端/插件/脚本/`.env` 模板随包）→ 生成图标 → electron-builder 产出安装包到 `electron/release/`。
 
 - **版本号**：自动读取 `backend/app/version.py`（官方核心插件版本号 = 项目版本），安装包名与版本均为它。
-- **运行时数据**：数据目录（vault）、`.env`、可写插件目录默认放操作系统用户数据目录（Electron `userData`），卸载/升级不影响数据；首次启动自动铺入内置插件与 `.env` 模板。
+- **运行时数据**：数据目录（vault）、`.env`、可写插件目录默认放操作系统用户数据目录（Electron `userData`），卸载/升级不影响数据；首次启动自动铺入内置插件与 `.env` 模板（不含任何账户密钥）。
 - 依赖：Node.js ≥ 18、npm、Python 3（PyInstaller 缺失时脚本自动安装）。
 - **网络受限环境**：electron-builder 需下载 Electron 二进制与工具链（GitHub）。国内网络不可达时设置镜像环境变量再打包：
   ```bash
@@ -93,18 +95,36 @@ node scripts/package-electron.mjs --linux    # 仅 Linux（AppImage + deb）
   node scripts/package-electron.mjs --win
   ```
 
+### 自动发布 Release（GitHub Actions）
+
+推送 `v*` 标签（如 `v1.1.4`）即自动在 GitHub Actions 三平台构建并发布 Release（`各端安装包` 上传到 Release assets）：
+
+```bash
+git tag v1.1.4
+git push origin v1.1.4
+```
+
+workflow 定义见 `.github/workflows/release.yml`，与本地打包脚本共用同一打包链路。
+
+## 版本与发布
+
+- 语义化版本；大核心修改（架构 / 数据格式变更）发布新版本；课程包 `manifest.json` 独立 `formatVersion` 演进。
+- **版本号单一来源**：`backend/app/version.py`（官方核心插件版本号 = 项目版本 = 桌面打包版本）。改版本只改这一个文件，各端自动跟随。
+
 ### 更新历史
 
 | 版本 | 变更 |
 |---|---|
-| **1.1.4** | **交互式学习插件 v1.1.0**：官方核心插件「课程」更名「交互式学习」（仅名字与提示语）；① 交互块高度可自由拖拽、默认自适应内容高度渲染全部内容、支持全屏；② 新增限时答题模块（每道题可设答题时间、隐藏题目、超时按已填内容提交、可重试、后台配置「接续上一题限时」并自动跳转焦点）；③ 新增动态交互 HTML 组件（复用配置好的全局大模型：添加文本/图片到评判上下文、AI 生成文本、结束并提交 AI 评判四个前端埋点接口；多模态配置为否则提交图片时右上角提示；评判结果生成 Markdown/Html 结果展示页，保存于交互块，重做覆盖旧结果）。完全兼容旧版本文档 | **官方核心 · MetaPilot 文档库**：库与软链接完全统一（软链接视为挂载项目外文件夹的库，在「我的库」直接浏览）；双视图切换「自然卡片 / 文件管理器」库与软链接共用（新建文件夹/文档/图表、面包屑、搜索、网格/列表）；数据模型术语统一（文档集 → 文件夹，`/api/folders`，旧路径别名兼容）；库行管理（置顶/设为默认/重命名，默认保存目标库/软链接唯一）；`.mpf` 文档阅读（课程/图表/内容大纲+Markdown）；图片全屏查看（Lightbox 缩放/旋转/拖拽）；数据目录（vault）可配置与迁移（先复制校验再删源，重启生效）；AI 洞察规划执行路线实时展示与 SSE 流式思考输出；软链接 `.canvas`（Obsidian JSON Canvas）原生文件直接阅读（节点/连线概览，不再跳编辑器）；独立文件浏览器页 `/files` 废弃；库/软链接三点菜单新增「在本地文件浏览器中打开」（vault / 挂载根目录） |
+| **1.1.4** | 版本号统一为单一来源（`backend/app/version.py`）；支持桌面端 Electron 打包分发（后端/前端/插件随应用内置，数据目录与 `.env` 位于用户数据目录，前端静态资源由后端同源托管）；官方核心插件「课程」更名「交互式学习」（仅名字与提示语）；交互块高度可拖拽/自适应/全屏；限时答题模块（隐藏题/超时自动提交/可重试/接续上一题）；动态交互 HTML 组件（AI 生成文本 / 添加评判上下文 / 结束提交 AI 评判结果页）；官方核心文档库：库与软链接统一、双视图、`.mpf`/`.canvas` 原生阅读、数据目录（vault）可配置与迁移、AI 洞察规划实时路线与 SSE 流式输出 |
 | 1.1.2 | 核心文档能力独立于课程插件：`/learn` `/edit` 改为官方核心路由；kind 注册表驱动创建/转换扩展点；集合创建默认 `note` 不默认 `course` |
 | 1.1.1 | AI 统一网关（chat/embed/rerank 中转、用量与成本统计）；本地 embedding / LLM / rerank 服务一键下载启停 |
 | 1.1.0 | 插件体系：扩展点协议 + kind 注册 + 能力服务 + i18n 动态注入；软链接插件（本机目录挂载浏览/读写） |
 
+各插件自身的更新历史见插件页（`/api/plugins`）或插件 `plugin.json`，此处只列项目级变更。
+
 ## 敏感配置
 
-所有密钥放在 `.env`（已 gitignore），模板见 `.env.example`。
+所有密钥放在 `.env`（已 gitignore），模板见 `.env.example`；桌面版密钥存于用户数据目录的 `.env`，**不会随安装包分发**。
 
 ## License
 
