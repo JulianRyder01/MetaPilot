@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
-  Expand,
   FileText,
   GripHorizontal,
   LayoutTemplate,
@@ -78,9 +77,11 @@ export function DynamicInteractiveBlock({ collectionId, block }: Props) {
   const [showResult, setShowResult] = useState(false)
   const [result, setResult] = useState<{ markdown: string; html: string } | null>(null)
   // 已保存到块的评判结果（本会话内即时可用；重做后覆盖）
-  const [savedResult, setSavedResult] = useState<{ markdown: string; html: string } | null>(
-    block.lastResult?.markdown || block.lastResult?.html ? block.lastResult! : null,
-  )
+  // 块模型字段可选（旧文档兼容），展示时收敛为默认空串
+  const [savedResult, setSavedResult] = useState<{ markdown: string; html: string } | null>(() => {
+    const r = block.lastResult
+    return r?.markdown || r?.html ? { markdown: r.markdown ?? "", html: r.html ?? "" } : null
+  })
 
   const file = block.file ?? ""
   const multimodal = Boolean(block.multimodal)

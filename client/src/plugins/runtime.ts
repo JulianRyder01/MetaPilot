@@ -65,7 +65,7 @@ export function ensurePluginRegistry() {
   if (!window.React) {
     // 延迟引入避免循环依赖：React 由 main.tsx 提前注入，这里仅兜底
     void import("react").then((m) => {
-      const React = (m as { default?: unknown }).default ?? m
+      const React = (m.default ?? m) as typeof import("react")
       window.React = React
     })
   }

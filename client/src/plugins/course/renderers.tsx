@@ -19,5 +19,16 @@ export function renderShortAnswer({ block }: PluginBlockRendererProps) {
 }
 
 export function renderInteractive({ block, collectionId }: PluginBlockRendererProps) {
-  return <InteractiveBlock collectionId={collectionId} block={block} />
+  // 交互块只消费有限字段（title/file/height/mode），从 Block 索引签名中显式取值，避免类型不兼容
+  return (
+    <InteractiveBlock
+      collectionId={collectionId}
+      block={{
+        title: typeof block.title === "string" ? block.title : undefined,
+        file: typeof block.file === "string" ? block.file : undefined,
+        height: typeof block.height === "number" ? block.height : undefined,
+        mode: typeof block.mode === "string" ? block.mode : undefined,
+      }}
+    />
+  )
 }
