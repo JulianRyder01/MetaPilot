@@ -68,16 +68,13 @@ jobs:
         shell: bash
 
       - name: 组装资源 + electron-builder
-        run: |
-          node scripts/package-electron.mjs --skip-frontend --skip-backend ${{ matrix.args }} \
-            > /tmp/metapilot-pack.log 2>&1 || {
-              echo "## 打包失败（末尾日志）" >> "$GITHUB_STEP_SUMMARY"
-              tail -60 /tmp/metapilot-pack.log >> "$GITHUB_STEP_SUMMARY"
-              exit 1
-            }
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 输出完整打包日志（不吞 stdout），失败时同时写入 step summary 便于查看
+          node scripts/package-electron.mjs --skip-frontend --skip-backend ${{ matrix.args }} 2>&1 | tee /tmp/metapilot-pack.log
+          exit ${PIPESTATUS[0]}
 
       - name: 收集产物
         shell: bash
