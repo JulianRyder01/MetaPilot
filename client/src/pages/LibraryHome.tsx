@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom"
 import * as Lucide from "lucide-react"
 import {
   BookOpen,
+  ExternalLink,
   FileText,
   FolderTree,
   Grid3X3,
@@ -187,6 +188,15 @@ export default function LibraryHome() {
     refresh()
   }
 
+  /** 在用户本机系统文件管理器中显示 vault 目录（当前库的数据目录） */
+  async function revealVault() {
+    try {
+      await api.revealVault()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("core.library.revealFailed"))
+    }
+  }
+
   /** 在当前库中新建纯目录文件夹（kind=folder，无内容类型），用于组织文档。 */
   async function createFolderCollection() {
     if (!currentLibraryId) return
@@ -330,6 +340,10 @@ export default function LibraryHome() {
                     <DropdownMenuItem onClick={() => renameLib(lib)}>
                       <FileText className="text-muted-foreground" />
                       {t("core.library.renameLib")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => revealVault()}>
+                      <ExternalLink className="text-muted-foreground" />
+                      {t("core.library.revealInExplorer")}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" onClick={() => handleDelete(lib.id)}>

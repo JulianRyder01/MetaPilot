@@ -33,8 +33,7 @@ export default function App() {
         <Route path="/library/:lid" element={<LibraryDetail />} />
         <Route path="/plugins" element={<PluginsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
-        {/* 图表画布（.mpf canvas 类型，官方核心）；/canvas/file 为软链接源 .canvas 文件编辑模式 */}
-        <Route path="/canvas/file" element={<CanvasPage />} />
+        {/* 图表画布（.mpf canvas 类型，官方核心）；软链接 .canvas 源文件在挂载内直接阅读 */}
         <Route path="/canvas/:cid" element={<CanvasPage />} />
         {/* 文档阅读/编辑（库-文件夹-文档-小节，官方核心能力）：
             课程等补丁类型在此基础上叠加插件能力（进度/判题/交互块），禁用插件时仍可阅读/编辑文档结构 */}

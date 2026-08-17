@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useCallback, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
-import { useNavigate } from "react-router-dom"
 import {
   ChevronRight,
   Circle,
@@ -106,7 +105,6 @@ export function MountBrowser({
   variant?: "natural" | "manager"
 }) {
   const t = useT()
-  const navigate = useNavigate()
   const { confirm, prompt } = useDialogs()
   const [path, setPath] = useState("")
   const [tree, setTree] = useState<SymlinkTree | null>(null)
@@ -152,10 +150,7 @@ export function MountBrowser({
     if (mount?.type === "file") {
       const name = baseName(mount.root)
       const kind = kindOf(name)
-      if (kind === "canvas") {
-        // 源 .canvas 文件：进入图表编辑器（转 .mpf 编辑，保存写回源文件）
-        navigate(`/canvas/file?mount=${mount.id}&path=`)
-      } else if (kind === "text" || kind === "mpf") {
+      if (kind === "text" || kind === "mpf" || kind === "canvas") {
         symlinkReadFile(mount.id, "")
           .then((f) => setFile({ path: f.path, name, kind, content: f.content }))
           .catch(() => {})
@@ -163,7 +158,7 @@ export function MountBrowser({
         setFile({ path: "", name, kind })
       }
     }
-  }, [mount, navigate])
+  }, [mount])
 
   async function openItem(item: SymlinkItem) {
     const p = mount.type === "file" ? "" : joinPath(path, item.name)
@@ -172,12 +167,7 @@ export function MountBrowser({
       return
     }
     const kind = kindOf(item.name)
-    if (kind === "canvas") {
-      // 打开源 .canvas → 转 .mpf 图表编辑器编辑；仅保存时才写回源文件
-      navigate(`/canvas/file?mount=${mount.id}&path=${encodeURIComponent(p)}`)
-      return
-    }
-    if (kind === "text" || kind === "mpf") {
+    if (kind === "text" || kind === "mpf" || kind === "canvas") {
       try {
         const f = await symlinkReadFile(mount.id, p)
         setFile({ path: f.path, name: item.name, kind, content: f.content })
@@ -400,21 +390,10 @@ export function MountBrowser({
                 <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-4 text-xs">{file.content}</pre>
               )}
             </div>
-          ) : file && !editing && file.kind === "mpf" ? (
+          ) : file && !editing && (file.kind === "mpf" || file.kind === "canvas") ? (
             <MpfBoundary>
               <MpfViewer mount={mount} path={file.path} />
             </MpfBoundary>
-          ) : file && !editing && file.kind === "canvas" ? (
-            <div className="p-6 text-sm text-muted-foreground">
-              <p className="mb-3">{t("symlink.canvasEditHint")}</p>
-              <Button
-                size="sm"
-                onClick={() => navigate(`/canvas/file?mount=${mount.id}&path=${encodeURIComponent(file.path)}`)}
-              >
-                <Workflow className="size-4" />
-                {t("symlink.canvasEdit")}
-              </Button>
-            </div>
           ) : file && !editing && file.kind !== "text" ? (
             <MediaViewer mount={mount} file={file} />
           ) : editing ? (
@@ -598,13 +577,23 @@ function MpfViewer({ mount, path }: { mount: SymlinkMount; path: string }) {
     symlinkReadFile(mount.id, path)
       .then((f) => {
         try {
-          const data = JSON.parse(f.content) as { type?: string; name?: string; canvas?: { nodes?: unknown[]; edges?: unknown[] }; folders?: MpfFolder[]; collections?: MpfFolder[] }
-          if (data.type === "canvas") {
+          const data = JSON.parse(f.content) as {
+            type?: string
+            name?: string
+            canvas?: { nodes?: unknown[]; edges?: unknown[] }
+            nodes?: unknown[]
+            edges?: unknown[]
+            folders?: MpfFolder[]
+            collections?: MpfFolder[]
+          }
+          // 原生 .canvas（Obsidian JSON Canvas）无 type/format 头：nodes/edges 在顶层
+          const isCanvas = data.type === "canvas" || Array.isArray(data.nodes) || Array.isArray(data.edges)
+          if (isCanvas) {
             setParsed({
               kind: "canvas",
               name: data.name || path,
-              nodes: (data.canvas?.nodes ?? []) as { id: string; type: string; text?: string }[],
-              edges: (data.canvas?.edges ?? []) as { id: string; fromNode: string; toNode: string; label?: string }[],
+              nodes: (data.canvas?.nodes ?? data.nodes ?? []) as { id: string; type: string; text?: string }[],
+              edges: (data.canvas?.edges ?? data.edges ?? []) as { id: string; fromNode: string; toNode: string; label?: string }[],
             })
           } else if (data.type === "doc") {
             const folders = data.folders ?? data.collections ?? []

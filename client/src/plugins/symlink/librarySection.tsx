@@ -6,13 +6,14 @@
  * 本组件自包含（挂载数据/添加/卸载），插件被禁用时 LibraryHome 按启用状态过滤不渲染。
  */
 import { useCallback, useEffect, useState } from "react"
-import { HardDrive, Link2, MoreHorizontal, Pin, Plus, Star, Trash2 } from "lucide-react"
+import { ExternalLink, HardDrive, Link2, MoreHorizontal, Pin, Plus, Star, Trash2 } from "lucide-react"
 
 import { useT } from "@/i18n"
 import { toast } from "@/lib/toast"
 import { useAppStore } from "@/stores/app"
 import {
   symlinkMounts,
+  symlinkOpen,
   symlinkPinMount,
   symlinkRemoveMount,
   symlinkRenameMount,
@@ -104,6 +105,15 @@ export function SymlinkLibrarySection() {
     loadMounts()
   }
 
+  /** 在用户本机系统文件管理器中显示挂载根目录 */
+  async function revealMount(m: SymlinkMount) {
+    try {
+      await symlinkOpen(m.id, "", "reveal")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("core.library.revealFailed"))
+    }
+  }
+
   return (
     <div className="space-y-1">
       {mounts.map((m) => (
@@ -164,6 +174,10 @@ export function SymlinkLibrarySection() {
               <DropdownMenuItem onClick={() => renameMount(m)}>
                 <HardDrive className="text-muted-foreground" />
                 {t("core.library.renameLib")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => revealMount(m)}>
+                <ExternalLink className="text-muted-foreground" />
+                {t("core.library.revealInExplorer")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={() => removeMount(m.id)}>

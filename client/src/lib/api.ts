@@ -169,6 +169,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ path }),
     }),
+  /** 在用户本机系统文件管理器中显示 vault 目录 */
+  revealVault: () => request<{ ok: boolean; path: string }>("/settings/vault/reveal", { method: "POST" }),
 }
 
 // ---------- 类型 ----------

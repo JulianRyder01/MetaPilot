@@ -44,7 +44,7 @@ def test_health():
     r = client.get("/api/health")
     assert r.status_code == 200
     assert r.json()["ok"] is True
-    assert r.json()["version"] == "1.1.3"
+    assert r.json()["version"] == "1.1.4"
 
 
 def test_vault_get_path():

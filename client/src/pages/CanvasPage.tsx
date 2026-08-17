@@ -204,8 +204,7 @@ export default function CanvasPage() {
         setNodes(opened.canvas?.nodes ?? [])
         setEdges(opened.canvas?.edges ?? [])
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : t("core.canvas.saveFailed"))
-        navigate("/files")
+        toast.error(e instanceof Error ? e.message : t("core.canvas.openFailed"))
         return
       }
     } else {
