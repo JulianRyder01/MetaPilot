@@ -84,6 +84,8 @@ export default function LibraryHome() {
   const [kindMeta, setKindMeta] = useState<Record<string, FolderKindMeta>>({})
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"grid" | "list">("grid")
+  // 行菜单打开状态：打开期间强制三点按钮可见（Radix modal 会令 :hover 失效，display:none 的 trigger 会被定位到视口左上角）
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   // 显示模式：natural 自然卡片视图（普通库样式）/ manager 文件管理器视图（软链接样式），库与软链接统一
   const [mode, setMode] = useState<"natural" | "manager">("natural")
   const { currentLibraryId, setCurrentLibraryId, currentMountId, setCurrentMountId } = useAppStore()
@@ -289,11 +291,14 @@ export default function LibraryHome() {
                 <span className="shrink-0 text-xs text-muted-foreground group-hover:hidden">
                   {lib.folderCount}
                 </span>
-                <DropdownMenu>
+                <DropdownMenu open={openMenuId === lib.id} onOpenChange={(o) => setOpenMenuId(o ? lib.id : null)}>
                   <DropdownMenuTrigger asChild>
                     <button
                       type="button"
-                      className="hidden shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent group-hover:block"
+                      className={cn(
+                        "shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent",
+                        openMenuId === lib.id ? "block" : "hidden group-hover:block",
+                      )}
                       aria-label={t("core.library.menuMore")}
                     >
                       <MoreHorizontal className="size-4" />

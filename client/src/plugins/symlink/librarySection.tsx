@@ -34,6 +34,8 @@ export function SymlinkLibrarySection() {
   const t = useT()
   const { confirm, prompt } = useDialogs()
   const [mounts, setMounts] = useState<SymlinkMount[]>([])
+  // 行菜单打开状态：打开期间强制三点按钮可见（Radix modal 会令 :hover 失效，display:none 的 trigger 会被定位到视口左上角）
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const { setCurrentLibraryId, currentMountId, setCurrentMountId } = useAppStore()
 
   const loadMounts = useCallback(async () => {
@@ -122,11 +124,14 @@ export function SymlinkLibrarySection() {
           <span className="shrink-0 text-xs text-muted-foreground group-hover:hidden">
             <HardDrive className="size-3.5" />
           </span>
-          <DropdownMenu>
+          <DropdownMenu open={openMenuId === m.id} onOpenChange={(o) => setOpenMenuId(o ? m.id : null)}>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="hidden shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent group-hover:block"
+                className={cn(
+                  "shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent",
+                  openMenuId === m.id ? "block" : "hidden group-hover:block",
+                )}
                 aria-label={t("core.library.menuMore")}
               >
                 <MoreHorizontal className="size-4" />
