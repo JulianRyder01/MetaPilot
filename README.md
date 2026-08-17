@@ -86,6 +86,12 @@ node scripts/package-electron.mjs --linux    # 仅 Linux（AppImage + deb）
 - **版本号**：自动读取 `backend/app/version.py`（官方核心插件版本号 = 项目版本），安装包名与版本均为它。
 - **运行时数据**：数据目录（vault）、`.env`、可写插件目录默认放操作系统用户数据目录（Electron `userData`），卸载/升级不影响数据；首次启动自动铺入内置插件与 `.env` 模板。
 - 依赖：Node.js ≥ 18、npm、Python 3（PyInstaller 缺失时脚本自动安装）。
+- **网络受限环境**：electron-builder 需下载 Electron 二进制与工具链（GitHub）。国内网络不可达时设置镜像环境变量再打包：
+  ```bash
+  export ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
+  export ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/
+  node scripts/package-electron.mjs --win
+  ```
 
 ### 更新历史
 
