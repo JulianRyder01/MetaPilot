@@ -32,6 +32,7 @@ export function SectionRing({ pct = 0, done = false, className }: Props) {
           />
           <path
             d="M5.1 8.3 L7.2 10.4 L10.9 5.7"
+            transform="rotate(90 8 8)"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.8"

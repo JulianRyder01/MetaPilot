@@ -8,6 +8,8 @@ import {
   Circle,
   Link2,
   ListTree,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
@@ -25,6 +27,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { OutlineNav } from "@/components/learn/OutlineNav"
 import { BlockRenderer } from "@/components/learn/BlockRenderer"
 import { TimedQuizProvider } from "@/components/learn/timed/TimedQuizProvider"
+import { AskAiPanel } from "@/components/learn/AskAiPanel"
 
 export default function LearnPage() {
   const { cid, sid } = useParams()
@@ -39,6 +42,51 @@ export default function LearnPage() {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [readRatio, setReadRatio] = useState(0)
   const autoCompletedRef = useRef(false)
+
+  // ---- 左栏目录：可拖拽拉伸宽度 + 收起/展开（localStorage 记忆） ----
+  const [navOpen, setNavOpen] = useState(() => localStorage.getItem("learn.navOpen") !== "0")
+  const [navWidth, setNavWidth] = useState(() => {
+    const w = Number(localStorage.getItem("learn.navWidth"))
+    return Number.isFinite(w) && w >= 200 && w <= 520 ? w : 288
+  })
+  const navWidthRef = useRef(navWidth)
+  navWidthRef.current = navWidth
+  const resizeCleanupRef = useRef<(() => void) | null>(null)
+
+  const closeNav = () => {
+    localStorage.setItem("learn.navOpen", "0")
+    setNavOpen(false)
+  }
+  const openNav = () => {
+    localStorage.setItem("learn.navOpen", "1")
+    setNavOpen(true)
+  }
+  const resizeNavWidth = (w: number) => setNavWidth(w)
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault()
+    resizeCleanupRef.current?.() // 清理上一次未结束的拖拽
+    const startX = e.clientX
+    const startW = navWidthRef.current
+    document.body.classList.add("select-none")
+    const onMove = (ev: MouseEvent) => {
+      resizeNavWidth(Math.min(520, Math.max(200, startW + (ev.clientX - startX))))
+    }
+    const onUp = () => {
+      localStorage.setItem("learn.navWidth", String(navWidthRef.current))
+      resizeCleanupRef.current?.()
+    }
+    const cleanup = () => {
+      document.body.classList.remove("select-none")
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("mouseup", onUp)
+      resizeCleanupRef.current = null
+    }
+    resizeCleanupRef.current = cleanup
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("mouseup", onUp)
+  }
+  // 组件卸载时移除拖拽监听，避免离开页面积累全局监听
+  useEffect(() => () => resizeCleanupRef.current?.(), [])
 
   const load = useCallback(async () => {
     if (!cid) return
@@ -223,9 +271,10 @@ export default function LearnPage() {
       // 页面滑动比例：视口底部到达文档顶部的位置占比（0~1）
       const ratio = scrollHeight > 0 ? (scrollTop + clientHeight) / scrollHeight : 1
       setReadRatio(Math.max(0, Math.min(1, ratio)))
-      // 内容可滚动（确有滑动空间）且用户真正滚动到接近底部时才标记学完
+      // 内容可滚动（确有滑动空间）且用户滚动到接近页面底部时就标记学完
+      // （0.95 而非 1，容忍文章底部 padding，避免滚到内容末尾仍差几像素不触发）
       const scrollable = scrollHeight - clientHeight > 4
-      if (scrollable && scrollTop > 0 && ratio >= 0.99) markAutoComplete()
+      if (scrollable && scrollTop > 0 && ratio >= 0.95) markAutoComplete()
     }
     vp.addEventListener("scroll", onScroll, { passive: true })
     // 组件流渲染完成后的初始复查（校准初始比例，不满一屏时不会误标学完）
@@ -262,25 +311,62 @@ export default function LearnPage() {
 
   return (
     <div className="flex h-[calc(100vh-56px)]">
-      {/* 左栏大纲 */}
-      <aside className="hidden w-72 shrink-0 border-r bg-card/50 lg:block">
-        <div className="flex h-12 items-center gap-2 border-b px-4">
-          <ListTree className="size-4 text-muted-foreground" />
-          <span className="truncate text-sm font-medium">{col.name}</span>
+      {/* 左栏大纲：可拖拽拉伸、可收起/展开（收起后显示窄条恢复按钮） */}
+      <aside
+        style={navOpen ? { width: navWidth } : undefined}
+        className={cn(
+          "relative hidden shrink-0 border-r bg-card/50 lg:block",
+          !navOpen && "w-0 overflow-hidden border-r-0",
+        )}
+      >
+        <div className={cn("flex h-12 items-center gap-2 border-b pr-2", navOpen ? "pl-4" : "pl-0")}>
+          {navOpen && <ListTree className="size-4 shrink-0 text-muted-foreground" />}
+          {navOpen && <span className="min-w-0 flex-1 truncate text-sm font-medium">{col.name}</span>}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 shrink-0"
+            onClick={closeNav}
+            title={t("core.learn.collapseNav")}
+          >
+            <PanelLeftClose className="size-4" />
+          </Button>
         </div>
-        <ScrollArea className="h-[calc(100%-48px)]">
-          <div className="p-3">
-            <OutlineNav
-              folder={col}
-              currentSectionId={sid!}
-              completedSet={completedSet}
-              onNavigate={go}
-              readingProgress={readingProgress}
-              onClearSection={clearSection}
+        {navOpen && (
+          <>
+            <ScrollArea className="h-[calc(100%-48px)]">
+              <div className="p-3">
+                <OutlineNav
+                  folder={col}
+                  currentSectionId={sid!}
+                  completedSet={completedSet}
+                  onNavigate={go}
+                  readingProgress={readingProgress}
+                  onClearSection={clearSection}
+                />
+              </div>
+            </ScrollArea>
+            <div
+              onMouseDown={startResize}
+              className="absolute inset-y-0 right-0 w-1.5 cursor-col-resize transition-colors hover:bg-primary/40"
+              title={t("core.learn.resizeNav")}
             />
-          </div>
-        </ScrollArea>
+          </>
+        )}
       </aside>
+      {!navOpen && (
+        <div className="hidden w-8 shrink-0 items-stretch border-r bg-card/50 lg:flex">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-12 w-full rounded-none"
+            onClick={openNav}
+            title={t("core.learn.expandNav")}
+          >
+            <PanelLeftOpen className="size-4" />
+          </Button>
+        </div>
+      )}
 
       {/* 主内容 */}
       <div className="flex min-w-0 flex-1 flex-col">
@@ -416,6 +502,9 @@ export default function LearnPage() {
           </Button>
         </div>
       </div>
+
+      {/* 左下角「问 AI」：弹出式问答面板（全局状态） */}
+      <AskAiPanel />
     </div>
   )
 }

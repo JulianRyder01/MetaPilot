@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { BookOpen, ChevronDown, Folder as FolderIcon, Trash2 } from "lucide-react"
 
 import { useT } from "@/i18n"
@@ -21,6 +21,12 @@ interface Props {
   onClearSection?: (sectionId: string) => void
 }
 
+/** 判断文件夹节点子树（含嵌套文件夹与文档的小节）是否包含指定小节。 */
+function nodeContainsSection(node: FolderNode, sectionId: string): boolean {
+  if (node.documents.some((d) => d.sections.some((s) => s.id === sectionId))) return true
+  return node.children.some((c) => nodeContainsSection(c, sectionId))
+}
+
 function DocBlock({
   doc,
   currentSectionId,
@@ -40,6 +46,12 @@ function DocBlock({
   const [armedSid, setArmedSid] = useState<string | null>(null)
   const docDone = doc.sections.length > 0 && doc.sections.every((s) => completedSet.has(s.id))
   const t = useT()
+
+  // 进入当前小节（切换章节/小节）时自动展开所在章节
+  const containsCurrent = doc.sections.some((s) => s.id === currentSectionId)
+  useEffect(() => {
+    if (containsCurrent) setOpen(true)
+  }, [containsCurrent, currentSectionId])
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -152,8 +164,15 @@ function FolderBlock({
   onClearSection?: (sectionId: string) => void
 }) {
   const t = useT()
+  const [open, setOpen] = useState(false)
+  // 当前小节位于本文件夹子树内时自动展开（跨章节切换目录跟随展开）
+  const containsCurrent = nodeContainsSection(node, currentSectionId)
+  useEffect(() => {
+    if (containsCurrent) setOpen(true)
+  }, [containsCurrent, currentSectionId])
+
   return (
-    <Collapsible>
+    <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-accent/60">
         <ChevronDown className="size-3.5 text-muted-foreground transition-transform [&[data-state=closed]]:-rotate-90" />
         <FolderIcon className="size-3.5 shrink-0 text-primary" />
