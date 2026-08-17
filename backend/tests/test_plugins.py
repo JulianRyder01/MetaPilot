@@ -86,8 +86,10 @@ def test_plugin_tutorials():
         assert isinstance(item["content"], str) and item["content"].strip()
         ids.add(item["id"])
     assert len(ids) == len(core["tutorials"]), "教程 id 必须唯一"
-    # 未声明教程的字段缺省为空列表
+    # 未声明教程的字段缺省为空列表；course 插件声明了自己的教程
     assert "tutorials" in by_id["course"] and isinstance(by_id["course"]["tutorials"], list)
+    course_ids = [t["id"] for t in by_id["course"]["tutorials"]]
+    assert course_ids == ["course-create-import", "course-edit-distribute"]
 
 
 def test_plugin_classification():
