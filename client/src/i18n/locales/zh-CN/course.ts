@@ -27,4 +27,18 @@ export const courseZhCN: Record<string, string> = {
   "course.library.toCourseConfirm": "转为课程",
   "course.library.convertedCourse": "「{name}」已转为课程",
   "course.library.convertCourseFailed": "转为课程失败",
+  // 动态交互 HTML（interactive 块 mode=dynamic）
+  "course.dynamic.noMultimodal": "您配置的大模型不支持多模态输入",
+  "course.dynamic.generateFailed": "AI 生成文本失败",
+  "course.dynamic.judgeDone": "AI 评判完成，结果已保存到本交互",
+  "course.dynamic.judgeFailed": "AI 评判失败",
+  "course.dynamic.dynamicBadge": "动态交互",
+  "course.dynamic.viewResult": "查看结果",
+  "course.dynamic.resultTitle": "AI 评判结果",
+  "course.dynamic.tabHtml": "HTML",
+  "course.dynamic.tabMarkdown": "Markdown",
+  "course.dynamic.closeResult": "关闭结果",
+  "course.dynamic.resultHtmlTitle": "AI 评判结果页",
+  "course.dynamic.finishJudge": "结束并提交给 AI 评判",
+  "course.dynamic.judging": "AI 评判中...",
 }

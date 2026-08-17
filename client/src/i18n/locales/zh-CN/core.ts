@@ -244,6 +244,17 @@ export const coreZhCN: Record<string, string> = {
   "core.edit.title": "标题",
   "core.edit.assetFile": "资产文件（相对课程包 interactives/ 的路径）",
   "core.edit.iframeHeight": "iframe 高度（px）",
+  "core.edit.interactiveMode": "组件模式",
+  "core.edit.modeStatic": "静态 HTML",
+  "core.edit.modeDynamic": "动态交互 HTML（AI 评判）",
+  "core.edit.multimodal": "该大模型支持多模态输入（图片）",
+  "core.edit.scenario": "情景设定（AI 评判依据：规则 / 评判标准 / 输出格式）",
+  "core.edit.scenarioPlaceholder": "例如：这是知识大闯关游戏，题目即敌人，选择正确行动即击杀敌人并记入评判上下文；评判时依据击杀/通关/失败记录与情景设定给出总结与得分……",
+  "core.edit.timeLimitSec": "答题时间（秒，0 = 不限时）",
+  "core.edit.hiddenBefore": "隐藏题目（点击输入框 / 查看题目后才显示并开始计时）",
+  "core.edit.autoSubmitOnTimeout": "超过答题时间按已填写内容自动提交",
+  "core.edit.timedRetryable": "可重试（重新完整作答一轮并重新计时）",
+  "core.edit.continuePrev": "接续上一题限时（上一题答完/到时间自动跳到本题并延续剩余时间）",
   "core.edit.explanationLabel": "解析 / 提示（可选）",
 
   // ---- 图表画布 ----

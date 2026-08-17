@@ -27,6 +27,24 @@ export const statsSummary = (range: string) =>
 export const grade = (data: Record<string, unknown>) =>
   request<GradeResult>("/plugins/course/ai/grade", { method: "POST", body: JSON.stringify(data) })
 
+/** 动态交互 HTML：AI 生成文本（子对话场景，前端自行维护 context json）。 */
+export const generateText = (data: { prompt: string; context?: string[] }) =>
+  request<{ text: string; model?: string }>("/plugins/course/ai/generate_text", {
+    method: "POST",
+    body: JSON.stringify(data),
+  })
+
+/** 动态交互 HTML：结束并提交给 AI 评判（情景设定 + 评判上下文 → Markdown/Html 结果页）。 */
+export const judgeInteractive = (data: {
+  scenario: string
+  context: { type: "text" | "image"; content: string }[]
+  blockTitle: string
+}) =>
+  request<{ markdown: string; html: string; model?: string }>("/plugins/course/ai/judge_interactive", {
+    method: "POST",
+    body: JSON.stringify(data),
+  })
+
 export const importCourse = (file: File, libraryId = "") => {
   const fd = new FormData()
   fd.append("file", file)

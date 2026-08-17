@@ -15,6 +15,7 @@ class CoursePlugin(Plugin):
     def register(self, app: FastAPI) -> None:
         from .routes import router as plugins_router
         from .routes_learning import ai_router, assets_router, progress_router, stats_router
+        from .routes_interactive import ai_router as interactive_ai_router
 
         from app.stats_widgets import register_widget
 
@@ -24,6 +25,7 @@ class CoursePlugin(Plugin):
         app.include_router(progress_router)
         app.include_router(stats_router)
         app.include_router(ai_router)
+        app.include_router(interactive_ai_router)
         app.include_router(assets_router)
 
         # 交互式学习插件为「统计」页贡献学习统计组件

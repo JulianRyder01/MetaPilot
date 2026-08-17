@@ -3,6 +3,7 @@ import { Expand, GripHorizontal, Maximize2, Minimize2 } from "lucide-react"
 
 import { useT } from "@/i18n"
 import { cn } from "@/lib/utils"
+import { DynamicInteractiveBlock } from "./DynamicInteractiveBlock"
 
 interface Props {
   collectionId: string
@@ -10,6 +11,7 @@ interface Props {
     title?: string
     file?: string
     height?: number
+    mode?: string
   }
 }
 
@@ -24,6 +26,11 @@ const MAX_H = 1200
  * ② 支持全屏。
  */
 export function InteractiveBlock({ collectionId, block }: Props) {
+  // 动态交互 HTML（mode="dynamic"）：四个前端埋点接口 + AI 评判结果页
+  if (block.mode === "dynamic") {
+    return <DynamicInteractiveBlock collectionId={collectionId} block={block} />
+  }
+
   const t = useT()
   const [expanded, setExpanded] = useState(false)
   const [height, setHeight] = useState(block.height ?? 480)

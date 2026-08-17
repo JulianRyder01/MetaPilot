@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 export const BLOCK_TYPES = [
   { value: "markdown", label: "core.edit.block.markdown" },
@@ -143,11 +150,65 @@ export function BlockForm({
             />
             <Label htmlFor="ai-graded">{t("core.edit.aiGraded")}</Label>
           </div>
+          {/* 限时答题模块配置（交互式学习插件 1.1.0） */}
+          <div className="space-y-1.5">
+            <Label>{t("core.edit.timeLimitSec")}</Label>
+            <Input
+              type="number"
+              min={0}
+              value={Number(form.timeLimitSec ?? 0)}
+              onChange={(e) => set("timeLimitSec", Math.max(0, Number(e.target.value)) || 0)}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="hidden-before"
+              checked={Boolean(form.hiddenBefore)}
+              onCheckedChange={(v) => set("hiddenBefore", v === true)}
+            />
+            <Label htmlFor="hidden-before">{t("core.edit.hiddenBefore")}</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="auto-submit-timeout"
+              checked={Boolean(form.autoSubmitOnTimeout)}
+              onCheckedChange={(v) => set("autoSubmitOnTimeout", v === true)}
+            />
+            <Label htmlFor="auto-submit-timeout">{t("core.edit.autoSubmitOnTimeout")}</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="timed-retryable"
+              checked={Boolean(form.retryable)}
+              onCheckedChange={(v) => set("retryable", v === true)}
+            />
+            <Label htmlFor="timed-retryable">{t("core.edit.timedRetryable")}</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="continue-prev"
+              checked={Boolean(form.continuePrev)}
+              onCheckedChange={(v) => set("continuePrev", v === true)}
+            />
+            <Label htmlFor="continue-prev">{t("core.edit.continuePrev")}</Label>
+          </div>
         </>
       )}
 
       {type === "interactive" && (
         <>
+          <div className="space-y-1.5">
+            <Label>{t("core.edit.interactiveMode")}</Label>
+            <Select value={(form.mode as string) ?? "static"} onValueChange={(v) => set("mode", v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="static">{t("core.edit.modeStatic")}</SelectItem>
+                <SelectItem value="dynamic">{t("core.edit.modeDynamic")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-1.5">
             <Label>{t("core.edit.title")}</Label>
             <Input value={(form.title as string) ?? ""} onChange={(e) => set("title", e.target.value)} />
@@ -168,6 +229,27 @@ export function BlockForm({
               onChange={(e) => set("height", Number(e.target.value))}
             />
           </div>
+          {form.mode === "dynamic" && (
+            <>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="multimodal"
+                  checked={Boolean(form.multimodal)}
+                  onCheckedChange={(v) => set("multimodal", v === true)}
+                />
+                <Label htmlFor="multimodal">{t("core.edit.multimodal")}</Label>
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t("core.edit.scenario")}</Label>
+                <Textarea
+                  rows={6}
+                  value={(form.scenario as string) ?? ""}
+                  onChange={(e) => set("scenario", e.target.value)}
+                  placeholder={t("core.edit.scenarioPlaceholder")}
+                />
+              </div>
+            </>
+          )}
         </>
       )}
 

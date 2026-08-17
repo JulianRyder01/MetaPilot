@@ -27,4 +27,18 @@ export const courseEn: Record<string, string> = {
   "course.library.toCourseConfirm": "Convert to course",
   "course.library.convertedCourse": "\"{name}\" converted to course",
   "course.library.convertCourseFailed": "Failed to convert to course",
+  // Dynamic interactive HTML (interactive block mode=dynamic)
+  "course.dynamic.noMultimodal": "Your configured model does not support multimodal input",
+  "course.dynamic.generateFailed": "Failed to generate text with AI",
+  "course.dynamic.judgeDone": "AI judging done. The result has been saved to this interaction.",
+  "course.dynamic.judgeFailed": "AI judging failed",
+  "course.dynamic.dynamicBadge": "Dynamic",
+  "course.dynamic.viewResult": "View result",
+  "course.dynamic.resultTitle": "AI judging result",
+  "course.dynamic.tabHtml": "HTML",
+  "course.dynamic.tabMarkdown": "Markdown",
+  "course.dynamic.closeResult": "Close result",
+  "course.dynamic.resultHtmlTitle": "AI judging result page",
+  "course.dynamic.finishJudge": "Finish and submit to AI judging",
+  "course.dynamic.judging": "AI judging...",
 }

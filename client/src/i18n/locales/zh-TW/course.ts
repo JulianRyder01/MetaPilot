@@ -27,4 +27,18 @@ export const courseZhTW: Record<string, string> = {
   "course.library.toCourseConfirm": "轉為課程",
   "course.library.convertedCourse": "「{name}」已轉為課程",
   "course.library.convertCourseFailed": "轉為課程失敗",
+  // 動態互動 HTML（interactive 區塊 mode=dynamic）
+  "course.dynamic.noMultimodal": "您配置的大模型不支援多模態輸入",
+  "course.dynamic.generateFailed": "AI 生成文字失敗",
+  "course.dynamic.judgeDone": "AI 評判完成，結果已儲存到本互動",
+  "course.dynamic.judgeFailed": "AI 評判失敗",
+  "course.dynamic.dynamicBadge": "動態互動",
+  "course.dynamic.viewResult": "檢視結果",
+  "course.dynamic.resultTitle": "AI 評判結果",
+  "course.dynamic.tabHtml": "HTML",
+  "course.dynamic.tabMarkdown": "Markdown",
+  "course.dynamic.closeResult": "關閉結果",
+  "course.dynamic.resultHtmlTitle": "AI 評判結果頁",
+  "course.dynamic.finishJudge": "結束並提交給 AI 評判",
+  "course.dynamic.judging": "AI 評判中...",
 }

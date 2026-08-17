@@ -609,6 +609,12 @@ class LibraryStore:
                     "content", "question", "options", "answer", "answers",
                     "blanks", "reference", "explanation", "keywords",
                     "ai_graded", "title", "file", "height",
+                    # 限时答题模块（交互式学习插件 1.1.0）
+                    "timeLimitSec", "hiddenBefore", "autoSubmitOnTimeout", "retryable", "continuePrev",
+                    # 动态交互 HTML（mode=dynamic + 情景设定 + 多模态开关）
+                    "mode", "scenario", "multimodal",
+                    # AI 评判结果（保存于交互块，重做覆盖）
+                    "lastResult",
                 ):
                     if key in data and data[key] is not None:
                         block[key] = data[key]
@@ -631,6 +637,12 @@ class LibraryStore:
                     "content", "question", "options", "answer", "answers",
                     "blanks", "reference", "explanation", "keywords",
                     "ai_graded", "title", "file", "height",
+                    # 限时答题模块（交互式学习插件 1.1.0）
+                    "timeLimitSec", "hiddenBefore", "autoSubmitOnTimeout", "retryable", "continuePrev",
+                    # 动态交互 HTML（mode=dynamic + 情景设定 + 多模态开关）
+                    "mode", "scenario", "multimodal",
+                    # AI 评判结果（保存于交互块，重做覆盖）
+                    "lastResult",
                 ):
                     if key in data:
                         block[key] = data[key]

@@ -256,6 +256,17 @@ export const coreEn: Record<string, string> = {
   "core.edit.title": "Title",
   "core.edit.assetFile": "Asset file (relative to interactives/ in the course pack)",
   "core.edit.iframeHeight": "iframe height (px)",
+  "core.edit.interactiveMode": "Component mode",
+  "core.edit.modeStatic": "Static HTML",
+  "core.edit.modeDynamic": "Dynamic interactive HTML (AI judging)",
+  "core.edit.multimodal": "This model supports multimodal input (images)",
+  "core.edit.scenario": "Scenario (AI judging basis: rules / criteria / output format)",
+  "core.edit.scenarioPlaceholder": "e.g. This is a knowledge-quest game: questions are enemies, choosing the correct action defeats one and is recorded into the judging context; when judging, summarize and score based on kill/clear/fail records and the scenario...",
+  "core.edit.timeLimitSec": "Time limit (seconds, 0 = no limit)",
+  "core.edit.hiddenBefore": "Hide the question (revealed and timed only after clicking the input / View question)",
+  "core.edit.autoSubmitOnTimeout": "Auto-submit filled answers when time is up",
+  "core.edit.timedRetryable": "Allow retry (restart a full round with a fresh timer)",
+  "core.edit.continuePrev": "Continue the previous question's timer (auto-jump to this question with the remaining time)",
   "core.edit.explanationLabel": "Explanation / hint (optional)",
 
   // ---- Canvas ----

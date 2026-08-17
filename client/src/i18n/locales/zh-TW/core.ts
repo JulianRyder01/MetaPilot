@@ -239,6 +239,17 @@ export const coreZhTW: Record<string, string> = {
   "core.edit.title": "標題",
   "core.edit.assetFile": "資產檔案（相對課程包 interactives/ 的路徑）",
   "core.edit.iframeHeight": "iframe 高度（px）",
+  "core.edit.interactiveMode": "元件模式",
+  "core.edit.modeStatic": "靜態 HTML",
+  "core.edit.modeDynamic": "動態互動 HTML（AI 評判）",
+  "core.edit.multimodal": "該大模型支援多模態輸入（圖片）",
+  "core.edit.scenario": "情境設定（AI 評判依據：規則 / 評判標準 / 輸出格式）",
+  "core.edit.scenarioPlaceholder": "例如：這是知識大闖關遊戲，題目即敵人，選擇正確行動即擊殺敵人並記入評判上下文；評判時依據擊殺/通關/失敗記錄與情境設定給出總結與得分……",
+  "core.edit.timeLimitSec": "答題時間（秒，0 = 不限時）",
+  "core.edit.hiddenBefore": "隱藏題目（點擊輸入框 / 查看題目後才顯示並開始計時）",
+  "core.edit.autoSubmitOnTimeout": "超過答題時間按已填寫內容自動提交",
+  "core.edit.timedRetryable": "可重試（重新完整作答一輪並重新計時）",
+  "core.edit.continuePrev": "接續上一題限時（上一題答完/到時間自動跳到本題並延續剩餘時間）",
   "core.edit.explanationLabel": "解析 / 提示（選填）",
 
   // ---- 图表画布 ----
