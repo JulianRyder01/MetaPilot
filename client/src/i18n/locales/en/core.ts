@@ -23,7 +23,7 @@ export const coreEn: Record<string, string> = {
   "core.learn.markedCompleted": "Marked as completed",
   "core.learn.unmarkedCompleted": "Marked as not completed",
   "core.learn.courseDisabledWarning":
-    "This document requires the \"Course\" plugin. Questions and interactive blocks will be shown as raw data. You can enable it on the \"Plugins\" page.",
+    "This document requires the \"Interactive Learning\" plugin. Questions and interactive blocks will be shown as raw data. You can enable it on the \"Plugins\" page.",
   "core.learn.completed": "Completed",
   "core.learn.markComplete": "Mark as completed",
   "core.learn.readingMode": "Reading mode",
@@ -69,7 +69,7 @@ export const coreEn: Record<string, string> = {
   "core.learn.aiFeedback": "AI feedback: ",
   "core.learn.hint": "Hint: {text}",
   "core.plugin.unknown": "Unknown plugin",
-  "core.plugin.course": "Course",
+  "core.plugin.course": "Interactive Learning",
 
   // ---- Library ----
   "core.library.quiz": "Quiz",
@@ -350,7 +350,7 @@ export const coreEn: Record<string, string> = {
   "core.stats.monthLabel": "{month}",
   "core.stats.weekdays": "M,T,W,T,F,S,S",
   "core.stats.courseDisabled":
-    "Requires the \"Course\" plugin, which is disabled",
+    "Requires the \"Interactive Learning\" plugin, which is disabled",
   "core.stats.totalStudy": "Total study time",
   "core.stats.chartMinutes": "Minutes",
   "core.stats.noStudyRecords": "No study records yet",

@@ -1,4 +1,4 @@
-"""课程插件：课程包导入 / 导出、Markdown 笔记导入、文档集转课程（课程插件路由）。
+"""交互式学习插件（原「课程」）：课程包导入 / 导出、Markdown 笔记导入、文档集转课程（交互式学习插件路由）。
 
 被禁用时所有端点返回 503 + 启用提示（requires_plugin("course")）。
 """
@@ -51,7 +51,7 @@ def convert_collection_to_course(cid: str, request: Request):
 
     课程 = 打了补丁的文档：数据仍是 库-文档集-文档-小节（doc 结构），
     仅补丁 kind=course 与转换标记（convertedFrom/convertedAt）等 key-value；
-    未加载/禁用课程插件时课程补丁能力（进度/判题/交互块）不可用，前端按插件门禁提示。
+    未加载/禁用交互式学习插件时课程补丁能力（进度/判题/交互块）不可用，前端按插件门禁提示。
     """
     store = request.app.state.store
     for it in store.list_libraries():

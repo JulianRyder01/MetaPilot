@@ -23,7 +23,7 @@ export const coreZhTW: Record<string, string> = {
   "core.learn.markedCompleted": "已標記學完",
   "core.learn.unmarkedCompleted": "已取消標記",
   "core.learn.courseDisabledWarning":
-    "此文件依賴「課程」外掛，題目與互動區塊將以原始資料展示，可前往「外掛」頁啟用。",
+    "此文件依賴「交互式學習」外掛，題目與互動區塊將以原始資料展示，可前往「外掛」頁啟用。",
   "core.learn.completed": "已學完",
   "core.learn.markComplete": "標記學完",
   "core.learn.readingMode": "文件閱讀",
@@ -69,7 +69,7 @@ export const coreZhTW: Record<string, string> = {
   "core.learn.aiFeedback": "AI 評語：",
   "core.learn.hint": "提示：{text}",
   "core.plugin.unknown": "未知外掛",
-  "core.plugin.course": "課程",
+  "core.plugin.course": "互動式學習",
 
   // ---- 文档库 ----
   "core.library.quiz": "測驗",
@@ -331,7 +331,7 @@ export const coreZhTW: Record<string, string> = {
   "core.stats.hourLabel": "{hour} 時",
   "core.stats.monthLabel": "{month}月",
   "core.stats.weekdays": "一,二,三,四,五,六,日",
-  "core.stats.courseDisabled": "依賴「課程」外掛，未啟用",
+  "core.stats.courseDisabled": "依賴「互動式學習」外掛，未啟用",
   "core.stats.totalStudy": "累計學習",
   "core.stats.chartMinutes": "分鐘",
   "core.stats.noStudyRecords": "暫無學習紀錄",

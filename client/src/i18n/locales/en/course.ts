@@ -1,7 +1,7 @@
 /** 域词典覆盖层：course。缺失回退 zh-CN。 */
 export const courseEn: Record<string, string> = {
   "course.exportFailed": "Export failed",
-  "course.pluginDisabledWarning": "This document depends on the Course plugin. Learning progress and quiz interactions are unavailable. Enable it on the Plugins page.",
+  "course.pluginDisabledWarning": "This document depends on the Interactive Learning plugin. Learning progress and quiz interactions are unavailable. Enable it on the Plugins page.",
   "course.backToLibrary": "Back to Library",
   "course.noDescription": "No description",
   "course.authorLabel": "Author: {author}",
@@ -10,7 +10,7 @@ export const courseEn: Record<string, string> = {
   "course.learningProgress": "Learning progress",
   "course.progressCount": "{completed} / {total} knowledge points",
   "course.lastLearned": "Last seen: {name}",
-  "course.progressRequiresPlugin": "Learning progress relies on the Course plugin. Enable it to mark sections as completed and track your last learning position.",
+  "course.progressRequiresPlugin": "Learning progress relies on the Interactive Learning plugin. Enable it to mark sections as completed and track your last learning position.",
   "course.quiz": "Quiz",
   "course.noSectionsInChapter": "No sections in this chapter",
   "course.noChapters": "This course has no chapters yet. Click Edit at the top right to start creating.",
@@ -23,7 +23,7 @@ export const courseEn: Record<string, string> = {
   "course.library.createCourseFailed": "Failed to create course",
   "course.library.toCourse": "Convert to course",
   "course.library.toCourseTitle": "Convert to course",
-  "course.library.toCourseDesc": "Convert \"{name}\" to a course? A course is a patched document that enables learning progress, grading, and interactive blocks. Course capabilities are unavailable while the Course plugin is disabled.",
+  "course.library.toCourseDesc": "Convert \"{name}\" to a course? A course is a patched document that enables learning progress, grading, and interactive blocks. Course capabilities are unavailable while the Interactive Learning plugin is disabled.",
   "course.library.toCourseConfirm": "Convert to course",
   "course.library.convertedCourse": "\"{name}\" converted to course",
   "course.library.convertCourseFailed": "Failed to convert to course",

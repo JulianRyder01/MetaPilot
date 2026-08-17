@@ -23,7 +23,7 @@ export const coreZhCN: Record<string, string> = {
   "core.learn.markedCompleted": "已标记学完",
   "core.learn.unmarkedCompleted": "已取消标记",
   "core.learn.courseDisabledWarning":
-    "此文档依赖「课程」插件，题目与交互块将以原始数据展示，可前往「插件」页启用。",
+    "此文档依赖「交互式学习」插件，题目与交互块将以原始数据展示，可前往「插件」页启用。",
   "core.learn.completed": "已学完",
   "core.learn.markComplete": "标记学完",
   "core.learn.readingMode": "文档阅读",
@@ -69,7 +69,7 @@ export const coreZhCN: Record<string, string> = {
   "core.learn.aiFeedback": "AI 评语：",
   "core.learn.hint": "提示：{text}",
   "core.plugin.unknown": "未知插件",
-  "core.plugin.course": "课程",
+  "core.plugin.course": "交互式学习",
 
   // ---- 文档库 ----
   "core.library.quiz": "测验",
@@ -336,7 +336,7 @@ export const coreZhCN: Record<string, string> = {
   "core.stats.hourLabel": "{hour} 时",
   "core.stats.monthLabel": "{month}月",
   "core.stats.weekdays": "一,二,三,四,五,六,日",
-  "core.stats.courseDisabled": "依赖「课程」插件，未启用",
+  "core.stats.courseDisabled": "依赖「交互式学习」插件，未启用",
   "core.stats.totalStudy": "累计学习",
   "core.stats.chartMinutes": "分钟",
   "core.stats.noStudyRecords": "暂无学习记录",

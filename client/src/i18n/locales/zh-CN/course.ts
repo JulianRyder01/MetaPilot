@@ -1,7 +1,7 @@
 /** 域词典：course（课程插件页面）。key 前缀 course. */
 export const courseZhCN: Record<string, string> = {
   "course.exportFailed": "导出失败",
-  "course.pluginDisabledWarning": "此文档依赖「课程」插件，学习进度与题目交互不可用，可前往「插件」页启用。",
+  "course.pluginDisabledWarning": "此文档依赖「交互式学习」插件，学习进度与题目交互不可用，可前往「插件」页启用。",
   "course.backToLibrary": "返回库",
   "course.noDescription": "暂无简介",
   "course.authorLabel": "作者：{author}",
@@ -10,7 +10,7 @@ export const courseZhCN: Record<string, string> = {
   "course.learningProgress": "学习进度",
   "course.progressCount": "{completed} / {total} 个知识点",
   "course.lastLearned": "上次学到：{name}",
-  "course.progressRequiresPlugin": "学习进度依赖「课程」插件，启用后可标记学完并跟踪上次学习位置。",
+  "course.progressRequiresPlugin": "学习进度依赖「交互式学习」插件，启用后可标记学完并跟踪上次学习位置。",
   "course.quiz": "测验",
   "course.noSectionsInChapter": "本章暂无小节",
   "course.noChapters": "该课程还没有章节，点击右上角「编辑」开始创建。",
@@ -23,7 +23,7 @@ export const courseZhCN: Record<string, string> = {
   "course.library.createCourseFailed": "创建课程失败",
   "course.library.toCourse": "转为课程",
   "course.library.toCourseTitle": "转为课程",
-  "course.library.toCourseDesc": "把「{name}」转为课程？课程是打了补丁的文档，可启用学习进度、判题与交互块等课程能力；未启用「课程」插件时课程补丁能力不可用。",
+  "course.library.toCourseDesc": "把「{name}」转为课程？课程是打了补丁的文档，可启用学习进度、判题与交互块等课程能力；未启用「交互式学习」插件时课程补丁能力不可用。",
   "course.library.toCourseConfirm": "转为课程",
   "course.library.convertedCourse": "「{name}」已转为课程",
   "course.library.convertCourseFailed": "转为课程失败",
