@@ -8,6 +8,14 @@ import { cn } from "@/lib/utils"
 
 const RANGES = ["today", "week", "month", "all"] as const
 
+/** 范围 key → i18n key（词典为驼峰 rangeToday/rangeWeek/rangeMonth/rangeAll，不可字符串拼接小写值） */
+const RANGE_LABEL_KEY: Record<(typeof RANGES)[number], string> = {
+  today: "core.stats.rangeToday",
+  week: "core.stats.rangeWeek",
+  month: "core.stats.rangeMonth",
+  all: "core.stats.rangeAll",
+}
+
 /** AI 用量统计组件（核心提供）：调用次数 / token 使用量 / 成本，按模型分组。 */
 export function AiUsageWidget() {
   const t = useT()
@@ -43,7 +51,7 @@ export function AiUsageWidget() {
               range === r ? "bg-primary/15 font-medium text-primary" : "text-muted-foreground hover:bg-accent",
             )}
           >
-            {t("core.stats.range" + r)}
+            {t(RANGE_LABEL_KEY[r])}
           </button>
         ))}
       </div>
