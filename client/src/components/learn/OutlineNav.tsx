@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { BookOpen, CheckCircle2, ChevronDown, Circle, Folder as FolderIcon } from "lucide-react"
+import { BookOpen, ChevronDown, Folder as FolderIcon, Trash2 } from "lucide-react"
 
 import { useT } from "@/i18n"
 import type { Document, Folder } from "@/lib/api"
@@ -7,12 +7,18 @@ import { cn } from "@/lib/utils"
 import { buildFolderTree, type FolderNode } from "@/lib/tree"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { SectionRing } from "@/components/learn/SectionRing"
 
 interface Props {
   folder: Folder
   currentSectionId: string
   completedSet: Set<string>
   onNavigate: (sectionId: string) => void
+  /** 当前小节的实时阅读进度（页面滑动比例 0~1），仅对当前小节生效。 */
+  readingProgress?: { pct: number }
+  /** 点击圆圈二次确认后清空某一小节的完成进度。 */
+  onClearSection?: (sectionId: string) => void
 }
 
 function DocBlock({
@@ -20,13 +26,18 @@ function DocBlock({
   currentSectionId,
   completedSet,
   onNavigate,
+  readingProgress,
+  onClearSection,
 }: {
   doc: Document
   currentSectionId: string
   completedSet: Set<string>
   onNavigate: (sectionId: string) => void
+  readingProgress?: { pct: number }
+  onClearSection?: (sectionId: string) => void
 }) {
   const [open, setOpen] = useState(() => doc.sections.some((s) => s.id === currentSectionId))
+  const [armedSid, setArmedSid] = useState<string | null>(null)
   const docDone = doc.sections.length > 0 && doc.sections.every((s) => completedSet.has(s.id))
   const t = useT()
 
@@ -35,7 +46,7 @@ function DocBlock({
       <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-accent/60">
         <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform", !open && "-rotate-90")} />
         {docDone ? (
-          <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" />
+          <SectionRing done />
         ) : (
           <BookOpen className="size-3.5 shrink-0 text-muted-foreground" />
         )}
@@ -46,25 +57,75 @@ function DocBlock({
         {doc.sections.map((sec) => {
           const active = sec.id === currentSectionId
           const done = completedSet.has(sec.id)
+          const isCurrent = sec.id === currentSectionId
+          const prog =
+            isCurrent && readingProgress && readingProgress.pct > 0
+              ? Math.max(0, Math.min(1, readingProgress.pct))
+              : 0
+          const hasProgress = !done && isCurrent && prog > 0
+          const canClear = done || hasProgress
+          const armed = armedSid === sec.id && canClear
+          const tooltipText = armed
+            ? t("core.learn.clearProgressHint")
+            : hasProgress
+              ? t("core.learn.progressTooltip", { pct: Math.round(prog * 100) })
+              : ""
           return (
-            <button
+            <div
               key={sec.id}
-              onClick={() => onNavigate(sec.id)}
+              onMouseLeave={() => setArmedSid((v) => (v === sec.id ? null : v))}
               className={cn(
-                "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors",
+                "flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors",
                 active
                   ? "bg-primary/10 font-medium text-primary"
                   : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
               )}
             >
-              {done ? (
-                <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" />
-              ) : (
-                <Circle className="size-3.5 shrink-0 text-muted-foreground/40" />
-              )}
-              <span className="min-w-0 flex-1 truncate">{sec.name}</span>
-              {sec.refDocId && <Badge variant="outline" className="text-[10px]">{t("core.learn.ref")}</Badge>}
-            </button>
+              <Tooltip
+                open={armed || undefined}
+                onOpenChange={(o) => {
+                  if (!o) setArmedSid((v) => (v === sec.id ? null : v))
+                }}
+              >
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={sec.name}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!canClear) return
+                      if (armed) {
+                        setArmedSid(null)
+                        onClearSection?.(sec.id)
+                      } else {
+                        setArmedSid(sec.id)
+                      }
+                    }}
+                    className="shrink-0 rounded-full p-0.5 transition-colors hover:bg-accent focus-visible:outline-none"
+                  >
+                    {done ? (
+                      <SectionRing done />
+                    ) : armed ? (
+                      <span className="relative inline-flex size-3.5 shrink-0 items-center justify-center">
+                        <SectionRing pct={1} className="text-red-500" />
+                        <Trash2 className="absolute size-2.5 text-red-500" />
+                      </span>
+                    ) : (
+                      <SectionRing pct={prog} className="text-primary" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                {tooltipText && <TooltipContent side="right">{tooltipText}</TooltipContent>}
+              </Tooltip>
+              <button
+                type="button"
+                onClick={() => onNavigate(sec.id)}
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              >
+                <span className="min-w-0 flex-1 truncate">{sec.name}</span>
+                {sec.refDocId && <Badge variant="outline" className="text-[10px]">{t("core.learn.ref")}</Badge>}
+              </button>
+            </div>
           )
         })}
         {doc.sections.length === 0 && (
@@ -80,11 +141,15 @@ function FolderBlock({
   currentSectionId,
   completedSet,
   onNavigate,
+  readingProgress,
+  onClearSection,
 }: {
   node: FolderNode
   currentSectionId: string
   completedSet: Set<string>
   onNavigate: (sectionId: string) => void
+  readingProgress?: { pct: number }
+  onClearSection?: (sectionId: string) => void
 }) {
   const t = useT()
   return (
@@ -102,6 +167,8 @@ function FolderBlock({
             currentSectionId={currentSectionId}
             completedSet={completedSet}
             onNavigate={onNavigate}
+            readingProgress={readingProgress}
+            onClearSection={onClearSection}
           />
         ))}
         {node.documents.map((doc) => (
@@ -111,6 +178,8 @@ function FolderBlock({
             currentSectionId={currentSectionId}
             completedSet={completedSet}
             onNavigate={onNavigate}
+            readingProgress={readingProgress}
+            onClearSection={onClearSection}
           />
         ))}
         {node.children.length === 0 && node.documents.length === 0 && (
@@ -121,28 +190,41 @@ function FolderBlock({
   )
 }
 
-export function OutlineNav({ folder, currentSectionId, completedSet, onNavigate }: Props) {
+export function OutlineNav({
+  folder,
+  currentSectionId,
+  completedSet,
+  onNavigate,
+  readingProgress,
+  onClearSection,
+}: Props) {
   const tree = buildFolderTree(folder)
   return (
-    <nav className="space-y-1">
-      {tree.roots.map((node) => (
-        <FolderBlock
-          key={node.id}
-          node={node}
-          currentSectionId={currentSectionId}
-          completedSet={completedSet}
-          onNavigate={onNavigate}
-        />
-      ))}
-      {tree.rootDocuments.map((doc) => (
-        <DocBlock
-          key={doc.id}
-          doc={doc}
-          currentSectionId={currentSectionId}
-          completedSet={completedSet}
-          onNavigate={onNavigate}
-        />
-      ))}
-    </nav>
+    <TooltipProvider>
+      <nav className="space-y-1">
+        {tree.roots.map((node) => (
+          <FolderBlock
+            key={node.id}
+            node={node}
+            currentSectionId={currentSectionId}
+            completedSet={completedSet}
+            onNavigate={onNavigate}
+            readingProgress={readingProgress}
+            onClearSection={onClearSection}
+          />
+        ))}
+        {tree.rootDocuments.map((doc) => (
+          <DocBlock
+            key={doc.id}
+            doc={doc}
+            currentSectionId={currentSectionId}
+            completedSet={completedSet}
+            onNavigate={onNavigate}
+            readingProgress={readingProgress}
+            onClearSection={onClearSection}
+          />
+        ))}
+      </nav>
+    </TooltipProvider>
   )
 }

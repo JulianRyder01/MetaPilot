@@ -35,6 +35,11 @@ export default function LearnPage() {
   const startRef = useRef(Date.now())
   const courseEnabled = usePluginEnabled("course")
 
+  // ---- 小节阅读进度（页面滑动比例）与"滑到底部自动标记学完" ----
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const [readRatio, setReadRatio] = useState(0)
+  const autoCompletedRef = useRef(false)
+
   const load = useCallback(async () => {
     if (!cid) return
     const c = await api.getFolder(cid)
@@ -118,6 +123,71 @@ export default function LearnPage() {
     [progress],
   )
   const isCompleted = sid ? completedSet.has(sid) : false
+  const completedRef = useRef(completedSet)
+  completedRef.current = completedSet
+
+  // 课程类型依赖课程插件：禁用时仍可阅读（markdown 正常、题目/交互块显示原始数据），仅提示依赖。
+  const isCourse = col?.kind === "course"
+  const canTrack = isCourse && courseEnabled
+
+  /** 当前小节的实时阅读进度（页面滑动比例 0~1），供目录圆圈显示部分进度。 */
+  const readingProgress =
+    canTrack && current && current.section.blocks.length > 0 ? { pct: readRatio } : undefined
+
+  /** 自动标记学完（滚动读完一节后触发一次）。 */
+  async function markAutoComplete() {
+    if (!cid || !sid || !canTrack) return
+    if (completedRef.current.has(sid)) {
+      autoCompletedRef.current = true
+      return
+    }
+    if (autoCompletedRef.current) return
+    autoCompletedRef.current = true
+    try {
+      const { toggleCompleted } = await import("@/plugins/course/api")
+      const r = await toggleCompleted(cid, sid)
+      if (r.completed) {
+        setProgress((p) =>
+          p
+            ? {
+                ...p,
+                completedSections: p.completedSections.includes(sid) ? p.completedSections : [...p.completedSections, sid],
+              }
+            : p,
+        )
+        toast.success(t("core.learn.autoCompleted"))
+      } else {
+        autoCompletedRef.current = false
+      }
+    } catch {
+      autoCompletedRef.current = false
+    }
+  }
+
+  /** 目录圆圈二次点击：清空该小节的完成进度（已完成则取消完成；当前小节同时清零实时阅读进度）。 */
+  async function clearSection(sidToClear: string) {
+    if (sidToClear === sid) {
+      setReadRatio(0)
+      autoCompletedRef.current = false
+    }
+    if (completedSet.has(sidToClear)) {
+      try {
+        const { toggleCompleted } = await import("@/plugins/course/api")
+        await toggleCompleted(cid!, sidToClear)
+        setProgress((p) =>
+          p
+            ? {
+                ...p,
+                completedSections: p.completedSections.filter((x) => x !== sidToClear),
+              }
+            : p,
+        )
+        toast.success(t("core.learn.clearedProgress"))
+      } catch {
+        /* 清空失败不阻断 */
+      }
+    }
+  }
 
   async function toggleDone() {
     if (!cid || !sid) return
@@ -140,10 +210,35 @@ export default function LearnPage() {
     if (cid) navigate(`/learn/${cid}/${sectionId}`)
   }
 
-  // 课程类型依赖课程插件：禁用时仍可阅读（markdown 正常、题目/交互块显示原始数据），
-  // 仅提示依赖，不拦截浏览。
-  const isCourse = col?.kind === "course"
-  const canTrack = isCourse && courseEnabled
+  // 小节阅读进度：按页面滑动比例计算；滚动到页面底部附近且确实滚动过时才自动标记学完
+  useEffect(() => {
+    if (!canTrack || !current || !current.section.blocks.length) return
+    const vp = viewportRef.current
+    if (!vp) return
+    setReadRatio(0)
+    autoCompletedRef.current = false
+
+    const onScroll = () => {
+      const { scrollTop, clientHeight, scrollHeight } = vp
+      // 页面滑动比例：视口底部到达文档顶部的位置占比（0~1）
+      const ratio = scrollHeight > 0 ? (scrollTop + clientHeight) / scrollHeight : 1
+      setReadRatio(Math.max(0, Math.min(1, ratio)))
+      // 内容可滚动（确有滑动空间）且用户真正滚动到接近底部时才标记学完
+      const scrollable = scrollHeight - clientHeight > 4
+      if (scrollable && scrollTop > 0 && ratio >= 0.99) markAutoComplete()
+    }
+    vp.addEventListener("scroll", onScroll, { passive: true })
+    // 组件流渲染完成后的初始复查（校准初始比例，不满一屏时不会误标学完）
+    const t0 = window.setTimeout(onScroll, 300)
+    const t1 = window.setTimeout(onScroll, 1200)
+
+    return () => {
+      vp.removeEventListener("scroll", onScroll)
+      window.clearTimeout(t0)
+      window.clearTimeout(t1)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cid, sid, canTrack, current?.section.id])
   const warnedRef = useRef(false)
   useEffect(() => {
     if (isCourse && !courseEnabled && !warnedRef.current) {
@@ -180,6 +275,8 @@ export default function LearnPage() {
               currentSectionId={sid!}
               completedSet={completedSet}
               onNavigate={go}
+              readingProgress={readingProgress}
+              onClearSection={clearSection}
             />
           </div>
         </ScrollArea>
@@ -206,6 +303,8 @@ export default function LearnPage() {
                       currentSectionId={sid!}
                       completedSet={completedSet}
                       onNavigate={go}
+                      readingProgress={readingProgress}
+                      onClearSection={clearSection}
                     />
                   </div>
                 </ScrollArea>
@@ -235,7 +334,7 @@ export default function LearnPage() {
         </div>
 
         {/* 组件流 */}
-        <ScrollArea className="flex-1">
+        <ScrollArea viewportRef={viewportRef} className="flex-1">
           <article className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
             <header>
               <p className="text-xs font-medium uppercase tracking-wide text-primary">
