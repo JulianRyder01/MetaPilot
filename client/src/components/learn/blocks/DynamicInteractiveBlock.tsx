@@ -77,6 +77,10 @@ export function DynamicInteractiveBlock({ collectionId, block }: Props) {
   const judgingRef = useRef(false)
   const [showResult, setShowResult] = useState(false)
   const [result, setResult] = useState<{ markdown: string; html: string } | null>(null)
+  // 已保存到块的评判结果（本会话内即时可用；重做后覆盖）
+  const [savedResult, setSavedResult] = useState<{ markdown: string; html: string } | null>(
+    block.lastResult?.markdown || block.lastResult?.html ? block.lastResult! : null,
+  )
 
   const file = block.file ?? ""
   const multimodal = Boolean(block.multimodal)
@@ -172,6 +176,7 @@ export function DynamicInteractiveBlock({ collectionId, block }: Props) {
       })
       const next = { markdown: r.markdown, html: r.html }
       setResult(next)
+      setSavedResult(next)
       setShowResult(true)
       // 结果保存到本交互块（lastResult），重做交互会覆盖旧结果
       if (block.id) {
@@ -246,13 +251,13 @@ export function DynamicInteractiveBlock({ collectionId, block }: Props) {
             </Badge>
           </span>
           <div className="flex items-center gap-1">
-            {block.lastResult && !judging && (
+            {savedResult && !judging && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-7 gap-1 px-2 text-xs"
                 onClick={() => {
-                  setResult({ markdown: block.lastResult?.markdown ?? "", html: block.lastResult?.html ?? "" })
+                  setResult(savedResult)
                   setShowResult(true)
                 }}
               >
