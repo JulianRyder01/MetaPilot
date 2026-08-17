@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -147,9 +148,45 @@ def main() -> int:
         return 1
 
     print("[成功] 课程包校验通过：manifest.json 合法，所有交互文件引用有效。")
-    print("      可在客户端「库 → 导入课程包」选择本目录(zip)导入，或运行:")
-    print("      cd backend && python scripts/seed_subject1.py 导入本地（需后端依赖）")
+    if "--import" in sys.argv or os.environ.get("SEED_IMPORT", "").lower() in ("1", "true", "yes"):
+        imp_ok = import_to_backend()
+        return 0 if imp_ok else 2
+    print("      如需导入后端本地数据（客户端直接可用），请运行：")
+    print("      cd backend && python ../courses/subject1-driving/scripts/seed_subject1.py --import")
     return 0
+
+
+def import_to_backend() -> bool:
+    """将课程包导入后端本地数据（幂等：复用同名库、同 packageId 替换旧课程并重落资产）。
+
+    需在 backend/ 目录下运行（DATA_DIR 为相对路径 .env 配置，取决于 cwd）。
+    """
+    sys.path.insert(0, str(ROOT / "backend"))
+    try:
+        from app.config import DATA_DIR  # noqa: E402
+        from app.services.importer import CourseImporter  # noqa: E402
+        from app.services.mpf import register_core_mpf_types  # noqa: E402
+        from app.storage.store import LibraryStore  # noqa: E402
+    except Exception as e:  # 后端依赖未安装
+        print(f"[导入失败] 后端依赖不可用: {e}")
+        return False
+
+    register_core_mpf_types()
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    store = LibraryStore(DATA_DIR)
+    importer = CourseImporter(store, DATA_DIR / "assets" / "courses")
+    assets = {
+        f"interactives/{p.name}": p.read_bytes()
+        for p in sorted(INTERACTIVES.glob("*.html"))
+    }
+    print(f"[导入] 课程包: {manifest['name']}，资产 {len(assets)} 个 → {DATA_DIR}")
+    library_id = next(
+        (it["id"] for it in store.list_libraries() if it["name"] == manifest["library"]["name"]),
+        "",
+    )
+    result = importer.import_package(manifest, assets, library_id=library_id)
+    print(f"[导入成功] 库: {manifest['library']['name']}，课程集合: {result}")
+    return True
 
 
 if __name__ == "__main__":
