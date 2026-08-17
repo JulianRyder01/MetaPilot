@@ -71,7 +71,7 @@ export function ShortAnswerBlock({ block }: Props) {
 
   return (
     <div
-      ref={(el) => q.setEl(el)}
+      ref={q.setEl}
       tabIndex={-1}
       className="relative rounded-lg border bg-card p-5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >

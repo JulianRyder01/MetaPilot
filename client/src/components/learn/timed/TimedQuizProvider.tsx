@@ -264,14 +264,34 @@ export function useTimedQuestion(blockId: string, block: Record<string, unknown>
   const continuePrev = Boolean(block.continuePrev)
   const enabled = timeLimitSec > 0 || hiddenBefore || continuePrev || retryable || autoSubmitOnTimeout
 
+  const elRef = useRef<HTMLElement | null>(null)
+
   useEffect(() => {
     const c = ctxRef.current
     if (!c || !enabled) return
     c.register({ id: blockId, timeLimitSec, hiddenBefore, autoSubmitOnTimeout, retryable, continuePrev })
+    // ref callback 先于本 effect 执行：此时 entry 可能尚未注册导致 el 丢失，
+    // 注册完成后补设一次 el（接续跳转/滚动聚焦依赖 el）
+    if (elRef.current) c.setEl(blockId, elRef.current)
     return () => c.unregister(blockId)
     // ctx 引用随 entries 变化，不能进依赖（否则会卸载重注册导致计时状态丢失）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blockId, enabled, timeLimitSec, hiddenBefore, autoSubmitOnTimeout, retryable, continuePrev])
+
+  // 方法必须稳定引用：setEl 作为 ref callback 传入，若每次渲染都是新函数，
+  // React 会在每次 commit 先以 null 调用旧回调再以新回调调用，导致 setEntries 无限循环
+  // （React 19 下表现为此组件树崩溃白屏）。经 ctxRef 读取最新 context，blockId 决定引用。
+  const reveal = useCallback(() => ctxRef.current?.reveal(blockId), [blockId])
+  const notifyCompleted = useCallback(() => ctxRef.current?.notifyCompleted(blockId), [blockId])
+  const registerAutoSubmit = useCallback((fn: () => void) => ctxRef.current?.registerAutoSubmit(blockId, fn), [blockId])
+  const retry = useCallback(() => ctxRef.current?.retry(blockId), [blockId])
+  const setEl = useCallback(
+    (el: HTMLElement | null) => {
+      elRef.current = el
+      ctxRef.current?.setEl(blockId, el)
+    },
+    [blockId],
+  )
 
   if (!ctx || !enabled) return EMPTY
 
@@ -290,11 +310,11 @@ export function useTimedQuestion(blockId: string, block: Record<string, unknown>
     remainingSec,
     timeup: entry?.status === "timeup",
     completed: entry?.status === "completed",
-    reveal: () => ctx.reveal(blockId),
-    notifyCompleted: () => ctx.notifyCompleted(blockId),
-    registerAutoSubmit: (fn) => ctx.registerAutoSubmit(blockId, fn),
-    retry: () => ctx.retry(blockId),
-    setEl: (el) => ctx.setEl(blockId, el),
+    reveal,
+    notifyCompleted,
+    registerAutoSubmit,
+    retry,
+    setEl,
   }
 }
 
