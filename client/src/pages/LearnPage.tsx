@@ -24,6 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { OutlineNav } from "@/components/learn/OutlineNav"
 import { BlockRenderer } from "@/components/learn/BlockRenderer"
+import { TimedQuizProvider } from "@/components/learn/timed/TimedQuizProvider"
 
 export default function LearnPage() {
   const { cid, sid } = useParams()
@@ -270,14 +271,16 @@ export default function LearnPage() {
               </div>
             )}
             <div className="space-y-6">
-              {current.section.blocks.map((block) => (
-                <BlockRenderer key={block.id} block={block} collectionId={cid!} />
-              ))}
-              {current.section.blocks.length === 0 && (
-                <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                  {t("core.learn.emptySection")}
-                </p>
-              )}
+              <TimedQuizProvider>
+                {current.section.blocks.map((block) => (
+                  <BlockRenderer key={block.id} block={block} collectionId={cid!} />
+                ))}
+                {current.section.blocks.length === 0 && (
+                  <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                    {t("core.learn.emptySection")}
+                  </p>
+                )}
+              </TimedQuizProvider>
             </div>
           </article>
         </ScrollArea>
