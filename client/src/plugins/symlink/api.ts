@@ -25,6 +25,10 @@ export const symlinkPinMount = (id: string, pinned: boolean) =>
 export const symlinkSetDefaultMount = (id: string) =>
   request<{ kind: "symlink"; id: string }>(`/plugins/symlink/mounts/${id}/default`, { method: "POST" })
 
+/** 取消默认保存目标（与置顶相互独立，可单独取消） */
+export const symlinkClearDefaultMount = (id: string) =>
+  request<{ kind: "symlink"; id: string }>(`/plugins/symlink/mounts/${id}/default`, { method: "DELETE" })
+
 export const symlinkRemoveMount = (id: string) =>
   request<{ ok: boolean }>(`/plugins/symlink/mounts/${id}`, { method: "DELETE" })
 

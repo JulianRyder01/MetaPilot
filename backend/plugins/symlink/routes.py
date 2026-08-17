@@ -71,12 +71,19 @@ def fs_list(path: str = "", request: Request = None):
 
 @router.get("/mounts")
 def list_mounts(request: Request):
-    """挂载列表（软链接与库平级展示；置顶优先；isDefault 由核心默认保存目标派生）。"""
+    """挂载列表（软链接与库平级展示；默认且置顶 → 最前，置顶 → 其次，
+    默认（未置顶）→ 紧随置顶组，其余保持挂载顺序；isDefault 由核心默认保存目标派生）。"""
     mounts = _svc(request).list_mounts()
     dt = _default_target(request)
     for m in mounts:
         m["isDefault"] = dt.get("kind") == "symlink" and dt.get("id") == m["id"]
-    return sorted(mounts, key=lambda m: not bool(m.get("pinned")))
+
+    def sort_key(m: dict) -> int:
+        pinned = bool(m.get("pinned"))
+        is_default = bool(m.get("isDefault"))
+        return 0 if (pinned and is_default) else (1 if pinned else (2 if is_default else 3))
+
+    return sorted(mounts, key=sort_key)
 
 
 @router.post("/mounts")
@@ -101,6 +108,16 @@ def set_default_mount(mid: str, request: Request):
     try:
         _svc(request).get_mount(mid)
         return request.app.state.store.set_default_target("symlink", mid)
+    except Exception as e:
+        _err(e)
+
+
+@router.delete("/mounts/{mid}/default")
+def clear_default_mount(mid: str, request: Request):
+    """取消把该软链接作为默认保存目标（与置顶相互独立，可单独取消）。"""
+    try:
+        _svc(request).get_mount(mid)
+        return request.app.state.store.clear_default_target("symlink", mid)
     except Exception as e:
         _err(e)
 

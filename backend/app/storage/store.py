@@ -180,9 +180,22 @@ class LibraryStore:
 
     # ---- 库级 ----
     def list_libraries(self) -> list[dict]:
-        """库摘要列表（置顶优先，其余保持创建顺序）。"""
+        """库摘要列表：默认且置顶 → 最前；置顶 → 其次；默认（未置顶）→ 紧随置顶组；其余保持创建顺序。
+
+        isDefault 实时从默认保存目标派生（index 缓存中的旧值可能过期，不依赖）。
+        """
         items = self._load_index()
-        return sorted(items, key=lambda it: not bool(it.get("pinned")))
+        dt = self.get_default_target()
+        default_id = dt.get("id") if dt.get("kind") == "library" else None
+        for it in items:
+            it["isDefault"] = it["id"] == default_id
+
+        def sort_key(it: dict) -> int:
+            pinned = bool(it.get("pinned"))
+            is_default = bool(it.get("isDefault"))
+            return 0 if (pinned and is_default) else (1 if pinned else (2 if is_default else 3))
+
+        return sorted(items, key=sort_key)
 
     def get_library(self, lid: str) -> dict:
         return self._load_lib(lid)
@@ -232,10 +245,11 @@ class LibraryStore:
         t = self.get_default_target()
         return t.get("kind") == kind and t.get("id") == target_id
 
-    def clear_default_target(self, kind: str, target_id: str) -> None:
-        """目标被删除时清除其默认标记（避免悬空）。"""
+    def clear_default_target(self, kind: str, target_id: str) -> dict:
+        """目标被删除/取消默认时清除其默认标记（避免悬空）；返回清除后的默认保存目标。"""
         if self.is_default_target(kind, target_id):
-            self.set_default_target("", "")
+            return self.set_default_target("", "")
+        return self.get_default_target()
 
     def set_default_library(self, lid: str) -> dict:
         """把指定库设为默认保存目标（唯一），并返回库信息。"""

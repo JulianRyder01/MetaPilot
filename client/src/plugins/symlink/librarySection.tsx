@@ -17,6 +17,7 @@ import {
   symlinkRemoveMount,
   symlinkRenameMount,
   symlinkSetDefaultMount,
+  symlinkClearDefaultMount,
 } from "@/plugins/symlink/api"
 import type { SymlinkMount } from "@/lib/api"
 import { AddMountDialog } from "@/components/symlink/AddMountDialog"
@@ -83,6 +84,13 @@ export function SymlinkLibrarySection() {
     loadMounts()
   }
 
+  /** 取消默认保存目标（与置顶相互独立，可单独取消） */
+  async function clearDefault(m: SymlinkMount) {
+    await symlinkClearDefaultMount(m.id)
+    toast.success(t("core.library.defaultCleared"))
+    loadMounts()
+  }
+
   /** 重命名挂载名 */
   async function renameMount(m: SymlinkMount) {
     const name = await prompt({
@@ -116,7 +124,7 @@ export function SymlinkLibrarySection() {
             {m.pinned && <Pin className="size-3 shrink-0 text-primary" aria-label={t("core.library.pinned")} />}
             {m.isDefault && (
               <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-primary/15 px-1 py-px text-[10px] font-medium text-primary">
-                <Star className="size-2.5" />
+                <Star className="size-2.5 fill-current" />
                 {t("core.library.defaultLib")}
               </span>
             )}
@@ -142,11 +150,17 @@ export function SymlinkLibrarySection() {
                 <Pin className="text-muted-foreground" />
                 {t(m.pinned ? "core.library.unpin" : "core.library.pin")}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setDefault(m)} disabled={m.isDefault}>
-                <Star className="text-muted-foreground" />
-                {t("core.library.setDefault")}
-                {m.isDefault && <span className="ml-auto text-xs text-muted-foreground">{t("core.library.defaultLib")}</span>}
-              </DropdownMenuItem>
+              {m.isDefault ? (
+                <DropdownMenuItem onClick={() => clearDefault(m)}>
+                  <Star className="fill-current text-muted-foreground" />
+                  {t("core.library.unsetDefault")}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={() => setDefault(m)}>
+                  <Star className="text-muted-foreground" />
+                  {t("core.library.setDefault")}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => renameMount(m)}>
                 <HardDrive className="text-muted-foreground" />
                 {t("core.library.renameLib")}

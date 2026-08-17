@@ -57,6 +57,16 @@ def set_default_library(lid: str, request: Request):
         _folder_not_found(e)
 
 
+@router.delete("/libraries/{lid}/default")
+def clear_default_library(lid: str, request: Request):
+    """取消把指定库作为默认保存目标（与置顶相互独立，可单独取消）。"""
+    try:
+        _store(request).get_library(lid)
+        return _store(request).clear_default_target("library", lid)
+    except KeyError as e:
+        _folder_not_found(e)
+
+
 @router.delete("/libraries/{lid}")
 def delete_library(lid: str, request: Request):
     _store(request).delete_library(lid)
