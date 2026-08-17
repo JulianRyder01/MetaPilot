@@ -48,6 +48,10 @@ export interface PromptOptions {
   placeholder?: string
   confirmText?: string
   cancelText?: string
+  /** 标题右侧的「圈起 ?」帮助链接：点击在新标签打开（如 /tutorials#course-create-import），可为空 */
+  helpHref?: string
+  /** 帮助按钮的悬停提示（i18n key，经 t() 渲染） */
+  helpLabel?: string
 }
 
 /** 单选弹窗配置。 */
@@ -118,7 +122,20 @@ function PromptBody({ options, onDone }: { options: PromptOptions; onDone: (v: s
       className="space-y-3"
     >
       <DialogHeader>
-        <DialogTitle>{options.title}</DialogTitle>
+        <div className="flex items-start justify-between gap-3">
+          <DialogTitle>{options.title}</DialogTitle>
+          {options.helpHref && (
+            <a
+              href={options.helpHref}
+              target="_blank"
+              rel="noreferrer"
+              title={options.helpLabel ? t(options.helpLabel) : undefined}
+              className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full border text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              ?
+            </a>
+          )}
+        </div>
         {options.description != null && <DialogDescription>{options.description}</DialogDescription>}
       </DialogHeader>
       <Input

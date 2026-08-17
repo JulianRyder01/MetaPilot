@@ -59,6 +59,10 @@ export interface CollectionActionCtx {
     initialValue?: string
     confirmText?: string
     cancelText?: string
+    /** 标题右侧「圈起 ?」帮助链接（如 /tutorials#course-create-import），点击新标签打开 */
+    helpHref?: string
+    /** 帮助按钮悬停提示（i18n key） */
+    helpLabel?: string
   }) => Promise<string | null>
   /** 确认弹窗：插件执行不可逆操作（如转换）前确认 */
   confirm: (options: {

@@ -48,6 +48,9 @@ export const coursePlugin: PluginFrontend = {
           title: translate("course.library.newCourseTitle"),
           placeholder: translate("course.library.newCoursePlaceholder"),
           initialValue: translate("course.library.newCourseDefault"),
+          // 「圈起 ?」帮助入口：跳转「使用教程」中如何制作课程的教程（course 插件自带教程）
+          helpHref: "/tutorials#course-create-import",
+          helpLabel: "course.library.newCourseHelp",
         })
         if (!name?.trim()) return
         try {

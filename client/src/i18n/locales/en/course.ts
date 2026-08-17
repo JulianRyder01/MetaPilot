@@ -19,6 +19,7 @@ export const courseEn: Record<string, string> = {
   "course.library.newCourseTitle": "New course",
   "course.library.newCoursePlaceholder": "Course name",
   "course.library.newCourseDefault": "Untitled course",
+  "course.library.newCourseHelp": "See the tutorial on how to build a course",
   "course.library.createdCourse": "Course created",
   "course.library.createCourseFailed": "Failed to create course",
   "course.library.toCourse": "Convert to course",

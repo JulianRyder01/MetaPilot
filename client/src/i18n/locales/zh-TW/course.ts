@@ -19,6 +19,7 @@ export const courseZhTW: Record<string, string> = {
   "course.library.newCourseTitle": "新建課程",
   "course.library.newCoursePlaceholder": "課程名稱",
   "course.library.newCourseDefault": "未命名課程",
+  "course.library.newCourseHelp": "查看如何製作課程的教學",
   "course.library.createdCourse": "已建立課程",
   "course.library.createCourseFailed": "建立課程失敗",
   "course.library.toCourse": "轉為課程",
