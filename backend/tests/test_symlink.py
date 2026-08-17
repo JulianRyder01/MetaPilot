@@ -1,4 +1,5 @@
 """软链接插件测试：挂载管理、浏览/读写、路径安全（防穿越/防逃逸）。"""
+import json
 import os
 import sys
 import tempfile
@@ -217,7 +218,98 @@ def test_mount_single_file():
     assert d.is_dir()
 
 
-def test_disable_symlink_blocks_api():
+def test_canvas_open_and_save_back():
+    """打开挂载内 .canvas 源文件 → 转 .mpf canvas 内容编辑 → 保存写回标准 JSON Canvas。"""
+    root = Path(_make_mount_tree())
+    source = root / "mind.canvas"
+    source.write_text(json.dumps({
+        "nodes": [
+            {"id": "n1", "type": "text", "x": 10, "y": 10, "width": 200, "height": 80, "text": "# 主题"},
+            {"id": "n2", "type": "link", "x": 300, "y": 10, "width": 180, "height": 60, "url": "https://a.b"},
+        ],
+        "edges": [{"id": "e1", "fromNode": "n1", "toNode": "n2", "label": "link"}],
+    }, ensure_ascii=False), encoding="utf-8")
+    m = client.post("/api/plugins/symlink/mounts", json={"name": "m", "root": str(root)}).json()
+    mid = m["id"]
+
+    # 打开：返回 .mpf canvas 内容（nodes/edges），源文件未被修改
+    r = client.get(f"/api/plugins/symlink/mounts/{mid}/canvas", params={"path": "mind.canvas"})
+    assert r.status_code == 200
+    opened = r.json()
+    assert opened["name"] == "mind"
+    assert [n["id"] for n in opened["canvas"]["nodes"]] == ["n1", "n2"]
+    assert [e["id"] for e in opened["canvas"]["edges"]] == ["e1"]
+    source_before = source.read_bytes()
+    assert source.read_bytes() == source_before
+
+    # 编辑：新增节点、改边 label → 保存写回源 .canvas（标准 JSON Canvas 顶层 nodes/edges）
+    nodes = opened["canvas"]["nodes"] + [
+        {"id": "n3", "type": "text", "x": 0, "y": 0, "width": 100, "height": 50, "text": "B"}
+    ]
+    edges = [{"id": "e1", "fromNode": "n1", "toNode": "n2", "label": "已改"}]
+    r = client.put(f"/api/plugins/symlink/mounts/{mid}/canvas",
+                   params={"path": "mind.canvas"}, json={"nodes": nodes, "edges": edges})
+    assert r.status_code == 200 and r.json()["ok"] is True
+
+    restored = json.loads(source.read_text(encoding="utf-8"))
+    assert set(restored.keys()) == {"nodes", "edges"}  # 无 .mpf 包装头，Obsidian 可直接打开
+    assert len(restored["nodes"]) == 3
+    assert restored["edges"][0]["label"] == "已改"
+    assert restored["nodes"][2]["text"] == "B"
+    assert restored["nodes"][0] == {"id": "n1", "type": "text", "x": 10, "y": 10, "width": 200, "height": 80, "text": "# 主题"}
+
+
+def test_canvas_open_no_save_keeps_source_untouched():
+    """只打开不保存：源 .canvas 文件字节完全不变。"""
+    root = Path(_make_mount_tree())
+    source = root / "keep.canvas"
+    original = b'{"nodes":[{"id":"a","type":"text","x":0,"y":0,"width":100,"height":60,"text":"A"}],"edges":[]}'
+    source.write_bytes(original)
+    m = client.post("/api/plugins/symlink/mounts", json={"name": "m", "root": str(root)}).json()
+    mid = m["id"]
+
+    assert client.get(f"/api/plugins/symlink/mounts/{mid}/canvas", params={"path": "keep.canvas"}).status_code == 200
+    # 只读打开不改源文件
+    assert source.read_bytes() == original
+
+
+def test_canvas_rejects_invalid():
+    """非法 .canvas：非 .canvas 扩展名 / 非 JSON / 缺 nodes、edges / 不存在，一律拒绝。"""
+    root = Path(_make_mount_tree())
+    (root / "plain.txt").write_text("hello", encoding="utf-8")
+    (root / "bad.canvas").write_text("not json", encoding="utf-8")
+    (root / "empty.canvas").write_text('{"hello": 1}', encoding="utf-8")
+    m = client.post("/api/plugins/symlink/mounts", json={"name": "m", "root": str(root)}).json()
+    mid = m["id"]
+
+    assert client.get(f"/api/plugins/symlink/mounts/{mid}/canvas", params={"path": "plain.txt"}).status_code == 400
+    assert client.get(f"/api/plugins/symlink/mounts/{mid}/canvas", params={"path": "bad.canvas"}).status_code == 400
+    assert client.get(f"/api/plugins/symlink/mounts/{mid}/canvas", params={"path": "empty.canvas"}).status_code == 400
+    assert client.get(f"/api/plugins/symlink/mounts/{mid}/canvas", params={"path": "nope.canvas"}).status_code == 400
+    # 写回也拒绝非 .canvas 目标
+    r = client.put(f"/api/plugins/symlink/mounts/{mid}/canvas",
+                   params={"path": "plain.txt"}, json={"nodes": [], "edges": []})
+    assert r.status_code == 400
+    r = client.put(f"/api/plugins/symlink/mounts/{mid}/canvas",
+                   params={"path": "../outside.canvas"}, json={"nodes": [], "edges": []})
+    assert r.status_code == 400
+
+
+def test_canvas_single_file_mount():
+    """单文件挂载根为 .canvas 文件：路径为空即可打开/写回。"""
+    f = _root_tmp / "solo.canvas"
+    f.write_text('{"nodes":[{"id":"a","type":"text","x":0,"y":0,"width":100,"height":60,"text":"A"}],"edges":[]}', encoding="utf-8")
+    m = client.post("/api/plugins/symlink/mounts", json={"name": "单画布", "root": str(f)}).json()
+    mid = m["id"]
+
+    r = client.get(f"/api/plugins/symlink/mounts/{mid}/canvas", params={"path": ""})
+    assert r.status_code == 200
+    assert r.json()["name"] == "solo"
+    r = client.put(f"/api/plugins/symlink/mounts/{mid}/canvas",
+                   params={"path": ""},
+                   json={"nodes": [{"id": "x", "type": "text", "x": 1, "y": 1, "width": 10, "height": 10}], "edges": []})
+    assert r.status_code == 200
+    assert json.loads(f.read_text(encoding="utf-8"))["nodes"][0]["id"] == "x"
     client.post("/api/plugins/symlink/disable")
     assert client.get("/api/plugins/symlink/mounts").status_code == 503
     client.post("/api/plugins/symlink/enable")

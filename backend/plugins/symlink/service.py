@@ -20,13 +20,15 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from app.services import mpf as mpf_service
 from app.storage.store import _read_json, _write_json, gen_id
 
-# 可读/可写的文本扩展名白名单（.mpf 为 MetaPilot 文档，AI 洞察可把生成结果存为 .mpf 到挂载目录）
+# 可读/可写的文本扩展名白名单（.mpf 为 MetaPilot 文档，AI 洞察可把生成结果存为 .mpf 到挂载目录；
+# .canvas 为 Obsidian 原生画布文件，支持打开转 .mpf 编辑后写回）
 TEXT_EXTENSIONS = {
     ".md", ".markdown", ".txt", ".text", ".json", ".yaml", ".yml",
     ".csv", ".tsv", ".log", ".xml", ".html", ".css", ".js", ".ts",
-    ".py", ".toml", ".ini", ".conf", ".cfg", ".mpf",
+    ".py", ".toml", ".ini", ".conf", ".cfg", ".mpf", ".canvas",
 }
 # 可内联预览的媒体扩展名 → MIME（前端据此选择 <img>/<iframe>/<video>/<audio> 渲染）
 MEDIA_TYPES = {
@@ -218,6 +220,57 @@ class SymlinkService:
         root = Path(mount["root"]).resolve()
         rel_path = "" if target == root else str(target.relative_to(root))
         return {"path": rel_path, "content": content}
+
+    # ---- JSON Canvas（.canvas）打开/写回 ----
+
+    def read_canvas(self, mount_id: str, rel: str) -> dict:
+        """打开挂载内 .canvas 源文件，转 .mpf canvas 内容（{nodes, edges}）供图表编辑器编辑。
+
+        只读取并转换，不修改源文件；只有调用 write_canvas 才把编辑结果写回。
+        """
+        mount = self.get_mount(mount_id)
+        target = self._resolve(mount, rel)
+        if not target.is_file():
+            raise MountError(f"不是文件: {rel}")
+        ext = target.suffix.lower()
+        if ext != ".canvas":
+            raise MountError(f"仅支持打开 .canvas 文件（{ext}）")
+        try:
+            raw = target.read_text(encoding="utf-8", errors="replace")
+            data = json.loads(raw)
+        except (OSError, UnicodeError) as e:
+            raise MountError(f"读取失败: {e}")
+        except json.JSONDecodeError as e:
+            raise MountError(f"不是有效的 .canvas 文件: {e}")
+        if not isinstance(data, dict) or not (isinstance(data.get("nodes"), list) or isinstance(data.get("edges"), list)):
+            raise MountError("不是有效的 .canvas 文件（缺少 nodes/edges 数组）")
+        canvas = {
+            "nodes": data.get("nodes", []) if isinstance(data.get("nodes"), list) else [],
+            "edges": data.get("edges", []) if isinstance(data.get("edges"), list) else [],
+        }
+        mpf_text = mpf_service.canvas_data_to_mpf_text(data, name=target.stem)
+        parsed = mpf_service.parse_mpf(mpf_text)
+        if not parsed["ok"]:
+            raise MountError("; ".join(parsed["errors"]))
+        root = Path(mount["root"]).resolve()
+        rel_path = "" if target == root else str(target.relative_to(root))
+        return {
+            "path": rel_path,
+            "name": target.stem,
+            "canvas": parsed["content"],
+        }
+
+    def write_canvas(self, mount_id: str, rel: str, nodes: list, edges: list) -> dict:
+        """把编辑后的图表（.mpf canvas 内容）转为 JSON Canvas 标准文本，写回源 .canvas 文件。
+
+        仅当前端显式保存时调用；未保存则源文件保持原样。
+        """
+        mount = self.get_mount(mount_id)
+        target = self._resolve(mount, rel)
+        if target.suffix.lower() != ".canvas":
+            raise MountError(f"仅支持写回 .canvas 文件（{target.suffix or '无扩展名'}）")
+        text = mpf_service.mpf_canvas_to_canvas_text({"nodes": nodes or [], "edges": edges or []})
+        return self.write_file(mount_id, rel, text)
 
     # ---- 媒体预览与本地打开 ----
 

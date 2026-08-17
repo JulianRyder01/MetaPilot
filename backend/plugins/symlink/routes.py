@@ -37,6 +37,11 @@ class OpenIn(BaseModel):
     mode: str = "open"
 
 
+class CanvasSaveIn(BaseModel):
+    nodes: list = []
+    edges: list = []
+
+
 def _svc(request: Request):
     return request.app.state.symlink
 
@@ -145,6 +150,24 @@ def list_dir(mid: str, path: str = "", request: Request = None):
 def read_file(mid: str, path: str = "", request: Request = None):
     try:
         return _svc(request).read_file(mid, path)
+    except Exception as e:
+        _err(e)
+
+
+@router.get("/mounts/{mid}/canvas")
+def open_canvas(mid: str, path: str = "", request: Request = None):
+    """打开挂载内 .canvas 源文件，转为 .mpf canvas 内容（nodes/edges）供图表编辑器编辑（不写源文件）。"""
+    try:
+        return _svc(request).read_canvas(mid, path)
+    except Exception as e:
+        _err(e)
+
+
+@router.put("/mounts/{mid}/canvas")
+def save_canvas(mid: str, path: str = "", body: CanvasSaveIn = None, request: Request = None):
+    """把编辑后的图表（.mpf canvas 内容）转为 JSON Canvas 标准格式，写回源 .canvas 文件。"""
+    try:
+        return _svc(request).write_canvas(mid, path, body.nodes, body.edges)
     except Exception as e:
         _err(e)
 
