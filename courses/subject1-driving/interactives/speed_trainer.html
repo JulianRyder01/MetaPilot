@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>限速数字训练 · 场景选速度</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f4f6fb;color:#243047;padding:16px}
+  .wrap{max-width:760px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+  h1{font-size:19px}
+  .statbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .stat{background:#fff;border:1px solid #e3e8f0;border-radius:10px;padding:8px 14px;font-size:13px;display:flex;gap:6px;align-items:center}
+  .stat b{font-size:17px}
+  .bar{height:8px;background:#eef1f6;border-radius:99px;overflow:hidden;margin-bottom:14px}
+  .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#f7971e,#ffd200);transition:width .3s}
+  .qcard{background:#fff;border:1px solid #e3e8f0;border-radius:14px;padding:18px 20px;box-shadow:0 2px 10px rgba(36,48,71,.05)}
+  .qtag{display:inline-block;font-size:12px;color:#7a8699;background:#eef1f6;padding:3px 10px;border-radius:99px;margin-bottom:10px}
+  .qtext{font-size:15.5px;line-height:1.7;min-height:52px}
+  .pick{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:10px;margin-top:14px}
+  .pick button{border:2px solid #e3e8f0;background:#fff;border-radius:12px;padding:14px 0;font-size:19px;font-weight:800;cursor:pointer;transition:.15s;color:#243047}
+  .pick button:hover:not(:disabled){border-color:#f7971e;transform:translateY(-2px);box-shadow:0 4px 12px rgba(247,151,30,.2)}
+  .pick button:disabled{cursor:default}
+  .pick button.k{background:#eafaf1;border-color:#1d8a4e}
+  .pick button.b{background:#fdf0ef;border-color:#c0392b}
+  .pick small{display:block;font-size:11px;font-weight:400;color:#7a8699}
+  .fb{margin-top:14px;border-radius:12px;padding:13px 16px;font-size:14px;line-height:1.7;display:none}
+  .fb.right{background:#eafaf1;border:1px solid #b9e7cd}
+  .fb.wrong{background:#fdf0ef;border:1px solid #f3c2bd}
+  .fb .t{font-weight:700;margin-bottom:4px}
+  .next{margin-top:14px;text-align:right}
+  .btn{background:linear-gradient(135deg,#f7971e,#ffd200);color:#5a3d00;border:none;border-radius:10px;padding:10px 26px;font-size:15px;font-weight:700;cursor:pointer}
+  .btn.ghost{background:#fff;color:#d67e00;border:1.5px solid #d67e00}
+  .scoreRing{width:130px;height:130px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:18px auto;font-weight:700}
+  .scoreRing .n{font-size:34px}
+  .scoreRing .l{font-size:12px;color:#7a8699;font-weight:400}
+  .miss{background:#fff;border:1px solid #e3e8f0;border-radius:10px;padding:10px 14px;margin-top:10px;font-size:13px;line-height:1.6}
+  .miss b{color:#c0392b}
+  footer{color:#7a8699;font-size:12px;text-align:center;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>🎯 限速数字训练 <small>场景 ↔ 限速 / 能见度口诀 261·145·520</small></h1></header>
+  <div id="gameArea"></div>
+  <footer>每轮随机 11 题。数字题是科目一送分大项，务必全对。</footer>
+</div>
+<script>
+"use strict";
+/* 题型A：场景 → 最高/最低限速 */
+const SCENES=[
+  ["没有道路中心线的城市道路",30,"城市无中心线 30（口诀：城3）"],
+  ["没有道路中心线的公路",40,"公路无中心线 40（口诀：公4）"],
+  ["有中心线（同向1车道）的城市道路",50,"城市有中心线 50（口诀：城5）"],
+  ["有中心线（同向1车道）的公路",70,"公路有中心线 70（口诀：公7）"],
+  ["急弯路、窄路、窄桥、掉头、陡坡（城市道路内）",30,"特殊场景一律 30"],
+  ["驶入/驶出非机动车道（城市道路）",30,"进出非机动车道 30"],
+  ["冰雪、泥泞等结冰湿滑道路",30,"冰雪泥泞道路最高 30"],
+  ["通过铁路道口、无人看守道口",30,"铁道路口 30（且应一停二看三通过）"],
+  ["高速公路最高车速（所有机动车）",120,"高速最高 120，最低 60"],
+  ["高速公路上小型客车在最左侧车道（2条车道）的最低车速",100,"2条车道最左侧 ≥100"],
+  ["高速公路上小型客车在最左侧车道（3条车道）的最低车速",110,"3条车道最左侧 ≥110"],
+  ["进入高速后在中间车道（3条车道）的最低车速",90,"3条车道中间 ≥90"],
+  ["设计最高时速低于多少的机动车不得进入高速公路",70,"低于 70 km/h 不得进入高速"],
+  ["同方向 3 条车道时最右侧车道的最低车速",60,"最右侧车道 ≥60（高速底线）"],
+  ["时速超过 100km/h 时，与同车道前车的最小距离",100,">100 → 车距 ≥100 米"],
+  ["时速不超过 100km/h 时，与同车道前车的最小距离",50,"≤100 → 车距 ≥50 米"],
+  ["雾天能见度小于 200 米时，车速不得超过",60,"261：<200m → 60 时速 / 100 米车距"],
+  ["雾天能见度小于 100 米时，车速不得超过",40,"145：<100m → 40 时速 / 50 米车距"],
+  ["雾天能见度小于 50 米时，车速不得超过",20,"520：<50m → 20 时速，尽快驶离高速"],
+  ["进入高速匝道（加速车道）汇入车流前应尽快将车速提高至…？",60,"匝道提速至接近车流速度（不低于 60）再汇入，切勿低速强行并入"]
+];
+/* 题型B：能见度口诀对应 */
+const VISIBLE=[
+  ["能见度 < 200 米 → 车速 ≤ 60 → 车距 ≥ 100 米 → ",'开启雾灯、近光灯、示廓灯和前后位灯'],
+  ["能见度 < 100 米 → 车速 ≤ 40 → 车距 ≥ 50 米 → ",'在上一档基础上增加危险报警闪光灯（双闪）'],
+  ["能见度 < 50 米 → 车速 ≤ 20 → ",'从最近的出口尽快驶离高速公路']
+];
+const ROUND=11;
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+const $=s=>document.querySelector(s);
+let deck=[],idx=0,score=0,correct=0,missList=[],answered=false;
+function buildDeck(){
+  deck=[];
+  // 8 道场景题 + 3 道口诀题
+  const s=shuffle(SCENES).slice(0,8);
+  s.forEach(x=>deck.push({type:'s',q:x[0],a:x[1],exp:x[2]}));
+  VISIBLE.forEach(x=>deck.push({type:'v',q:x[0],a:null,exp:x[1]}));
+  deck=shuffle(deck).slice(0,ROUND);
+}
+function renderStat(){
+  $('#gameArea').innerHTML=`
+    <div class="statbar">
+      <div class="stat">第 <b>${idx+1}</b> / ${ROUND} 题</div>
+      <div class="stat">正确 <b>${correct}</b></div>
+      <div class="stat">得分 <b>${Math.round(score/(ROUND*10)*100)}</b></div>
+    </div>
+    <div class="bar"><i style="width:${(idx+1)/ROUND*100}%"></i></div>`;
+}
+function renderQ(){
+  answered=false;
+  renderStat();
+  const q=deck[idx];
+  let body;
+  if(q.type==='s'){
+    const opts=[30,40,50,60,70,90,100,110,120];
+    body=`
+      <span class="qtag">🚗 场景 → 限速（km/h）</span>
+      <div class="qtext">${q.q}，最高/最低限速是？</div>
+      <div class="pick">${opts.map(v=>`<button onclick="answer(${v})">${v}<small>km/h</small></button>`).join('')}</div>`;
+  }else{
+    body=`
+      <span class="qtag">🌫️ 口诀补全（261 / 145 / 520）</span>
+      <div class="qtext">${q.q}<b>？</b></div>
+      <div class="pick" style="grid-template-columns:1fr">
+        <button onclick="answer(1)" style="font-size:14px;font-weight:600;text-align:left;padding:12px 16px">① 开启雾灯、近光灯、示廓灯和前后位灯</button>
+        <button onclick="answer(2)" style="font-size:14px;font-weight:600;text-align:left;padding:12px 16px">② 开启雾灯、近光、示廓、位灯 + 危险报警闪光灯</button>
+        <button onclick="answer(3)" style="font-size:14px;font-weight:600;text-align:left;padding:12px 16px">③ 从最近的出口尽快驶离高速公路</button>
+      </div>`;
+  }
+  $('#gameArea').innerHTML+=`<div class="qcard">${body}<div class="fb" id="fb"></div>
+    <div class="next"><button class="btn ghost" id="nxt" style="display:none" onclick="nextQ()">下一题 →</button></div></div>`;
+}
+function answer(v){
+  if(answered)return;answered=true;
+  const q=deck[idx];
+  let ok;
+  if(q.type==='s'){
+    ok=v===q.a;
+    const btns=document.querySelectorAll('.qcard .pick button');
+    btns.forEach(b=>{
+      b.disabled=true;
+      if(parseInt(b.textContent,10)===q.a)b.classList.add('k');
+      if(parseInt(b.textContent,10)===v&&!ok)b.classList.add('b');
+    });
+  }else{
+    ok=(v-1)===VISIBLE.findIndex(x=>x[0]===q.q);
+    const btns=document.querySelectorAll('.qcard .pick button');
+    btns.forEach(b=>{
+      b.disabled=true;
+      if((v-1)===VISIBLE.findIndex(x=>x[0]===q.q)){btns[v-1].classList.add('k');}
+      else {btns[v-1].classList.add('b');btns[VISIBLE.findIndex(x=>x[0]===q.q)].classList.add('k');}
+    });
+  }
+  if(ok){correct++;score+=10;}else{missList.push({q:q.q,e:q.exp});}
+  const bs=document.querySelectorAll('.stat b');
+  if(bs[0])bs[0].textContent=(idx+1);
+  if(bs[1])bs[1].textContent=correct;
+  if(bs[2])bs[2].textContent=Math.round(score/(ROUND*10)*100);
+  const fb=$('#fb');
+  fb.style.display='block';
+  fb.className='fb '+(ok?'right':'wrong');
+  fb.innerHTML=ok?`<div class="t">✅ 正确</div>${q.exp}`:`<div class="t">❌ 错误</div>${q.exp}`;
+  const n=$('#nxt');n.style.display='inline-block';
+  n.textContent=idx+1>=ROUND?'查看成绩 →':'下一题 →';
+}
+function nextQ(){
+  if(idx+1>=ROUND){showResult();return;}
+  idx++;renderQ();
+}
+function showResult(){
+  const pct=Math.round(score/ROUND*100);
+  const color=pct>=90?'#1d8a4e':pct>=70?'#d67e00':'#c0392b';
+  const tip=pct>=90?'🎉 限速数字全部拿下，95+ 稳了！':pct>=70?'👍 不错，再看看下面的错题：':'📚 限速是基础送分题，请回到学习章节复习后重练：';
+  $('#gameArea').innerHTML=`
+    <div class="qcard">
+      <div class="scoreRing" style="background:conic-gradient(${color} ${pct*3.6}deg,#eef1f6 0deg)">
+        <div class="n" style="color:${color}">${pct}</div><div class="l">本轮得分</div>
+      </div>
+      <h3 style="text-align:center">${tip}</h3>
+      ${missList.length?missList.map(m=>`<div class="miss"><b>✗</b> ${m.q}<div>${m.e}</div></div>`).join(''):'<div class="miss">🎯 全对！数字记忆完美。</div>'}
+      <div class="next"><button class="btn" onclick="restart()">🔁 再练一轮</button></div>
+    </div>`;
+}
+function restart(){idx=0;score=0;correct=0;missList=[];buildDeck();renderQ();}
+buildDeck();
+renderQ();
+</script>
+</body>
+</html>

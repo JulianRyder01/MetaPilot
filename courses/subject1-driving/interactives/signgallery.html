@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>标志标线图鉴 · 看标志猜含义</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f4f6fb;color:#243047;padding:16px}
+  .wrap{max-width:900px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+  h1{font-size:19px}
+  .btn{background:linear-gradient(135deg,#4facfe,#00f2fe);color:#fff;border:none;border-radius:10px;padding:9px 20px;font-size:14px;cursor:pointer;font-weight:600}
+  .cats{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .cats button{border:1px solid #e3e8f0;background:#fff;border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer}
+  .cats button.on{background:#243047;color:#fff;border-color:#243047}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .gcard{background:#fff;border:1px solid #e3e8f0;border-radius:12px;padding:14px;text-align:center;cursor:pointer;transition:.15s}
+  .gcard:hover{border-color:#4facfe;transform:translateY(-2px);box-shadow:0 4px 12px rgba(79,172,254,.15)}
+  .gcard .sgn{height:92px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+  .gcard .nm{font-size:13px;font-weight:600}
+  .gcard .mn{font-size:12px;color:#7a8699;margin-top:3px;line-height:1.5}
+  /* 自测 */
+  .quizview{background:#fff;border:1px solid #e3e8f0;border-radius:16px;padding:24px;max-width:560px;margin:0 auto;display:none;text-align:center}
+  .quizview .big{height:180px;display:flex;align-items:center;justify-content:center}
+  .quizview .qop{display:block;width:100%;border:1.5px solid #e3e8f0;background:#fff;border-radius:10px;padding:11px 14px;margin-top:9px;font-size:14px;cursor:pointer;font-family:inherit;text-align:left}
+  .quizview .qop:hover{border-color:#4facfe}
+  .qop.ok{background:#eafaf1;border-color:#1d8a4e}
+  .qop.no{background:#fdf0ef;border-color:#c0392b}
+  .qstat{font-size:13px;color:#7a8699;margin-bottom:8px}
+  .finish{text-align:center;padding:10px}
+  .finish .sc{font-size:40px;font-weight:800;color:#1d8a4e}
+  footer{color:#7a8699;font-size:12px;text-align:center;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🛑 标志标线图鉴 <small>黄色警告 · 红色禁令 · 蓝色指示 · 绿色指路</small></h1>
+    <button class="btn" id="quizBtn" onclick="startQuiz()">✏️ 开始自测</button>
+  </header>
+  <div class="cats" id="cats"></div>
+  <div id="browse" class="grid"></div>
+  <div class="quizview" id="quizview">
+    <div class="qstat" id="qstat"></div>
+    <div class="big" id="qsign"></div>
+    <div id="qops"></div>
+    <div id="qmsg" style="font-size:13px;margin-top:10px;line-height:1.7;color:#7a8699"></div>
+  </div>
+  <footer>提示：点击卡片查看标志/标线含义；自测模式随机抽题，点击选项作答。</footer>
+</div>
+<script>
+"use strict";
+/* ---------- SVG 片段 ---------- */
+const S = {
+  warnWrap:(inner)=>`<svg width="92" height="84" viewBox="0 0 92 84"><path d="M46 6 L88 78 H4 Z" fill="#ffe600" stroke="#1a1a1a" stroke-width="4" stroke-linejoin="round"/>${inner}</svg>`,
+  banWrap:(inner)=>`<svg width="84" height="84" viewBox="0 0 84 84"><circle cx="42" cy="42" r="38" fill="#fff" stroke="#d60000" stroke-width="6"/>${inner}</svg>`,
+  indWrap:(inner)=>`<svg width="84" height="84" viewBox="0 0 84 84"><rect x="6" y="6" width="72" height="72" rx="10" fill="#0a66d6"/>${inner}</svg>`,
+  guideWrap:(inner,color)=>`<svg width="140" height="64" viewBox="0 0 140 64"><rect x="2" y="2" width="136" height="60" rx="8" fill="${color}" stroke="#fff" stroke-width="3"/>${inner}</svg>`
+};
+function triSign(inner){return S.warnWrap(`<g transform="translate(46,46)">${inner}</g>`);}
+/* 标志数据：cat 类别 / name / group 含义 / draw 绘制函数返回SVG */
+const SIGNS = [
+  // ——— 警告标志（黄） ———
+  {cat:"warn",name:"注意行人",mn:"前方有人行横道，注意避让行人",draw:()=>triSign(`
+    <g stroke="#1a1a1a" stroke-width="3.4" fill="none" stroke-linecap="round">
+      <circle cx="0" cy="-11" r="5" fill="#1a1a1a" stroke="none"/><path d="M-3 11 L0 -6 L3 11 M-9 -1 L0 3 L9 -1 M-1 11 L-5 22 M1 11 L7 18"/></g>`)},
+  {cat:"warn",name:"注意儿童",mn:"学校附近，儿童常出没，减速慢行",draw:()=>triSign(`
+    <g stroke="#1a1a1a" stroke-width="3.2" fill="none" stroke-linecap="round">
+      <circle cx="0" cy="-12" r="4.6" fill="#1a1a1a" stroke="none"/><path d="M-4 9 L0 -7 L4 9 M-11 -2 L0 3 L11 -2 M-2 9 L-7 20 M2 9 L7 17 M-4 18 L-7 21"/></g>`)},
+  {cat:"warn",name:"急弯路（向右）",mn:"前方急转弯，提前减速靠右行驶",draw:()=>triSign(`<g stroke="#1a1a1a" stroke-width="3.6" fill="none" stroke-linecap="round"><path d="M-14 10 A 20 20 0 0 1 14 2" marker-end="none"/><path d="M10 -6 L14 2 L6 3" fill="none"/></g>`).replace('<path d="M-14 10 A 20 20 0 0 1 14 2"', '<path d="M-14 12 A 19 19 0 0 1 13 6"')},
+  {cat:"warn",name:"连续弯路",mn:"前方连续两个以上反向弯道",draw:()=>triSign(`
+    <g stroke="#1a1a1a" stroke-width="3.4" fill="none" stroke-linecap="round">
+      <path d="M-12 4 A12 12 0 0 1 0 -8"/><path d="M-6 -12 L0 -8 L-5 -3"/>
+      <path d="M-1 -1 A 12 12 0 0 1 11 11"/><path d="M4 4 L11 11 L5 14"/></g>`)},
+  {cat:"warn",name:"易滑路段",mn:"路面湿滑，降低车速、减少制动",draw:()=>triSign(`
+    <g stroke="#1a1a1a" stroke-width="3.4" fill="none" stroke-linecap="round">
+      <path d="M-13 5 L13 5"/><path d="M-13 14 Q-8 8 -3 15 Q2 8 7 14 Q10 10 13 14"/></g>`)},
+  {cat:"warn",name:"注意信号灯",mn:"前方有交通信号灯控制路口",draw:()=>triSign(`
+    <g><circle cx="-7" cy="14" r="5.4" fill="#d60000"/><circle cx="5" cy="8" r="5.4" fill="#e6b800"/><circle cx="9" cy="-7" r="5.4" fill="#0a9d3f"/></g>`)},
+  {cat:"warn",name:"施工/注意危险",mn:"前方施工或危险路段，谨慎通行",draw:()=>triSign(`
+    <g fill="#1a1a1a"><circle cx="0" cy="-7" r="4"/><path d="M-9 22 L9 22 M-6 13 L6 13 M-3 22 L2 10 M-1 10 L-4 22"/><path d="M6 3 L14 -5" stroke="#1a1a1a" stroke-width="3"/></g>`)},
+  // ——— 禁令标志（红） ———
+  {cat:"ban",name:"禁止驶入",mn:"禁止驶入（单行道出口），红底白杠",draw:()=>S.banWrap(`<rect x="24" y="33" width="36" height="18" fill="#d60000"/>`)},
+  {cat:"ban",name:"禁止通行",mn:"禁止一切车辆和行人通行",draw:()=>S.banWrap(``)},
+  {cat:"ban",name:"禁止停车",mn:"禁止车辆临时或长时停放（红叉）",draw:()=>S.banWrap(`
+    <rect x="14" y="14" width="56" height="56" rx="8" fill="#0a66d6"/>
+    <g stroke="#d60000" stroke-width="7" stroke-linecap="round"><path d="M26 26 L58 58 M58 26 L26 58"/></g>`)},
+  {cat:"ban",name:"禁止长时间停车",mn:"禁止长时停放，可临时上下客（单斜杠）",draw:()=>S.banWrap(`
+    <rect x="14" y="14" width="56" height="56" rx="8" fill="#0a66d6"/>
+    <path d="M26 58 L58 26" stroke="#d60000" stroke-width="7" stroke-linecap="round"/>`)},
+  {cat:"ban",name:"限制速度 40",mn:"最高车速不得超过 40 km/h",draw:()=>S.banWrap(`<text x="42" y="54" text-anchor="middle" font-size="34" font-weight="700" fill="#1a1a1a" font-family="Arial">40</text>`)},
+  {cat:"ban",name:"禁止鸣喇叭",mn:"禁止鸣喇叭（文明驾驶）",draw:()=>S.banWrap(`
+    <path d="M24 30 L38 22 L38 50 L24 42 Z" fill="#1a1a1a"/><circle cx="42" cy="36" r="9" fill="none" stroke="#1a1a1a" stroke-width="4"/>
+    <path d="M46 24 A15 15 0 0 1 46 48" stroke="#1a1a1a" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M22 66 L62 10" stroke="#d60000" stroke-width="7" stroke-linecap="round"/>`)},
+  {cat:"ban",name:"禁止掉头",mn:"禁止机动车掉头",draw:()=>S.banWrap(`
+    <g stroke="#1a1a1a" stroke-width="5" fill="none" stroke-linecap="round">
+      <path d="M54 20 A 20 20 0 1 0 58 42"/><path d="M47 13 L58 20 L50 30"/></g>
+    <path d="M22 66 L62 10" stroke="#d60000" stroke-width="7" stroke-linecap="round"/>`)},
+  // ——— 指示标志（蓝） ———
+  {cat:"ind",name:"直行",mn:"只准直行",draw:()=>S.indWrap(`<path d="M42 14 L42 60 M28 30 L42 14 L56 30" stroke="#fff" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`)},
+  {cat:"ind",name:"向左转弯",mn:"只准向左转弯",draw:()=>S.indWrap(`<path d="M60 42 L16 42 M34 58 L16 42 L34 26" stroke="#fff" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`)},
+  {cat:"ind",name:"直行或向右转弯",mn:"只准直行或向右转弯",draw:()=>S.indWrap(`
+    <g stroke="#fff" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M34 14 L34 46 M22 28 L34 14 L46 28"/>
+      <path d="M34 60 L34 50 M34 56 L56 56 M46 46 L56 56 L46 66"/></g>`)},
+  {cat:"ind",name:"人行横道",mn:"指示行人从人行横道通过",draw:()=>S.indWrap(`
+    <g fill="#fff"><rect x="20" y="18" width="44" height="12"/><rect x="20" y="40" width="44" height="12"/><rect x="20" y="62" width="44" height="12"/></g>`)},
+  {cat:"ind",name:"机动车行驶",mn:"指示机动车道，机动车由此行驶",draw:()=>S.indWrap(`
+    <g fill="#fff"><path d="M22 58 Q20 44 26 38 L34 32 Q42 24 52 26 L58 34 Q60 46 56 54 L62 58 L58 66 L50 62 L36 62 L28 66 Z"/>
+    <circle cx="33" cy="48" r="3"/><circle cx="51" cy="48" r="3"/></g>`)},
+  {cat:"ind",name:"非机动车行驶",mn:"指示非机动车道",draw:()=>S.indWrap(`
+    <g stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round">
+      <circle cx="36" cy="52" r="12"/><circle cx="56" cy="52" r="12"/>
+      <path d="M14 52 L36 44 L44 30 L56 30"/><path d="M14 30 L16 50"/></g>`)},
+  {cat:"ind",name:"最低限速 40",mn:"车辆驶入后车速不得低于 40 km/h（蓝底白字）",draw:()=>S.indWrap(`<text x="42" y="54" text-anchor="middle" font-size="34" font-weight="700" fill="#fff" font-family="Arial">40</text>`)},
+  // ——— 指路标志 ———
+  {cat:"guide",name:"高速公路入口",mn:"进入高速公路（绿底，指路标志用绿色）",draw:()=>S.guideWrap(`<text x="70" y="40" text-anchor="middle" font-size="24" font-weight="700" fill="#fff" font-family="Arial">入口</text>`,"#0a9d3f")},
+  {cat:"guide",name:"紧急停车带",mn:"供故障车辆临时停靠（蓝底）",draw:()=>S.guideWrap(`<text x="70" y="38" text-anchor="middle" font-size="20" font-weight="700" fill="#fff" font-family="Arial">紧急停车带</text>`,"#0a66d6")},
+  {cat:"guide",name:"高速公路终点",mn:"前方到达高速公路终点（绿底）",draw:()=>S.guideWrap(`<text x="70" y="38" text-anchor="middle" font-size="22" font-weight="700" fill="#fff" font-family="Arial">终点</text>`,"#0a9d3f")}
+];
+/* 标线（CSS 绘制） */
+const LINES = [
+  {cat:"line",name:"中心黄色双实线",mn:"分隔对向车流，禁止跨越、压线",draw:()=>`<div style="width:88px;margin:0 auto"><div style="height:9px;background:#e6b800;border-radius:3px;margin-bottom:4px"></div><div style="height:9px;background:#e6b800;border-radius:3px"></div><div style="text-align:center;font-size:10px;color:#7a8699;margin-top:5px">双向两车道</div></div>`},
+  {cat:"line",name:"中心黄色虚线",mn:"分隔对向车流，保证安全时可越线超车/转弯",draw:()=>`<div style="width:88px;margin:0 auto"><div style="height:9px;background:repeating-linear-gradient(90deg,#e6b800 0 16px,transparent 16px 26px);border-radius:3px"></div><div style="text-align:center;font-size:10px;color:#7a8699;margin-top:5px">可借道超车</div></div>`},
+  {cat:"line",name:"路缘黄色实线",mn:"路缘石（道牙）黄色实线：禁止停车",draw:()=>`<div style="width:88px;margin:0 auto"><div style="height:14px;background:#e6b800;border-radius:3px"></div><div style="font-size:10px;color:#7a8699;margin-top:5px">禁停（黄色实线）</div></div>`},
+  {cat:"line",name:"路缘黄色虚线",mn:"路缘石黄色虚线：禁止长时间停车（可临时停靠）",draw:()=>`<div style="width:88px;margin:0 auto"><div style="height:14px;background:repeating-linear-gradient(90deg,#e6b800 0 16px,transparent 16px 26px);border-radius:3px"></div><div style="font-size:10px;color:#7a8699;margin-top:5px">禁止长时停车</div></div>`},
+  {cat:"line",name:"同向白色虚线",mn:"分隔同向车道，可跨越变道",draw:()=>`<div style="width:88px;margin:0 auto"><div style="height:9px;background:repeating-linear-gradient(90deg,#fff 0 16px,#ccc 16px 17px);border-radius:3px;box-shadow:0 0 0 1px #ccc"></div><div style="font-size:10px;color:#7a8699;margin-top:5px">可变更车道</div></div>`},
+  {cat:"line",name:"同向白色实线",mn:"分隔同向车道，禁止跨越（如路口导向车道）",draw:()=>`<div style="width:88px;margin:0 auto"><div style="height:9px;background:#fff;border-radius:3px;box-shadow:0 0 0 1px #ccc"></div><div style="font-size:10px;color:#7a8699;margin-top:5px">禁止变道</div></div>`},
+  {cat:"line",name:"停止线",mn:"路口白色实线，红灯/停车让行时在此线后等待",draw:()=>`<div style="width:88px;margin:0 auto"><div style="height:9px;background:#fff;border-radius:2px;box-shadow:0 0 0 1px #ccc"></div><div style="font-size:10px;color:#7a8699;margin-top:5px">停车等待位置</div></div>`},
+  {cat:"line",name:"停车让行线（双白实线）",mn:"两条白色实线：必须停车观察，确认安全后通行",draw:()=>`<div style="width:88px;margin:0 auto"><div style="height:9px;background:#fff;border-radius:2px;box-shadow:0 0 0 1px #ccc;margin-bottom:4px"></div><div style="height:9px;background:#fff;border-radius:2px;box-shadow:0 0 0 1px #ccc"></div><div style="font-size:10px;color:#7a8699;margin-top:5px">停车让行</div></div>`},
+  {cat:"line",name:"减速让行线（双白虚线）",mn:"两条白色虚线：减速观察，让主干道车辆先行",draw:()=>`<div style="width:88px;margin:0 auto"><div style="height:9px;background:repeating-linear-gradient(90deg,#fff 0 14px,#ccc 14px 15px);border-radius:2px;margin-bottom:4px"></div><div style="height:9px;background:repeating-linear-gradient(90deg,#fff 0 14px,#ccc 14px 15px);border-radius:2px"></div><div style="font-size:10px;color:#7a8699;margin-top:5px">减速让行</div></div>`}
+];
+const ALL=[...SIGNS,...LINES];
+const CATS=[
+  {k:"warn",n:"⚠️ 警告 (黄)"},{k:"ban",n:"⛔ 禁令 (红)"},{k:"ind",n:"🔵 指示 (蓝)"},
+  {k:"guide",n:"🛣️ 指路 (绿/蓝)"},{k:"line",n:"➖ 标线"},{k:"all",n:"全部"}
+];
+let curCat="all",quiz=[],qi=0,score=0,qTimer=null,quizKind='full';
+const $=s=>document.querySelector(s);
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function renderCats(){
+  $('#cats').innerHTML=CATS.map(c=>`<button class="${c.k===curCat?'on':''}" onclick="setCat('${c.k}')">${c.n}</button>`).join('');
+}
+function setCat(k){curCat=k;renderCats();renderBrowse();}
+function renderBrowse(){
+  const list=curCat==='all'?ALL:ALL.filter(s=>s.cat===curCat);
+  $('#browse').innerHTML=list.map((s,i)=>`
+    <div class="gcard" onclick="openDetail(${ALL.indexOf(s)})">
+      <div class="sgn">${s.draw()}</div>
+      <div class="nm">${s.name}</div>
+      <div class="mn">${s.mn}</div>
+    </div>`).join('');
+  $('#browse').style.display='grid';
+  $('#quizview').style.display='none';
+  $('#quizBtn').textContent='✏️ 开始自测';
+  $('#quizBtn').onclick=startQuiz;
+}
+function openDetail(i){
+  // 点击卡片 → 对该标志/标线单独测验（看图猜含义）
+  if(qTimer)clearTimeout(qTimer);
+  quiz=[ALL[i]];qi=0;score=0;quizKind='single';
+  enterQuiz();
+}
+function startQuiz(){
+  if(qTimer)clearTimeout(qTimer);
+  quiz=shuffle(ALL).slice(0,10);qi=0;score=0;quizKind='full';
+  enterQuiz();
+}
+function enterQuiz(){
+  $('#browse').style.display='none';
+  $('#quizview').style.display='block';
+  $('#quizBtn').textContent='↩️ 返回浏览';
+  $('#quizBtn').onclick=goBrowse;
+  renderQuiz();
+}
+function goBrowse(){
+  if(qTimer)clearTimeout(qTimer);
+  renderCats();
+  renderBrowse();
+}
+function renderQuiz(){
+  const q=quiz[qi];
+  const decoys=shuffle(ALL.filter(x=>x!==q)).slice(0,3).map(x=>x.name);
+  const opts=shuffle([q.name,...decoys]);
+  $('#qstat').textContent=`第 ${qi+1} / ${quiz.length} 题 · 当前得分 ${score} · 猜猜这是哪个标志/标线？`;
+  $('#qsign').innerHTML=`
+    <div style="background:#eef1f6;border-radius:14px;padding:14px 10px">
+      ${q.draw()}
+      <div style="font-size:12px;color:#7a8699;margin-top:6px">（类别：${CATS.find(c=>c.k===q.cat).n.replace(/\s*\(.*\)/,'')}）</div>
+    </div>`;
+  $('#qops').innerHTML=opts.map((o,i)=>`<button class="qop" data-i="${i}" data-name="${o.replace(/"/g,'&quot;')}">${o}</button>`).join('');
+  $('#qmsg').innerHTML='';
+  document.querySelectorAll('#qops .qop').forEach(b=>{
+    b.onclick=()=>pick(b.dataset.name,q.name,q);
+  });
+}
+function pick(chosen,right,q){
+  const ok=chosen===right;
+  if(ok)score++;
+  document.querySelectorAll('#qops .qop').forEach(b=>{
+    b.disabled=true;
+    if(b.dataset.name===right)b.classList.add('ok');
+    if(b.dataset.name===chosen&&!ok)b.classList.add('no');
+  });
+  $('#qmsg').innerHTML=ok?`✅ 正确！${q.mn}`:`❌ 它是「${q.name}」：${q.mn}`;
+  qTimer=setTimeout(()=>{
+    if(qi+1>=quiz.length){
+      const p=Math.round(score/quiz.length*100);
+      $('#qstat').textContent='';
+      $('#qsign').innerHTML=`<div class="finish"><div class="sc">${score}/${quiz.length}</div><div style="margin-top:6px">${p>=90?'标志标线掌握得很好！':p>=70?'继续加油，回图鉴再认一遍。':'建议逐类浏览图鉴后重测。'}</div></div>`;
+      $('#qops').innerHTML=`<button class="qop" onclick="${quizKind==='single'?'goBrowse()':'startQuiz()'}" style="text-align:center;color:#4facfe;font-weight:700">${quizKind==='single'?'↩️ 返回浏览':'🔁 再测一轮'}</button>`;
+      $('#qmsg').innerHTML='';
+    }else{qi++;renderQuiz();}
+  },1600);
+}
+renderCats();
+renderBrowse();
+</script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>摸底自测 · 10 题定位薄弱环节</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f4f6fb;color:#243047;padding:16px}
+  .wrap{max-width:720px;margin:0 auto}
+  header{text-align:center;margin-bottom:14px}
+  h1{font-size:20px}
+  p.sub{color:#7a8699;font-size:13px;margin-top:4px}
+  .qcard{background:#fff;border:1px solid #e3e8f0;border-radius:14px;padding:18px 20px;margin-bottom:12px;box-shadow:0 2px 10px rgba(36,48,71,.05)}
+  .qtag{display:inline-block;font-size:12px;color:#7a8699;background:#eef1f6;padding:3px 10px;border-radius:99px;margin-bottom:10px}
+  .qtext{font-size:15.5px;line-height:1.7;margin-bottom:12px;font-weight:600}
+  .op{display:block;width:100%;text-align:left;border:1.5px solid #e3e8f0;background:#fff;border-radius:10px;padding:11px 14px;margin-top:8px;font-size:14px;cursor:pointer;font-family:inherit;line-height:1.6}
+  .op:hover{border-color:#4facfe}
+  .op.ok{background:#eafaf1;border-color:#1d8a4e}
+  .op.no{background:#fdf0ef;border-color:#c0392b}
+  .tip{font-size:13px;color:#7a8699;margin-top:10px;line-height:1.7}
+  .result{display:none}
+  .result .sc{font-size:48px;font-weight:800;color:#1d8a4e;text-align:center}
+  .result .rec{background:#eef4ff;border:1px solid #cfe0ff;border-radius:12px;padding:14px 16px;margin-top:14px;font-size:14px;line-height:1.9}
+  .rec b{color:#2e86c1}
+  .btn{background:linear-gradient(135deg,#4facfe,#00f2fe);color:#fff;border:none;border-radius:10px;padding:10px 26px;font-size:15px;font-weight:700;cursor:pointer;display:block;margin:16px auto 0}
+  footer{color:#7a8699;font-size:12px;text-align:center;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📝 摸底自测</h1>
+    <p class="sub">10 道代表性考题，快速评估你的起点，测完自动给出学习路线建议。</p>
+  </header>
+  <div id="stage"></div>
+  <footer>答完 10 题即出结果。建议：薄弱模块优先学，再进入章节系统学习。</footer>
+</div>
+<script>
+"use strict";
+/* 每题标注所属模块，用于结果推荐 */
+const QUESTIONS=[
+  {mod:"记分规则",q:"饮酒后驾驶机动车，一次记多少分？",opts:["3 分","6 分","9 分","12 分"],a:3,exp:"饮酒驾驶一次记 12 分（2022 版记分规则最严重的档位之一）。"},
+  {mod:"记分规则",q:"低速载货汽车在普通道路上超速 50% 以上，一次记多少分？",opts:["3 分","6 分","9 分","12 分"],a:1,exp:"普通机动车在高速以外道路超速 50% 以上记 6 分（重点车辆才记 9 分）。"},
+  {mod:"违法处罚",q:"未取得机动车驾驶证驾驶机动车上路，将面临？",opts:["警告即可","200-2000 元罚款，可并处 15 日以下拘留","吊销驾驶证","只扣车不罚款"],a:1,exp:"无证驾驶：200-2000 元罚款，可并处 15 日以下拘留（无证驾驶不属于记分项目）。"},
+  {mod:"驾驶证",q:"机动车驾驶人实习期是多长时间？",opts:["3 个月","6 个月","12 个月","24 个月"],a:2,exp:"初次申领驾驶证的实习期为 12 个月（汽车、摩托车都是 12 个月）。"},
+  {mod:"限速",q:"没有道路中心线的城市道路，最高时速不得超过？",opts:["30 km/h","40 km/h","50 km/h","60 km/h"],a:0,exp:"城市无中心线 30；公路无中心线 40；城市有中心线 50；公路有中心线 70。"},
+  {mod:"高速公路",q:"驾驶机动车在高速公路上能见度小于 100 米时，车速不得超过？",opts:["60 km/h","40 km/h","20 km/h","30 km/h"],a:1,exp:"口诀 145：能见度<100 米 → 40 km/h 且车距 ≥50 米。"},
+  {mod:"通行规则",q:"在没有交通信号灯的路口，转弯的机动车与直行的机动车相遇时应？",opts:["转弯车先走","直行车让转弯车","转弯车让直行车先通行","按速度决定"],a:2,exp:"转弯让直行，是路口让行三原则之一。"},
+  {mod:"交通信号",q:"黄色三角形、黑边的标志属于哪一类？",opts:["禁令标志","警告标志","指示标志","指路标志"],a:1,exp:"黄底黑边三角形=警告标志；红=禁令；蓝圆=指示；绿=指路。"},
+  {mod:"灯光使用",q:"夜间会车，应在距对方来车多远以外改用近光灯？",opts:["50 米","100 米","150 米","200 米"],a:2,exp:"夜间会车距对方来车 150 米以外改近光灯。"},
+  {mod:"事故处理",q:"在高速公路上车辆发生故障停车，警告标志应设置在来车方向多少米以外？",opts:["30 米","50 米","100 米","150 米"],a:3,exp:"高速公路故障停车警告标志 150 米外；普通道路 50-100 米。"}
+];
+let qi=0,score=0,wrong=[],answers=[],tickTimer=null;
+const $=s=>document.querySelector(s);
+function render(){
+  if(qi>=QUESTIONS.length){end();return;}
+  const q=QUESTIONS[qi];
+  $('#stage').innerHTML=`
+    <div class="qcard">
+      <span class="qtag">${qi+1}/10 · ${q.mod}</span>
+      <div class="qtext">${q.q}</div>
+      ${q.opts.map((o,i)=>`<button class="op" data-i="${i}">${o}</button>`).join('')}
+      <div class="tip" id="tip"></div>
+    </div>`;
+  document.querySelectorAll('.op').forEach(b=>b.onclick=()=>pick(+b.dataset.i,q));
+}
+function pick(i,q){
+  const ok=i===q.a;
+  if(ok)score++;else wrong.push(q);
+  answers.push({q,ok});
+  document.querySelectorAll('.op').forEach(b=>{
+    b.disabled=true;
+    if(+b.dataset.i===q.a)b.classList.add('ok');
+    if(+b.dataset.i===i&&!ok)b.classList.add('no');
+  });
+  const tip=$('#tip');
+  tip.innerHTML=(ok?'✅ ':'❌ ')+q.exp;
+  tickTimer=setTimeout(()=>{qi++;render();},1100);
+}
+function end(){
+  const pct=Math.round(score/QUESTIONS.length*100);
+  // 统计薄弱模块
+  const modMiss={};
+  wrong.forEach(w=>{modMiss[w.mod]=(modMiss[w.mod]||0)+1;});
+  const lines=Object.entries(modMiss).sort((a,b)=>b[1]-a[1]).map(([m,c])=>`<b>${m}</b>（错 ${c} 题）`);
+  $('#stage').innerHTML=`
+    <div class="result" style="display:block">
+      <div class="sc">${score} / 10 · ${pct} 分</div>
+      <p style="text-align:center;color:#7a8699;font-size:14px;margin-top:6px">
+        ${pct>=90?'🎉 基础很好，直接进入各章巩固 + 模拟考试！':pct>=60?'👍 有一定基础，按下方建议查漏补缺：':'📚 建议从头系统学完各章节后再自测：'}
+      </p>
+      <div class="rec">
+        ${wrong.length?('本次薄弱环节：'+lines.join('、')+'<br>学习路线建议（按优先级）：')
+          :'🎯 全部答对！学习路线建议：'} 
+        <br>1️⃣ 先学【第2章 交通违法记分（2022 新规）】与【第6章 限速与安全距离】（分值占比最高）；
+        <br>2️⃣ 再用【第8-9章 交通信号】过一遍标志手势；
+        <br>3️⃣ 刷完各章练习题 → 进入【全真模拟考试】锁定 95+。
+      </div>
+      <button class="btn" onclick="restart()">🔁 重新自测</button>
+    </div>`;
+}
+function restart(){qi=0;score=0;wrong=[];answers=[];if(tickTimer)clearTimeout(tickTimer);render();}
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>口诀记忆卡 · 科目一速记</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f4f6fb;color:#243047;padding:16px}
+  .wrap{max-width:780px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+  h1{font-size:19px}
+  .mode{display:flex;gap:8px}
+  .mode button{border:1.5px solid #e3e8f0;background:#fff;border-radius:99px;padding:6px 16px;font-size:13px;cursor:pointer}
+  .mode button.on{background:linear-gradient(135deg,#4facfe,#00f2fe);color:#fff;border-color:transparent}
+  .groupbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .groupbar button{border:1px solid #e3e8f0;background:#fff;border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer}
+  .groupbar button.on{background:#243047;color:#fff;border-color:#243047}
+  .scene{perspective:1400px;max-width:640px;margin:0 auto}
+  .card{position:relative;width:100%;height:250px;transform-style:preserve-3d;transition:transform .55s;cursor:pointer}
+  .card.flip{transform:rotateY(180deg)}
+  .face{position:absolute;inset:0;backface-visibility:hidden;border-radius:16px;padding:22px 26px;display:flex;flex-direction:column;justify-content:center;box-shadow:0 6px 20px rgba(36,48,71,.10)}
+  .front{background:linear-gradient(150deg,#243047,#3b4b6b);color:#fff}
+  .front .tag{font-size:12px;background:rgba(255,255,255,.16);padding:3px 10px;border-radius:99px;display:inline-block;width:fit-content;margin-bottom:12px}
+  .front .ftitle{font-size:22px;font-weight:700;line-height:1.4}
+  .front .fsub{font-size:13px;margin-top:6px;opacity:.75}
+  .front .tip{position:absolute;bottom:18px;left:26px;font-size:12px;opacity:.6}
+  .back{background:#fff;border:1.5px solid #e3e8f0;transform:rotateY(180deg)}
+  .back h3{color:#2e86c1;font-size:16px;margin-bottom:10px}
+  .back p{font-size:14px;line-height:1.85;color:#3d4a63}
+  .back .warn{font-size:13px;color:#c0392b;background:#fdf0ef;border-radius:8px;padding:8px 12px;margin-top:10px;line-height:1.7}
+  .ctl{display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px}
+  .ctl button{background:linear-gradient(135deg,#4facfe,#00f2fe);color:#fff;border:none;border-radius:10px;padding:9px 20px;font-size:14px;cursor:pointer;font-weight:600}
+  .ctl button.ghost{background:#fff;color:#2e86c1;border:1.5px solid #2e86c1}
+  .prog{font-size:13px;color:#7a8699}
+  .quizbox{background:#fff;border-radius:14px;border:1px solid #e3e8f0;padding:18px;margin-top:14px;display:none}
+  .quizbox .qq{font-size:15px;line-height:1.7;margin-bottom:12px;font-weight:600}
+  .quizbox .op{display:block;width:100%;text-align:left;border:1.5px solid #e3e8f0;background:#fff;border-radius:10px;padding:10px 14px;margin-top:8px;font-size:14px;cursor:pointer;font-family:inherit}
+  .quizbox .op:hover{border-color:#4facfe}
+  .quizbox .op.ok{background:#eafaf1;border-color:#1d8a4e}
+  .quizbox .op.no{background:#fdf0ef;border-color:#c0392b}
+  .quizbox .tip2{font-size:13px;color:#7a8699;margin-top:10px;line-height:1.7}
+  footer{color:#7a8699;font-size:12px;text-align:center;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📇 口诀记忆卡 <small>先记口诀，再点卡片翻面看详解</small></h1>
+    <div class="mode">
+      <button id="mLearn" class="on" onclick="setMode('learn')">📖 学习</button>
+      <button id="mQuiz" onclick="setMode('quiz')">✏️ 测验</button>
+    </div>
+  </header>
+  <div class="groupbar" id="groupBar"></div>
+  <div class="scene"><div class="card" id="card" onclick="flip()">
+    <div class="face front">
+      <span class="tag" id="tag">组</span>
+      <div class="ftitle" id="ftitle">…</div>
+      <div class="fsub" id="fsub">点击卡片翻面</div>
+      <div class="tip">👆 点击翻面查看详解</div>
+    </div>
+    <div class="face back">
+      <h3 id="btitle">详解</h3>
+      <div id="bdesc"></div>
+      <div class="warn" id="bwarn" style="display:none"></div>
+    </div>
+  </div></div>
+  <div class="ctl">
+    <button class="ghost" onclick="prev()">← 上一张</button>
+    <span class="prog" id="prog">1 / 1</span>
+    <button onclick="next()">下一张 →</button>
+  </div>
+  <div class="quizbox" id="quizbox">
+    <div class="qq" id="qtext"></div>
+    <div id="qops"></div>
+    <div class="tip2" id="qtip"></div>
+  </div>
+  <footer>口诀为记忆辅助（非官方表述），帮助快速回忆易混数字；答案以课程正文的规范表述为准。</footer>
+</div>
+<script>
+"use strict";
+const GROUPS = [
+  {name:"记分档位", cards:[
+    {t:"12分·口诀", sub:"酒驾假牌轻伤逃，高速倒逆重车超，客运超员二成记，代分牟利全记 12", desc:"12 分（严重违法）包含：①饮酒驾驶；②伪造/变造/使用他车号牌行驶证；③致人轻伤以上或死亡事故后逃逸（不构成犯罪）；④高速公路倒车、逆行、穿越中央分隔带掉头；⑤校车/公路客运/旅游客运超员20%以上（记12分）；⑥重点车辆（校车、中型以上客货车、危险品车）在高速/快速路超速20%以上；⑦代替他人记分牟利。", warn:"易错：\"高速倒车逆行穿中央带掉头\"是 12 分，\"高速违法停车\"只有 9 分。"},
+    {t:"9分·口诀", sub:"准驾不符无牌污，校车无证高速停，重车普路超半百，七座超员五至百", desc:"9 分：①驾驶与准驾车型不符；②未悬挂/故意遮挡污损号牌；③未取得校车驾驶资格驾驶校车；④高速公路、城市快速路违法停车；⑤重点车辆（校车、中型以上客货车、危险品车）在高速以外道路超速 50% 以上；⑥7 座以上客车超员 50%-100%；⑦重点车辆疲劳驾驶（超4小时未停或休息不足20分钟）。", warn:"\"未悬挂/遮挡污损号牌\" 9 分 ≠ \"不按规定安装号牌\" 3 分；\"高速违法停车\" 9 分 ≠ \"占用应急车道\" 6 分。"},
+    {t:"6分·口诀", sub:"闯灯占道扣证开，轻微伤逃普超半，重车普路二五档，高速超速未足二", desc:"6 分：①闯红灯；②高速/快速路违法占用应急车道；③驾驶证被暂扣/扣留期间驾驶；④致人轻微伤或财产损失后逃逸（不构成犯罪）；⑤普通车普通道路超速 50% 以上；⑥重点车辆普通道路超速 20%-50%；⑦重点车辆在高速/快速路超速未达 20%；⑧货车超载 50% 以上。", warn:"普通车\"高速/快速路超速 20%-50%\"也是 6 分（记分与道路相关，别只看车型）。"},
+    {t:"3分·口诀", sub:"打电话不礼让，不避校车加塞忙，高速低限车道乱，普通道路超二五", desc:"3 分：①接打手持电话；②行经人行横道不减速/停车/避让行人；③不避让校车；④借道超车、占用对向车道、穿插等候（加塞）；⑤高速公路低于最低限速；⑥高速/快速路不按规定车道行驶；⑦普通道路超速 20%-50%；⑧不按规定超车、让行、普路逆行；⑨货车超载 30%-50%；⑩故障/事故后未按规定使用灯光或设警告标志；⑪不按规定安装号牌；⑫普通货车疲劳驾驶。", warn:"\"未设警告标志\"普通道路记 3 分；因处置不当造成拥堵/二次事故记 6 分。"},
+    {t:"1分·口诀", sub:"禁令标线会车灯，超高超宽超长停，安全带要系，重点普路超一成", desc:"1 分：①违反禁令标志、禁止标线；②不按规定会车；③不按规定使用灯光；④载货超长/超宽/超高；⑤驾驶人不系安全带；⑥货车超载未达 30%；⑦普通车逾期未年检；⑧普通道路不按规定倒车、掉头；⑨重点车辆普通道路超速 10%-20%。", warn:"2022 新规后\"违反禁令标志/标线\"、\"不系安全带\"都降为 1 分，老教材的 2/3 分是过时的。"}
+  ]},
+  {name:"限速能见度", cards:[
+    {t:"无标志限速", sub:"城 3 公 4 无中心，城 5 公 7 有中心（全平路）", desc:"没有限速标志时：无中心线的城市道路 30 km/h、公路 40 km/h；有中心线（同方向 1 条车道）的城市道路 50 km/h、公路 70 km/h。", warn:"判断口诀：旁边是树→公路；旁边是高楼→城市道路。"},
+    {t:"特殊场景 30", sub:"急弯窄路窄桥、掉头转弯陡坡、冰雪泥泞、进出非机动车道——一律 30", desc:"急弯路、窄路、窄桥、掉头、转弯、陡坡、进出非机动车道、铁道路口，以及冰雪、泥泞等恶劣路况，最高时速不得超过 30 km/h。", warn:"铁道路口、冰雪泥泞一律 30，属于送分高频题。"},
+    {t:"高速能见度·261", sub:"能见度<200米：60 时速、100 米车距、开启雾灯/近光/示廓/位灯", desc:"能见度小于 200 米时：开启雾灯、近光灯、示廓灯和前后位灯，车速不超过 60 km/h，与同车道前车保持 100 米以上距离。", warn:"261 = <200m → 60 → 100。"},
+    {t:"高速能见度·145", sub:"能见度<100米：40 时速、50 米车距、再加危险报警闪光灯", desc:"能见度小于 100 米时：在 261 基础上车速不超过 40 km/h，与同车道前车保持 50 米以上距离。", warn:"145 = <100m → 40 → 50。"},
+    {t:"高速能见度·520", sub:"能见度<50米：20 时速、尽快驶离高速", desc:"能见度小于 50 米时：车速不超过 20 km/h，并从最近的出口尽快驶离高速公路。", warn:"520 = <50m → 20 → 驶离。很多人误记成 30，注意是 20。"}
+  ]},
+  {name:"高速车道", cards:[
+    {t:"最高与最低", sub:"最高 120，最低 60；低于 70 的车不得进高速", desc:"高速公路最高限速 120 km/h，最低不低于 60 km/h；设计最高时速低于 70 km/h 的机动车不得进入高速公路。", warn:"\"最低 60\" 指最右侧车道底线；\"低于 70 不得进入\"是门槛。"},
+    {t:"分车道限速", sub:"双道：左百右六；三道：一一九六；四道：一一九九六", desc:"2 条车道：最左侧 100+，右侧 60+；3 条车道：最左侧 110+，中间 90+，右侧 60+；4 条及以上：最左侧 110+，其余中间车道 90+（靠右第二条也 90），最右侧 60+。", warn:"最高都不超过 120。题目问你\"小车应以不低于多少时速在最左车道行驶\"→ 看车道数。"},
+    {t:"安全距离", sub:"100 以上 100 米，100 以下 50 米", desc:"时速超过 100 km/h 时，与同车道前车保持 100 米以上距离；时速低于 100 km/h 时，不得少于 50 米。", warn:"雨天/雾天还要在此基础加大车距。"},
+    {t:"故障停车", sub:"开双闪 + 150 米外放警告标志 + 车靠边人撤离即报警", desc:"高速上故障/事故：立即开启危险报警闪光灯，将车移至不妨碍交通处停放（应急车道），在来车方向 150 米以外设置警告标志，人员转移到右侧路肩或应急车道内，迅速报警。", warn:"普通道路警告标志为 50-100 米；高速必须 150 米外。"}
+  ]},
+  {name:"让行灯光", cards:[
+    {t:"路口让行三原则", sub:"让右原则 → 转弯让直行 → 右转让左转", desc:"无交通信号灯路口：①让右方道路的来车先行（让右）；②转弯的机动车让直行的车辆先行；③相对方向行驶的右转弯机动车让左转弯车辆先行。", warn:"判断顺序：先让右，再转弯让直行，最后右转让左转。"},
+    {t:"禁止超车八区域", sub:"铁交窄弯陡隧人（铁路道口、交叉路口、窄桥、弯道、陡坡、隧道、人行横道）+ 前方拥堵时禁止", desc:"铁路道口、交叉路口、窄桥、弯道、陡坡、隧道、人行横道以及前方排队/拥堵、遇行人等情形，禁止超车。", warn:"口诀\"铁交窄弯陡隧人\"，全是高频考点。"},
+    {t:"夜间灯光", sub:"会车 150 米外切近光；超车提前开左转灯+交替远近光提醒", desc:"夜间会车在距对方来车 150 米以外改用近光灯；超车前开启左转向灯、变换使用远近光灯或鸣喇叭提示被超车辆。", warn:"照明良好路段开远光、会车不变近光——记 1 分的\"不按规定使用灯光\"。"},
+    {t:"灯光使用速记", sub:"雾天=雾灯+近光+示廓+危险报警闪光灯；故障=双闪+警告标志", desc:"雾天/大雾能见度低时使用雾灯、近光灯、示廓灯和前后位灯，必要时加危险报警闪光灯；车辆发生故障时开启危险报警闪光灯并设置警告标志。", warn:"雾天禁用远光灯（远光反射白茫茫反而更危险）。"}
+  ]},
+  {name:"标志颜色", cards:[
+    {t:"标志颜色含义", sub:"红禁黄警蓝指，绿指路，棕旅游，施工橙黄", desc:"红色=禁令标志；黄色=警告标志；蓝色=指示标志/一般道路指路；绿色=高速公路指路；棕色=旅游区标志；橙黄（施工区）=作业区标志。", warn:"\"黄警告、红禁令、蓝指示、绿指路\"四色速记必须脱口而出。"},
+    {t:"标线颜色含义", sub:"黄线=分割对向车流；白线=同向车道；路缘黄实=禁停、黄虚=禁长停", desc:"黄色标线分隔对向车流（中心线），白色标线分隔同向车流；路缘石黄色实线=禁止停车，黄色虚线=禁止长时间停车；泊位白色=收费、蓝色=免费、黄色=专属。", warn:"地面数字：白色=最低限速，黄色=最高限速。"}
+  ]}
+];
+let gIdx=0,cIdx=0,mode='learn',quizRound=[],qi=0,quizScore=0,qTimer=null;
+const $=s=>document.querySelector(s);
+function renderGroupBar(){
+  $('#groupBar').innerHTML=GROUPS.map((g,i)=>`<button class="${i===gIdx?'on':''}" onclick="setGroup(${i})">${g.name}</button>`).join('');
+}
+function renderCard(){
+  $('#card').style.display='block';
+  const g=GROUPS[gIdx],c=g.cards[cIdx];
+  $('#tag').textContent=g.name;
+  $('#ftitle').textContent=c.t;
+  $('#fsub').textContent=c.sub;
+  $('#btitle').textContent='详解 · '+c.t;
+  $('#bdesc').textContent=c.desc;
+  const w=$('#bwarn');w.style.display=c.warn?'block':'none';w.textContent=c.warn||'';
+  $('#card').classList.remove('flip');
+  $('#prog').textContent=`${cIdx+1} / ${g.cards.length}`;
+  $('#quizbox').style.display='none';
+}
+function flip(){$('#card').classList.toggle('flip');}
+function prev(){cIdx=(cIdx-1+GROUPS[gIdx].cards.length)%GROUPS[gIdx].cards.length;renderCard();}
+function next(){cIdx=(cIdx+1)%GROUPS[gIdx].cards.length;renderCard();}
+function setGroup(i){gIdx=i;cIdx=0;renderGroupBar();renderCard();}
+function setMode(m){
+  mode=m;
+  $('#mLearn').className=m==='learn'?'on':'';
+  $('#mQuiz').className=m==='quiz'?'on':'';
+  if(qTimer)clearTimeout(qTimer);
+  if(m==='learn'){renderCard();}
+  else startQuiz();
+}
+function startQuiz(){
+  if(qTimer)clearTimeout(qTimer);
+  // 收集所有卡片做测验：显示"口诀标题"，考反选对应解释（4 个选项，取 desc 首句）
+  const all=[];
+  GROUPS.forEach((g,i)=>g.cards.forEach((c,j)=>{all.push({g:g.name,t:c.t,desc:c.desc,sub:c.sub,warn:c.warn});}));
+  quizRound=shuffle(all);qi=0;quizScore=0;
+  renderQuiz();
+}
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function renderQuiz(){
+  const q=quizRound[qi];
+  $('#card').style.display='none';
+  $('#quizbox').style.display='block';
+  $('#qtext').innerHTML=`<span style="color:#7a8699;font-weight:400">${qi+1}/${quizRound.length} · ${q.g} · 得分 ${quizScore}</span><br><br>下面这条口诀对应哪个规则？<br><b>“${q.sub}”</b>`;
+  const opts=shuffle([...quizRound].filter(x=>x!==q).slice(0,3).map(x=>x.t).concat([q.t]));
+  $('#qops').innerHTML=opts.map((o,i)=>`<button class="op" data-i="${i}">${o}</button>`).join('');
+  $('#qtip').innerHTML='';
+  document.querySelectorAll('#qops .op').forEach(b=>{ b.onclick=()=>pickQuiz(b,opts[+b.dataset.i],q); });
+}
+function pickQuiz(btn,chosen,q){
+  const right=q.t;
+  const ok=chosen===right;
+  if(ok)quizScore++;
+  document.querySelectorAll('#qops .op').forEach(b=>{b.disabled=true;});
+  [...document.querySelectorAll('#qops .op')].forEach(b=>{
+    if(b.textContent===right){b.classList.add('ok');}
+    if(b.textContent===chosen&&!ok){b.classList.add('no');}
+  });
+  $('#qtip').innerHTML=ok
+    ? `✅ 答对！<br>${quizRound[qi].desc}`
+    : `❌ 答错。正确是：${right}<br>${quizRound[qi].desc}${quizRound[qi].warn?'<br>⚠️ '+quizRound[qi].warn:''}`;
+  qTimer=setTimeout(()=>{
+    if(qi+1>=quizRound.length){
+      const pct=Math.round(quizScore/quizRound.length*100);
+      $('#qtext').innerHTML=`🎉 测验完成！答对 <b>${quizScore}</b>/${quizRound.length}（${pct} 分）${pct>=90?'，口诀掌握得很好，可以进入下一章！':pct>=70?'，还有提升空间，翻卡片复习一遍吧。':'，建议先回学习模式逐张背诵。'}`;
+      $('#qops').innerHTML='<button class="op" onclick="startQuiz()">🔁 再来一轮</button>';
+      $('#qtip').innerHTML='';
+    }else{qi++;renderQuiz();}
+  },1700);
+}
+renderGroupBar();
+renderCard();
+</script>
+</body>
+</html>
