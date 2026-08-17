@@ -89,4 +89,7 @@ export const symlinkEn: Record<string, string> = {
   "symlink.mpfCanvasEdges": "Edges",
   "symlink.mpfEmpty": "(empty)",
   "symlink.mpfNoSection": "Select a section from the outline",
+  "symlink.canvasEdit": "Edit in canvas editor",
+  "symlink.canvasEditHint": "Obsidian native .canvas: open in the canvas editor (edit as .mpf; saving writes back to the source file).",
+  "symlink.canvasBadge": ".canvas canvas",
 }

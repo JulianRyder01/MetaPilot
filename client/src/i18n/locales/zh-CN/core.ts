@@ -303,6 +303,8 @@ export const coreZhCN: Record<string, string> = {
   "core.canvas.addLinkTitle": "链接 URL",
   "core.canvas.addGroupTitle": "分组标签",
   "core.canvas.groupName": "分组名称",
+  "core.canvas.externalBadge": "外部 .canvas",
+  "core.canvas.backToFiles": "返回文件浏览器",
 
   // ---- 统计页 ----
   "core.stats.intro":

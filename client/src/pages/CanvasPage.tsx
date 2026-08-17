@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { AlignCenter, AlignLeft, AlignRight, ArrowLeft, Box, CornerDownRight, Download, FileText, Focus, Image, Library, Link2, Maximize, Minus, MoveHorizontal, PanelLeft, Plus, Redo2, Save, Spline, StickyNote, Trash2, Undo2, X } from "lucide-react"
@@ -7,6 +7,7 @@ import { toast } from "@/lib/toast"
 
 import { useT } from "@/i18n"
 import { api, type CanvasEdge, type CanvasNode, type Folder } from "@/lib/api"
+import { symlinkCanvasOpen, symlinkCanvasSave } from "@/plugins/symlink/api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -127,14 +128,20 @@ function sideOfNode(node: CanvasNode, p: { x: number; y: number }): string {
 export default function CanvasPage() {
   const { cid } = useParams()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
   const t = useT()
   const dialogs = useDialogs()
+  /** 外部 .canvas 编辑模式：/canvas/file?mount=&path= —— 数据来自软链接挂载内的源 .canvas 文件。 */
+  const mountId = params.get("mount") ?? ""
+  const filePath = params.get("path")
+  const isExternal = Boolean(mountId) && filePath !== null
+  const fileName = (filePath ?? "").split("/").filter(Boolean).pop() ?? ""
   const [col, setCol] = useState<Folder | null>(null)
   const [nodes, setNodes] = useState<CanvasNode[]>([])
   const [edges, setEdges] = useState<CanvasEdge[]>([])
   const [dirty, setDirty] = useState(false)
-  /** 待离开的目标路径：有未保存修改时点击离开导航先弹确认框（保存并离开/不保存/取消）。 */
-  const [leaveTo, setLeaveTo] = useState<string | null>(null)
+  /** 待离开的目标：有未保存修改时点击离开导航先弹确认框（保存并离开/不保存/取消）；-1 = 返回上一页。 */
+  const [leaveTo, setLeaveTo] = useState<string | number | null>(null)
   /** 保存进行中（防连点重复提交）。 */
   const [saving, setSaving] = useState(false)
   /** dirty 的 ref 同步副本（供 popstate/beforeunload 等事件监听读取最新值）。 */
@@ -189,24 +196,39 @@ export default function CanvasPage() {
   const suppressCtxMenuRef = useRef(false)
 
   const load = useCallback(async () => {
-    if (!cid) return
-    const c = await api.getFolder(cid)
-    setCol(c)
-    setNodes(c.canvas?.nodes ?? [])
-    setEdges(c.canvas?.edges ?? [])
+    if (isExternal) {
+      try {
+        const opened = await symlinkCanvasOpen(mountId, filePath ?? "")
+        const name = opened.name || fileName
+        setCol({ id: "file", name, kind: "canvas", description: "", author: "", version: "1.0.0", documents: [], folders: [] })
+        setNodes(opened.canvas?.nodes ?? [])
+        setEdges(opened.canvas?.edges ?? [])
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : t("core.canvas.saveFailed"))
+        navigate("/files")
+        return
+      }
+    } else {
+      if (!cid) return
+      const c = await api.getFolder(cid)
+      setCol(c)
+      setNodes(c.canvas?.nodes ?? [])
+      setEdges(c.canvas?.edges ?? [])
+    }
     setSelectedIds([])
     setSelectedEdgeId(null)
     undoStack.current = []
     redoStack.current = []
     setDirtySync(false)
-  }, [cid])
+  }, [cid, isExternal, mountId, filePath, fileName, navigate, t])
 
   useEffect(() => {
     load()
   }, [load])
 
-  // 导航抽屉数据：各库下的图表集合（用于快速切换）
+  // 导航抽屉数据：各库下的图表集合（用于快速切换；外部 .canvas 编辑模式不加载）
   useEffect(() => {
+    if (isExternal) return
     let alive = true
     ;(async () => {
       try {
@@ -225,16 +247,21 @@ export default function CanvasPage() {
     return () => {
       alive = false
     }
-  }, [cid])
+  }, [cid, isExternal])
 
   /** 保存画布；返回是否成功（供「保存并离开」复用）。 */
   async function doSave(): Promise<boolean> {
-    if (!cid || saving) return false
+    if (saving) return false
     setSaving(true)
     try {
       // 若正在编辑文本节点，先将其提交进节点数据再保存（Ctrl+Enter 保存）
       const finalNodes = editingId ? nodes.map((n) => (n.id === editingId ? { ...n, text: editText } : n)) : nodes
-      await api.updateFolderCanvas(cid, finalNodes, edges)
+      if (isExternal) {
+        // 源 .canvas 文件：转回 JSON Canvas 标准格式写回（不保存则不修改源文件）
+        await symlinkCanvasSave(mountId, filePath ?? "", finalNodes, edges)
+      } else if (cid) {
+        await api.updateFolderCanvas(cid, finalNodes, edges)
+      }
       setDirtySync(false)
       return true
     } catch (e) {
@@ -249,20 +276,32 @@ export default function CanvasPage() {
     if (await doSave()) toast.success(t("core.canvas.saved"))
   }
 
-  /** 离开画布统一入口：有未保存修改时先弹「是否保存」确认框，否则直接跳转。 */
-  function navigateAway(to: string) {
+  /** navigate 兼容字符串路径与数字回退（-1 = 返回上一页）：类型收窄后调用。 */
+  function goTo(to: string | number) {
+    if (typeof to === "number") navigate(to)
+    else navigate(to)
+  }
+
+  /** 离开画布统一入口：有未保存修改时先弹「是否保存」确认框，否则直接跳转（-1 = 返回上一页）。 */
+  function navigateAway(to: string | number) {
     if (!dirty) {
-      navigate(to)
+      goTo(to)
       return
     }
     setLeaveTo(to)
   }
 
   /** 应用内导航离开：拦截返回库/切换图表的点击（Link 的默认导航被 preventDefault 接管）。 */
-  function interceptLeave(e: React.MouseEvent, to: string) {
+  function interceptLeave(e: React.MouseEvent, to: string | number) {
     e.preventDefault()
     setNavOpen(false)
     navigateAway(to)
+  }
+
+  /** 外部 .canvas 模式：返回上一页（文件浏览器），有未保存修改时走统一确认框。 */
+  function leaveBack() {
+    setNavOpen(false)
+    navigateAway(-1)
   }
 
   /** 浏览器刷新/关闭兜底：有未保存修改时触发原生离开确认（自定义确认框仅能覆盖应用内导航）。 */
@@ -999,26 +1038,43 @@ export default function CanvasPage() {
       {/* 顶部工具栏（全屏沉浸式画布的自有工具条） */}
       <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b bg-background/95 px-3">
         <div className="flex min-w-0 items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={() => setNavOpen((v) => !v)}
-            title={t("core.canvas.toggleNav")}
-          >
-            <PanelLeft className="size-4" />
-          </Button>
-          <Link
-            to="/"
-            onClick={(e) => interceptLeave(e, "/")}
-            className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-            {t("core.canvas.backToLibrary")}
-          </Link>
+          {!isExternal && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={() => setNavOpen((v) => !v)}
+              title={t("core.canvas.toggleNav")}
+            >
+              <PanelLeft className="size-4" />
+            </Button>
+          )}
+          {isExternal ? (
+            <button
+              onClick={leaveBack}
+              className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" />
+              {t("core.canvas.backToFiles")}
+            </button>
+          ) : (
+            <Link
+              to="/"
+              onClick={(e) => interceptLeave(e, "/")}
+              className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" />
+              {t("core.canvas.backToLibrary")}
+            </Link>
+          )}
           <span className="shrink-0 text-muted-foreground">/</span>
           <h1 className="truncate text-base font-semibold">{col.name}</h1>
-          <Badge variant="outline" className="shrink-0">{t("core.canvas.badge")}</Badge>
+          <Badge variant="outline" className="shrink-0">
+            {t(isExternal ? "core.canvas.externalBadge" : "core.canvas.badge")}
+          </Badge>
+          {isExternal && filePath && (
+            <span className="hidden shrink-0 truncate text-xs text-muted-foreground md:inline">{filePath}</span>
+          )}
           {dirty && <Badge variant="secondary" className="shrink-0">{t("core.canvas.dirty")}</Badge>}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -1067,9 +1123,11 @@ export default function CanvasPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={exportCanvasFile}>{t("core.canvas.exportCanvas")}</DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href={cid ? api.exportMpfUrl(cid, "folder") : "#"}>{t("core.canvas.exportMpf")}</a>
-              </DropdownMenuItem>
+              {!isExternal && (
+                <DropdownMenuItem asChild>
+                  <a href={cid ? api.exportMpfUrl(cid, "folder") : "#"}>{t("core.canvas.exportMpf")}</a>
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -1749,7 +1807,7 @@ export default function CanvasPage() {
                 onClick={() => {
                   const to = leaveTo
                   setLeaveTo(null)
-                  navigate(to)
+                  goTo(to)
                 }}
               >
                 {t("core.canvas.discardAndLeave")}
@@ -1761,7 +1819,7 @@ export default function CanvasPage() {
                   if (await doSave()) {
                     setLeaveTo(null)
                     toast.success(t("core.canvas.saved"))
-                    navigate(to)
+                    goTo(to)
                   }
                 }}
               >

@@ -316,6 +316,8 @@ export const coreEn: Record<string, string> = {
   "core.canvas.addLinkTitle": "Link URL",
   "core.canvas.addGroupTitle": "Group label",
   "core.canvas.groupName": "Group name",
+  "core.canvas.externalBadge": "External .canvas",
+  "core.canvas.backToFiles": "Back to file browser",
 
   // ---- Stats page ----
   "core.stats.intro":

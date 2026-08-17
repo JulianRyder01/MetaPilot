@@ -89,4 +89,7 @@ export const symlinkZhCN: Record<string, string> = {
   "symlink.mpfCanvasEdges": "连线",
   "symlink.mpfEmpty": "（无内容）",
   "symlink.mpfNoSection": "选择左侧小节查看内容",
+  "symlink.canvasEdit": "在图表编辑器中编辑",
+  "symlink.canvasEditHint": "Obsidian 原生 .canvas 图表：在图表编辑器中打开（转为 .mpf 编辑，保存时写回源文件）。",
+  "symlink.canvasBadge": ".canvas 图表",
 }

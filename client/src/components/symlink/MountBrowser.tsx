@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useCallback, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
+import { useNavigate } from "react-router-dom"
 import {
   ChevronRight,
   Circle,
@@ -43,8 +44,8 @@ function joinPath(base: string, name: string) {
   return base ? `${base}/${name}` : name
 }
 
-/** 文件分类：文本（内联编辑）/ 媒体（内联预览）/ MetaPilot 文档（.mpf）/ 其它（仅本地打开） */
-type FileKind = "text" | "image" | "pdf" | "video" | "audio" | "mpf" | "other"
+/** 文件分类：文本（内联编辑）/ 媒体（内联预览）/ MetaPilot 文档（.mpf）/ Obsidian 图表（.canvas）/ 其它（仅本地打开） */
+type FileKind = "text" | "image" | "pdf" | "video" | "audio" | "mpf" | "canvas" | "other"
 
 const TEXT_EXT = new Set([
   ".md", ".markdown", ".txt", ".text", ".json", ".yaml", ".yml",
@@ -64,6 +65,7 @@ function kindOf(name: string): FileKind {
   const i = name.lastIndexOf(".")
   const ext = (i >= 0 ? name.slice(i) : "").toLowerCase()
   if (ext === ".mpf") return "mpf"
+  if (ext === ".canvas") return "canvas"
   if (TEXT_EXT.has(ext)) return "text"
   return MEDIA_EXT[ext] ?? "other"
 }
@@ -72,7 +74,7 @@ function kindOf(name: string): FileKind {
 function FileTypeIcon({ name }: { name: string }) {
   const kind = kindOf(name)
   const Icon =
-    kind === "image" ? FileImage : kind === "video" ? FileVideo : kind === "audio" ? FileAudio : FileText
+    kind === "image" ? FileImage : kind === "video" ? FileVideo : kind === "audio" ? FileAudio : kind === "canvas" ? Workflow : FileText
   return (
     <span className="relative inline-flex shrink-0">
       <Icon className="size-4 text-muted-foreground" />
@@ -104,6 +106,7 @@ export function MountBrowser({
   variant?: "natural" | "manager"
 }) {
   const t = useT()
+  const navigate = useNavigate()
   const { confirm, prompt } = useDialogs()
   const [path, setPath] = useState("")
   const [tree, setTree] = useState<SymlinkTree | null>(null)
@@ -149,7 +152,10 @@ export function MountBrowser({
     if (mount?.type === "file") {
       const name = baseName(mount.root)
       const kind = kindOf(name)
-      if (kind === "text" || kind === "mpf") {
+      if (kind === "canvas") {
+        // 源 .canvas 文件：进入图表编辑器（转 .mpf 编辑，保存写回源文件）
+        navigate(`/canvas/file?mount=${mount.id}&path=`)
+      } else if (kind === "text" || kind === "mpf") {
         symlinkReadFile(mount.id, "")
           .then((f) => setFile({ path: f.path, name, kind, content: f.content }))
           .catch(() => {})
@@ -157,7 +163,7 @@ export function MountBrowser({
         setFile({ path: "", name, kind })
       }
     }
-  }, [mount])
+  }, [mount, navigate])
 
   async function openItem(item: SymlinkItem) {
     const p = mount.type === "file" ? "" : joinPath(path, item.name)
@@ -166,6 +172,11 @@ export function MountBrowser({
       return
     }
     const kind = kindOf(item.name)
+    if (kind === "canvas") {
+      // 打开源 .canvas → 转 .mpf 图表编辑器编辑；仅保存时才写回源文件
+      navigate(`/canvas/file?mount=${mount.id}&path=${encodeURIComponent(p)}`)
+      return
+    }
     if (kind === "text" || kind === "mpf") {
       try {
         const f = await symlinkReadFile(mount.id, p)
@@ -337,7 +348,7 @@ export function MountBrowser({
                 <span className="truncate">{file.path || baseName(mount.root)}</span>
               </span>
               <div className="flex shrink-0 items-center gap-1">
-                <Badge variant="outline">{t(file.kind === "mpf" ? "symlink.mpf" : "common.preview")}</Badge>
+                <Badge variant="outline">{t(file.kind === "mpf" ? "symlink.mpf" : file.kind === "canvas" ? "symlink.canvasBadge" : "common.preview")}</Badge>
                 {mount.type !== "file" && (
                   <Button size="sm" variant="outline" className="h-7" onClick={() => setFile(null)}>
                     <X className="size-3.5" />
@@ -393,6 +404,17 @@ export function MountBrowser({
             <MpfBoundary>
               <MpfViewer mount={mount} path={file.path} />
             </MpfBoundary>
+          ) : file && !editing && file.kind === "canvas" ? (
+            <div className="p-6 text-sm text-muted-foreground">
+              <p className="mb-3">{t("symlink.canvasEditHint")}</p>
+              <Button
+                size="sm"
+                onClick={() => navigate(`/canvas/file?mount=${mount.id}&path=${encodeURIComponent(file.path)}`)}
+              >
+                <Workflow className="size-4" />
+                {t("symlink.canvasEdit")}
+              </Button>
+            </div>
           ) : file && !editing && file.kind !== "text" ? (
             <MediaViewer mount={mount} file={file} />
           ) : editing ? (

@@ -298,6 +298,8 @@ export const coreZhTW: Record<string, string> = {
   "core.canvas.addLinkTitle": "新建連結節點",
   "core.canvas.addGroupTitle": "新建分組",
   "core.canvas.groupName": "分組名稱",
+  "core.canvas.externalBadge": "外部 .canvas",
+  "core.canvas.backToFiles": "返回檔案瀏覽器",
 
   // ---- 统计页 ----
   "core.stats.intro":

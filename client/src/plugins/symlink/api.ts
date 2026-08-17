@@ -2,7 +2,7 @@
  *
  * 端点全部位于 /api/plugins/symlink/*（规范 §4 统一前缀）。
  */
-import { BASE, request, type SymlinkFsList, type SymlinkMount, type SymlinkTree } from "@/lib/api"
+import { BASE, request, type CanvasEdge, type CanvasNode, type SymlinkFsList, type SymlinkMount, type SymlinkTree } from "@/lib/api"
 
 export const symlinkMounts = () => request<SymlinkMount[]>("/plugins/symlink/mounts")
 
@@ -55,6 +55,19 @@ export const symlinkWriteFile = (mid: string, path: string, content: string) =>
   request<{ ok: boolean; path: string; bytes: number }>(
     `/plugins/symlink/mounts/${mid}/file?path=${encodeURIComponent(path)}`,
     { method: "PUT", body: JSON.stringify({ content }) },
+  )
+
+/** 打开挂载内 .canvas 源文件：后端转为 .mpf canvas 内容（nodes/edges）供图表编辑器编辑（不写源文件）。 */
+export const symlinkCanvasOpen = (mid: string, path: string) =>
+  request<{ path: string; name: string; canvas: { nodes: CanvasNode[]; edges: CanvasEdge[] } }>(
+    `/plugins/symlink/mounts/${mid}/canvas?path=${encodeURIComponent(path)}`,
+  )
+
+/** 保存编辑后的图表：后端转回 JSON Canvas 标准格式，写回源 .canvas 文件（未调用则不修改源文件）。 */
+export const symlinkCanvasSave = (mid: string, path: string, nodes: CanvasNode[], edges: CanvasEdge[]) =>
+  request<{ ok: boolean; path: string; bytes: number }>(
+    `/plugins/symlink/mounts/${mid}/canvas?path=${encodeURIComponent(path)}`,
+    { method: "PUT", body: JSON.stringify({ nodes, edges }) },
   )
 
 export const symlinkMkdir = (mid: string, path: string) =>
