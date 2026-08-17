@@ -394,10 +394,10 @@ def test_plugin_info_includes_metadata_v12():
 def test_plugin_list_includes_changelog():
     """插件清单携带更新历史（changelog）：官方核心内置多版本，官方插件至少一条。"""
     by_id = {p["id"]: p for p in client.get("/api/plugins").json()}
-    # 官方核心：内置 1.0.0 → 1.1.1 → 1.1.2 历史，倒序（最新在前）
+    # 官方核心：内置 1.0.0 → … → 当前版本历史，倒序（最新在前）；当前版本 = 项目版本单一来源
     core = by_id["core"]
     assert isinstance(core["changelog"], list) and len(core["changelog"]) >= 3
-    assert core["changelog"][0]["version"] == "1.1.2"
+    assert core["changelog"][0]["version"] == core["version"]
     assert all("version" in c and "summary" in c for c in core["changelog"])
     # 官方插件：来自 plugin.json，至少一条，含 version/summary 字段
     for pid in ("course", "symlink", "themes", "ai_insight"):

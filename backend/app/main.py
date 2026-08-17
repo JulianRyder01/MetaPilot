@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import DATA_DIR, settings
+from .version import VERSION as APP_VERSION
 from .services.ai_config import AIConfig
 from .services.ai_gateway import AIGateway
 from .services.local_servers import LocalServersManager
@@ -22,8 +23,6 @@ from .services.importer import CourseImporter
 from .services.mpf import register_core_mpf_types
 from .services.stats_core import init_stats_core
 from .stats_widgets import register_core_widgets
-
-APP_VERSION = "1.1.4"
 
 
 @asynccontextmanager
