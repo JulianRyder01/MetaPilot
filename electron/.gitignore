@@ -1,7 +1,11 @@
 # 依赖与构建产物不入库
 node_modules/
-resources/    # 打包脚本组装的运行时资源（backend/frontend/plugins/scripts/...）
-release/      # electron-builder 产物
+
+# 打包脚本组装的运行时资源（backend/frontend/plugins/scripts/...）
+resources/
+
+# electron-builder 产物
+release/
 
 # 图标生成产物（scripts/generate-icon.mjs 每次打包自动生成）
 build/icon.png
