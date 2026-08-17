@@ -68,6 +68,24 @@ React 18 · Vite · TypeScript · Tailwind CSS · shadcn/ui · FastAPI · MiniMa
 ## 版本与发布
 
 - 语义化版本；大核心修改（架构 / 数据格式变更）发布新版本；课程包 `manifest.json` 独立 `formatVersion` 演进。
+- **版本号单一来源**：`backend/app/version.py`（官方核心插件版本号 = 项目版本 = 桌面打包版本）。改版本只改这一个文件。
+
+### 桌面端打包发布（Electron）
+
+像 Obsidian / VSCode 一样把整个 MetaPilot 打成桌面安装包分发给各端（Windows / macOS / Linux）：
+
+```bash
+node scripts/package-electron.mjs            # 打包当前平台
+node scripts/package-electron.mjs --win      # 仅 Windows（nsis 安装包）
+node scripts/package-electron.mjs --mac      # 仅 macOS（dmg，需在 macOS 上执行）
+node scripts/package-electron.mjs --linux    # 仅 Linux（AppImage + deb）
+```
+
+一键脚本自动完成：构建前端 → PyInstaller 编译后端 → 组装资源（后端/前端/插件/脚本/`.env` 模板随包）→ 生成图标 → electron-builder 产出安装包到 `electron/release/`。
+
+- **版本号**：自动读取 `backend/app/version.py`（官方核心插件版本号 = 项目版本），安装包名与版本均为它。
+- **运行时数据**：数据目录（vault）、`.env`、可写插件目录默认放操作系统用户数据目录（Electron `userData`），卸载/升级不影响数据；首次启动自动铺入内置插件与 `.env` 模板。
+- 依赖：Node.js ≥ 18、npm、Python 3（PyInstaller 缺失时脚本自动安装）。
 
 ### 更新历史
 

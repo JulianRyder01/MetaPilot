@@ -1,0 +1,19 @@
+{
+  "name": "metapilot-desktop",
+  "productName": "MetaPilot",
+  "version": "1.1.4",
+  "description": "MetaPilot 交互式学习平台桌面版（官方核心插件版本号 = 项目版本，打包时由 scripts/package-electron.mjs 覆写）",
+  "author": "MetaPilot",
+  "license": "MIT",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env METAPILOT_DEV_MODE=1 electron .",
+    "dist": "electron-builder --config electron-builder.yml"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  }
+}

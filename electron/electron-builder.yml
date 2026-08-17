@@ -1,0 +1,64 @@
+# MetaPilot 桌面端 electron-builder 配置
+# 版本号：打包脚本从 backend/app/version.py（官方核心插件版本号=项目版本）读取后写入 package.json。
+
+appId: com.metapilot.desktop
+productName: MetaPilot
+directories:
+  output: release
+  buildResources: build
+files:
+  - main.cjs
+  - package.json
+extraResources:
+  # 后端随包：脚本先运行 PyInstaller 产出 backend/dist/metapilot-backend/ 再复制为 resources/backend/
+  - from: resources/backend
+    to: backend
+    filter:
+      - "**/*"
+  # 前端构建产物（client/dist 构建后复制为 resources/frontend/）
+  - from: resources/frontend
+    to: frontend
+  # 内置插件（backend/plugins 复制为 resources/plugins/，首次启动铺入用户数据目录）
+  - from: resources/plugins
+    to: plugins
+    filter:
+      - "**/*"
+  # 本地模型服务脚本（backend/scripts 复制为 resources/scripts/）
+  - from: resources/scripts
+    to: scripts
+    filter:
+      - "**/*"
+  # .env 配置模板（首次启动复制为 userData/.env）
+  - from: resources/.env.example
+    to: .env.example
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-${version}-setup.${ext}
+  shortcutName: MetaPilot
+
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  category: public.app-category.education
+dmg:
+  artifactName: ${productName}-${version}.${ext}
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  category: Education
+  maintainer: MetaPilot
+appImage:
+  artifactName: ${productName}-${version}.${ext}
+deb:
+  artifactName: ${productName}-${version}.${ext}
