@@ -260,7 +260,7 @@ class AIConfig:
             self._set_env("AI_API_KEY", key)
         if data.get("chatModel"):
             self._set_env("AI_CHAT_MODEL", str(data["chatModel"]).strip())
-        if data.get("embeddingProvider") in ("local_transformers", "openai", "none"):
+        if data.get("embeddingProvider") in ("local_transformers", "openai", "ollama", "none"):
             self._set_env("AI_EMBEDDING_PROVIDER", data["embeddingProvider"])
         if data.get("embeddingUrl") is not None:
             self._set_env("AI_EMBEDDING_URL", str(data["embeddingUrl"]).strip())

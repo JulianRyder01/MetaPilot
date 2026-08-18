@@ -31,6 +31,7 @@ import { api, ApiError, type KbSource, type SymlinkTree } from "@/lib/api"
 
 import { useT } from "@/i18n"
 import { cn } from "@/lib/utils"
+import OllamaPanel from "@/pages/OllamaPanel"
 import {
   insightAsk,
   insightEmbeddingStart,
@@ -925,6 +926,9 @@ export default function AiInsightPage() {
                     )}
                   </CardContent>
                 </Card>
+
+                {/* 本机 ollama 配置与一键挂载（本地对话/向量模型，模型名不写死、可任填） */}
+                <OllamaPanel onApplied={loadEmbed} />
 
                 <Card>
                   <CardHeader className="flex-row items-center justify-between gap-3">

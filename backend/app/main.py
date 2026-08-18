@@ -18,7 +18,7 @@ from .services.ai_gateway import AIGateway
 from .services.local_servers import LocalServersManager
 from .services.ollama import OllamaClient
 from .storage.store import LibraryStore
-from .api import ai_chat, ai_settings, documents, kinds, libraries, mpf, notes, plugin_store, plugins, stats_core
+from .api import ai_chat, ai_settings, documents, kinds, libraries, mpf, notes, ollama, plugin_store, plugins, stats_core
 from .api import settings as settings_router
 from .plugins.base import manager
 from .plugins.loader import load_plugins
@@ -81,6 +81,7 @@ app.include_router(mpf.router)
 app.include_router(kinds.router)
 app.include_router(ai_settings.router)
 app.include_router(ai_chat.router)
+app.include_router(ollama.router)
 
 # 插件系统：扫描 backend/plugins/ 物理目录加载全部插件并挂载路由。
 # 路由始终挂载；被禁用的插件由 requires_plugin 依赖在请求时返回 503 + 启用提示。
