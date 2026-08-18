@@ -36,6 +36,8 @@ MAX_CONTEXT_CHARS = 30000
 # 洞察规划检索的 top-k（context 更宽，便于发现联系）
 PLAN_TOP_K = 12
 
+from . import vector_store as _vs
+
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
 
 # 思考模式 → system prompt（描述保持通用，不写死具体数据源/插件名）
@@ -455,9 +457,12 @@ class InsightService:
         d = self.data_dir / key
         d.mkdir(parents=True, exist_ok=True)
         np.save(d / "vectors.npy", arr)
+        # 向量的开源向量库（FAISS）持久化索引；不可用时保留 numpy(.npy) 回退
+        backend = "faiss" if _vs.save_index_file(arr, d / "index.faiss") else "numpy"
+        meta["vectorBackend"] = backend
         (d / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
         return {"indexed": True, "sectionCount": len(rows), "vectorDim": int(arr.shape[1]),
-                "source": source}
+                "source": source, "vectorBackend": backend}
 
     # ---------------- 检索 ----------------
 
@@ -497,14 +502,14 @@ class InsightService:
         combined = np.vstack(all_vectors)
         q = (await self.gateway.embed([question], plugin="ai_insight"))[0]
         q = np.asarray(q, dtype=np.float32)
-        sims = combined @ q
+        # 向量检索：FAISS ANN（自制封装），FAISS 不可用时自动回退 numpy 点积，结果一致
         k = min(top_k, len(all_sections))
-        top_idx = np.argsort(-sims)[:k].tolist()
+        top_idx, sims = _vs.search(combined, q, k)
 
         out = []
-        for i in top_idx:
-            s = all_sections[i]
-            out.append({**s, "score": round(float(sims[i]), 4)})
+        for gi, sc in zip(top_idx, sims):
+            s = all_sections[gi]
+            out.append({**s, "score": round(float(sc), 4)})
         return out
 
     # ---------------- 多模式对话 ----------------
