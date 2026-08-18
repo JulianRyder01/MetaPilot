@@ -18,9 +18,14 @@ ENV_PATH = ENV_FILE
 
 # 云端 provider 类型
 CLOUD_PROVIDERS = ["openai", "anthropic"]
-ALL_PROVIDERS = ["openai", "anthropic", "local", "none"]
+ALL_PROVIDERS = ["openai", "anthropic", "local", "ollama", "none"]
 CURRENCIES = ["$", "¥"]
 DEFAULT_CURRENCY = "$"
+
+# 本机 ollama 默认地址/模型（.env 可整体覆盖）：默认值不做具体模型硬编码（qwen3.5:4b 仅为预设，可改）
+DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
+DEFAULT_OLLAMA_MODEL = "qwen3.5:4b"
+DEFAULT_OLLAMA_EMBEDDING_MODEL = "nomic-embed-text"
 
 # 内置本地模型预置（需要时一键下载；embedding 可选 0.6B/4B，llm/rerank 可选）
 LOCAL_MODELS: dict[str, dict] = {
@@ -136,6 +141,10 @@ class AIConfig:
             "rerankModel": self._get("AI_RERANK_MODEL", "Qwen/Qwen3-Reranker-0.6B"),
             "prices": prices,
             "currency": self._get("AI_CURRENCY", DEFAULT_CURRENCY),
+            # 本机 ollama：地址/模型均可配置（.env 覆盖，不写死具体模型）
+            "ollamaUrl": self._get("AI_OLLAMA_URL", DEFAULT_OLLAMA_URL),
+            "ollamaModel": self._get("AI_OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL),
+            "ollamaEmbeddingModel": self._get("AI_OLLAMA_EMBEDDING_MODEL", DEFAULT_OLLAMA_EMBEDDING_MODEL),
         }
 
     # ---------------- 属性 ----------------
@@ -195,6 +204,18 @@ class AIConfig:
         return self._cache["rerankModel"]
 
     @property
+    def ollama_url(self) -> str:
+        return self._cache["ollamaUrl"]
+
+    @property
+    def ollama_model(self) -> str:
+        return self._cache["ollamaModel"]
+
+    @property
+    def ollama_embedding_model(self) -> str:
+        return self._cache["ollamaEmbeddingModel"]
+
+    @property
     def prices(self) -> dict:
         return self._cache["prices"]
 
@@ -249,5 +270,11 @@ class AIConfig:
             self._set_env("AI_CURRENCY", data["currency"])
         if "prices" in data and isinstance(data["prices"], dict):
             self._set_env("AI_MODEL_PRICES", json.dumps(data["prices"], ensure_ascii=False))
+        if data.get("ollamaUrl") is not None:
+            self._set_env("AI_OLLAMA_URL", str(data["ollamaUrl"]).strip())
+        if data.get("ollamaModel"):
+            self._set_env("AI_OLLAMA_MODEL", str(data["ollamaModel"]).strip())
+        if data.get("ollamaEmbeddingModel") is not None:
+            self._set_env("AI_OLLAMA_EMBEDDING_MODEL", str(data["ollamaEmbeddingModel"]).strip())
         self.reload()
         return self.to_public()

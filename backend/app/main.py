@@ -16,6 +16,7 @@ from .version import VERSION as APP_VERSION
 from .services.ai_config import AIConfig
 from .services.ai_gateway import AIGateway
 from .services.local_servers import LocalServersManager
+from .services.ollama import OllamaClient
 from .storage.store import LibraryStore
 from .api import ai_chat, ai_settings, documents, kinds, libraries, mpf, notes, plugin_store, plugins, stats_core
 from .api import settings as settings_router
@@ -56,6 +57,8 @@ app.state.store = LibraryStore(DATA_DIR)
 app.state.ai_gateway = AIGateway(DATA_DIR, AIConfig())
 # 统一本地模型服务管理（向量 / 对话 / 重排，下载与启停）
 app.state.local_servers = LocalServersManager(app.state.ai_gateway.config)
+# 本机 ollama 集成（脱敏插件 / AI 洞察 ollama 模式共用；地址与模型取自 AI 配置）
+app.state.ollama = OllamaClient(config=app.state.ai_gateway.config)
 
 ASSETS_DIR = Path(DATA_DIR) / "assets" / "courses"
 ASSETS_DIR.mkdir(parents=True, exist_ok=True)

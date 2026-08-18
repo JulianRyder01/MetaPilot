@@ -114,6 +114,8 @@ class AIGateway:
 
         if provider == "local":
             result = await self._chat_local(messages, model, temperature, max_tokens, response_format)
+        elif provider == "ollama":
+            result = await self._chat_ollama(messages, model, temperature, max_tokens, response_format)
         elif provider == "anthropic":
             result = await self._chat_anthropic(messages, model, temperature, max_tokens)
         else:
@@ -144,6 +146,9 @@ class AIGateway:
         if provider == "local":
             gen = self._chat_openai_stream(messages, model, temperature, max_tokens, response_format,
                                            self.config.local_llm_url, need_auth=False, local=True)
+        elif provider == "ollama":
+            gen = self._chat_openai_stream(messages, model, temperature, max_tokens, response_format,
+                                           f"{self.config.ollama_url}/v1", need_auth=False, local=True)
         elif provider == "anthropic":
             gen = self._chat_anthropic_stream(messages, model, temperature, max_tokens)
         else:
@@ -323,6 +328,28 @@ class AIGateway:
                 "outputTokens": int(usage.get("completion_tokens") or 0),
                 "model": data.get("model") or model, "provider": "local"}
 
+    async def _chat_ollama(self, messages, model, temperature, max_tokens, response_format) -> dict:
+        """经本机 ollama 的 OpenAI 兼容端点对话（AI_PROVIDER=ollama）。"""
+        url = f"{self.config.ollama_url.rstrip('/')}/v1/chat/completions"
+        body: dict = {"model": model, "messages": messages,
+                      "temperature": temperature, "max_tokens": max_tokens}
+        if response_format:
+            body["response_format"] = response_format
+        try:
+            async with httpx.AsyncClient(timeout=300) as client:
+                resp = await client.post(url, json=body)
+                resp.raise_for_status()
+                data = resp.json()
+        except httpx.HTTPError as e:
+            raise AIError(f"ollama 不可用（{self.config.ollama_url}）：{e}。请启动 ollama 并在设置里选择 ollama 模式")
+        content = data["choices"][0]["message"]["content"]
+        usage = data.get("usage") or {}
+        return {"content": _strip_think(content),
+                "inputTokens": int(usage.get("prompt_tokens") or 0),
+                "cachedTokens": 0,
+                "outputTokens": int(usage.get("completion_tokens") or 0),
+                "model": data.get("model") or model, "provider": "ollama"}
+
     # ---------------- embed ----------------
 
     async def embed(self, texts: list[str], model: str = "", plugin: str = "core") -> list[list[float]]:
@@ -333,6 +360,9 @@ class AIGateway:
         if provider == "none":
             raise NotConfiguredError("向量服务未配置（AI_EMBEDDING_PROVIDER=none）")
         model = model or self.config.embedding_model
+        if provider == "ollama":
+            from .ollama import OllamaClient
+            return await OllamaClient().embeddings(texts, model=model)
         if provider == "local_transformers":
             try:
                 async with httpx.AsyncClient(timeout=180) as client:

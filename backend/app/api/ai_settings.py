@@ -24,6 +24,9 @@ class ConfigIn(BaseModel):
     embeddingProvider: Optional[str] = None
     embeddingUrl: Optional[str] = None
     embeddingModel: Optional[str] = None
+    ollamaUrl: Optional[str] = None
+    ollamaModel: Optional[str] = None
+    ollamaEmbeddingModel: Optional[str] = None
     currency: Optional[str] = None
     prices: Optional[dict] = None
 
