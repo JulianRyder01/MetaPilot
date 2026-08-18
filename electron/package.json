@@ -5,6 +5,11 @@
   "description": "MetaPilot 交互式学习平台桌面版（官方核心插件版本号 = 项目版本，打包时由 scripts/package-electron.mjs 覆写）",
   "author": "MetaPilot",
   "license": "MIT",
+  "homepage": "https://github.com/JulianRyder01/MetaPilot",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JulianRyder01/MetaPilot.git"
+  },
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",

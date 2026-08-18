@@ -15,11 +15,30 @@ __pycache__/
 venv/
 backend/data/
 backend/dist/
-backend/build/pyinstaller/
+backend/build/
 .pytest_cache/
 .mypy_cache/
 
+# ---- 一次性生成 / 导入脚本（课程以 courses/ 目录为准，脚本不入库）----
+backend/scripts/course_helpers.py
+backend/scripts/fix_quotes.py
+backend/scripts/seed_*.py
+backend/scripts/wealth_course*.py
+scripts/fix_html_quotes.py
+
+# ---- 本地私有课程（仅保存在本机，不提交/不上传）----
+courses/b2b-negotiation/
+courses/investing-basics/
+courses/wealth-journey/
+courses/wlb-sunshine/
+courses/mm-pretraining-physics/
+backend/scripts/wlb_course_a.py
+backend/scripts/wlb_course_b.py
+
 # ---- 运行时 / 临时 ----
+data/
+.ci-repro.sh
+courses/*.zip
 .probe/
 .reasonix/
 *.log
