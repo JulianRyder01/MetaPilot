@@ -7,3 +7,8 @@ httpx>=0.27.0
 numpy>=1.26.0
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
+# 脱敏插件：PDF 文本提取与涂黑、图片涂黑
+pymupdf>=1.24.0
+Pillow>=10.0.0
+# 可选：图片 OCR（需系统安装 tesseract；缺失时脱敏插件降级为整图涂黑）
+pytesseract>=0.3.10

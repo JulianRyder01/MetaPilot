@@ -1,0 +1,40 @@
+{
+  "specVersion": "1.4",
+  "id": "desensitize",
+  "name": "去敏感信息",
+  "version": "1.0.0",
+  "description": "启用本地小模型（ollama 部署，如 qwen3.5:4b，可改）识别导入文档中的敏感信息，插件内置开放的替换/涂黑工具集，将文本/markdown 用黑色块（█）替换、PDF/图片相关内容涂黑，并标出所有敏感信息供确认后应用。",
+  "author": "MetaPilot",
+  "source": "user",
+  "depends_on": [],
+  "requires": [],
+  "tags": [
+    "隐私",
+    "工具",
+    "AI"
+  ],
+  "capabilities": {
+    "desensitize.ollama": {
+      "label": "本机 ollama 本地模型识别敏感信息"
+    },
+    "desensitize.redact": {
+      "label": "文本替换与 PDF/图片涂黑工具"
+    }
+  },
+  "content_types": [],
+  "features": [
+    "本地模型（ollama）识别姓名/手机号/证件/邮箱/地址等敏感信息",
+    "开放式替换/涂黑工具：文本与 markdown 用 █ 替换，PDF/图片黑色块涂黑",
+    "识别结果标出供用户逐条确认后再应用",
+    "提供文本/文件分析到脱敏导出的完整体验 demo",
+    "地址与模型可配置、可一键拉取模型，不写死具体模型"
+  ],
+  "icon": "ShieldCheck",
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "",
+      "summary": "首个版本：本地模型识别敏感信息 + 替换/涂黑工具 + 文本/PDF/图片脱敏 demo"
+    }
+  ]
+}
