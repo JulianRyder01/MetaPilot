@@ -24,11 +24,14 @@
 
   // ---------- 小组件 ----------
   function btn(disabled, onClick, label, extra) {
-    var cls = "inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors " +
-      (disabled
-        ? "cursor-not-allowed bg-muted text-muted-foreground"
-        : "bg-primary text-primary-foreground hover:bg-primary/80")
-    return h("button", { className: cls, type: "button", disabled: !!disabled, onClick: onClick }, label, extra || null)
+    return h("button", {
+      type: "button", disabled: !!disabled, onClick: onClick,
+      style: { display: "inline-flex", alignItems: "center", gap: "4px",
+               padding: "6px 12px", borderRadius: "6px", fontSize: "14px", fontWeight: 500,
+               cursor: disabled ? "not-allowed" : "pointer",
+               background: disabled ? "#e5e7eb" : "#2563eb",
+               color: disabled ? "#9ca3af" : "#fff", border: "none" },
+    }, label, extra || null)
   }
 
   function Field(label, child) {
@@ -127,8 +130,20 @@
     var targetName = ""
     for (var i = 0; i < foldersV.length; i++) if (foldersV[i].id === targetV) targetName = foldersV[i].name
 
-    return h("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" },
-      h("div", { className: "w-full max-w-3xl max-h-[85vh] overflow-auto rounded-xl border bg-background p-5 shadow-lg" },
+    // tailwind 类由宿主 JIT 扫描源码生成，动态注入类名无 CSS；关键定位/背景/层级改用内联样式保证可见
+    return h("div", {
+      className: "desensitize-overlay",
+      style: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999,
+               display: "flex", alignItems: "center", justifyContent: "center",
+               padding: "16px", backgroundColor: "rgba(0,0,0,0.55)" },
+    },
+      h("div", {
+        className: "desensitize-dialog",
+        style: { width: "100%", maxWidth: "760px", maxHeight: "86vh", overflow: "auto",
+                 background: "#fff", color: "#1f2937", border: "1px solid #d1d5db",
+                 borderRadius: "12px", padding: "20px", boxShadow: "0 20px 60px rgba(0,0,0,.35)",
+                 fontFamily: "inherit" },
+      },
         // 头部
         h("div", { className: "flex items-center justify-between" },
           h("h2", { className: "text-xl font-semibold" }, "脱敏上传"),
@@ -163,61 +178,71 @@
 
         filesV.length && !taskIdV ? h("div", { className: "mt-3" }, btn(false, startRun, "开始识别")) : null,
 
-        errV ? h("p", { className: "mt-2 text-sm text-red-600" }, errV) : null,
+        errV ? h("p", { style: { marginTop: "8px", fontSize: "14px", color: "#dc2626" } }, errV) : null,
 
-        // 进度
-        (taskIdV && statusV) ? h("div", { className: "mt-3 rounded-md border p-3" },
-          h("div", { className: "flex items-center justify-between text-sm" },
-            h("span", { className: "font-medium" }, running ? "识别中…" : statusV.status === "done" ? "识别完成" : "处理中"),
-            h("span", { className: "text-muted-foreground" }, statusV.done + "/" + statusV.total)),
-          h("div", { className: "mt-1 h-2 w-full overflow-hidden rounded bg-muted" },
-            h("div", {
-              className: "h-full bg-primary transition-all",
-              style: { width: (statusV.total ? Math.round((statusV.done / statusV.total) * 100) : 0) + "%" },
-            })),
-          // 每文件阶段级进度
-          h("div", { className: "mt-3 space-y-1.5" },
+        // 进度（内联样式，不依赖宿主 tailwind）
+        (taskIdV && statusV) ? h("div", { style: { marginTop: "12px", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "12px" } },
+          h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "14px" } },
+            h("span", { style: { fontWeight: 600 } }, running ? "识别中…" : statusV.status === "done" ? "识别完成" : "处理中"),
+            h("span", { style: { color: "#6b7280" } }, statusV.done + "/" + statusV.total)),
+          h("div", { style: { marginTop: "4px", height: "8px", width: "100%", overflow: "hidden", borderRadius: "4px", background: "#e5e7eb" } },
+            h("div", { style: { height: "100%", background: "#2563eb", width: (statusV.total ? Math.round((statusV.done / statusV.total) * 100) : 0) + "%" } })),
+          h("div", { style: { marginTop: "12px" } },
             statusV.files.map(function (f, i) {
-              return h("div", { key: i, className: "text-xs" },
-                h("div", { className: "flex items-center justify-between" },
-                  h("span", { className: "truncate font-medium" }, f.name),
-                  h("span", { className: (f.stage === "error" ? "text-red-600" : f.stage === "done" ? "text-green-600" : "text-muted-foreground") },
+              var stageColor = f.stage === "error" ? "#dc2626" : f.stage === "done" ? "#16a34a" : "#6b7280"
+              return h("div", { key: i, style: { fontSize: "12px", marginBottom: "6px" } },
+                h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between" } },
+                  h("span", { style: { fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis" } }, f.name),
+                  h("span", { style: { color: stageColor } },
                     STAGE_LABEL[f.stage] || f.stage,
                     f.stage === "done" && typeof f.count === "number" ? (" · " + f.count + " 项") : "")),
-                h("div", { className: "mt-0.5 h-1.5 w-full overflow-hidden rounded bg-muted" },
-                  h("div", { className: "h-full bg-primary transition-all", style: { width: Math.round((f.progress || 0) * 100) + "%" } })),
-                f.stage === "done" && f.count ? h("div", { className: "mt-0.5 text-muted-foreground" },
+                h("div", { style: { marginTop: "2px", height: "6px", width: "100%", overflow: "hidden", borderRadius: "3px", background: "#e5e7eb" } },
+                  h("div", { style: { height: "100%", background: "#2563eb", width: Math.round((f.progress || 0) * 100) + "%" } })),
+                f.stage === "done" && f.count ? h("div", { style: { marginTop: "2px", color: "#6b7280" } },
                   "识别：" + ((f.items || []).map(function (it) { return it.value }).slice(0, 6).join("、")) + (f.count > 6 ? "…" : "")) : null,
-                f.error ? h("div", { className: "text-red-600" }, f.error) : null)
+                f.error ? h("div", { style: { color: "#dc2626" } }, f.error) : null)
             })),
 
           // 完成后一键脱敏入库
-          allDone ? h("div", { className: "mt-3 flex flex-wrap items-center gap-2" },
-            btn(applyingV, function(){ if (!applyingV) applyImport() }, "脱敏并入库存到「" + (targetName || "所选文件夹") + "」"),
-            applyingV ? h("span", { className: "text-xs text-muted-foreground" }, "处理中…") : null) : null,
+          allDone ? h("div", { style: { marginTop: "12px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px" } },
+            btn(applyingV, function () { if (!applyingV) applyImport() }, "脱敏并入库存到「" + (targetName || "所选文件夹") + "」"),
+            applyingV ? h("span", { style: { fontSize: "12px", color: "#6b7280" } }, "处理中…") : null) : null,
         ) : null,
 
         // 入库结果
-        importedV ? h("div", { className: "mt-3 rounded-md border border-green-600/40 p-3 text-sm" },
-          h("p", { className: "font-medium text-green-700" }, "已入库 " + importedV.count + " 个文档："),
+        importedV ? h("div", { style: { marginTop: "12px", border: "1px solid #86efac", borderRadius: "8px", padding: "12px", fontSize: "14px" } },
+          h("p", { style: { fontWeight: 600, color: "#15803d" } }, "已入库 " + importedV.count + " 个文档："),
           (importedV.imported || []).map(function (r, i) {
-            return h("p", { key: i, className: "text-xs text-muted-foreground" },
+            return h("p", { key: i, style: { fontSize: "12px", color: "#6b7280" } },
               r.name + " → " + (r.docId ? "已生成文档(" + r.maskedCount + " 处脱敏)" : "失败"))
           })) : null,
-        noteV ? h("p", { className: "mt-2 text-sm text-green-700" }, noteV) : null,
+        noteV ? h("p", { style: { marginTop: "8px", fontSize: "14px", color: "#15803d" } }, noteV) : null,
       ))
   }
 
   // ---------- 打开弹窗 ----------
   function openDialog(libraryId) {
-    if (!window.createRoot || !window.React) { alert("宿主未暴露 createRoot/React，无法打开脱敏弹窗"); return }
-    var el = document.createElement("div")
-    document.body.appendChild(el)
-    var root = window.createRoot(el)
-    root.render(h(DesensitizeDialog, {
-      libraryId: libraryId,
-      onClose: function () { root.unmount(); if (el.parentNode) el.parentNode.removeChild(el) },
-    }))
+    try {
+      if (!window.React) { alert("宿主未暴露 window.React，无法打开脱敏弹窗"); return }
+      var mk = window.createRoot
+      if (!mk && window.ReactDOMClient) mk = window.ReactDOMClient.createRoot
+      if (!mk) {
+        alert("宿主未暴露 createRoot，无法挂载弹窗（需 main.tsx 注入 window.createRoot）。请强刷后重试。")
+        return
+      }
+      var el = document.createElement("div")
+      el.setAttribute("data-desensitize-dialog", "1")
+      document.body.appendChild(el)
+      var root = mk(el)
+      root.render(h(DesensitizeDialog, {
+        libraryId: libraryId,
+        onClose: function () { try { root.unmount() } catch (e) {} if (el.parentNode) el.parentNode.removeChild(el) },
+      }))
+    } catch (e) {
+      alert("脱敏弹窗打开失败：" + (e && e.message))
+      // 重新抛出，让浏览器控制台也记录堆栈
+      setTimeout(function () { throw e })
+    }
   }
 
   // ---------- 注册（库内按钮，无独立导航标签） ----------
