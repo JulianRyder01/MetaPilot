@@ -94,7 +94,7 @@ class BlockIn(BaseModel):
     mode: Optional[str] = None             # "static" | "dynamic"（缺省静态）
     multimodal: Optional[bool] = None      # 配置的模型是否支持多模态输入
     scenario: Optional[str] = None         # 情景设定（AI 评判的规则/标准/输出格式）
-    last_result: Optional[dict] = Field(default=None, alias="lastResult")          # AI 评判结果 {markdown, html, updatedAt}
+    last_result: Optional[dict] = Field(default=None, alias="lastResult")          # AI 评判结果 {html, updatedAt}（兼容旧版 markdown）
 
 
 class ReorderIn(BaseModel):

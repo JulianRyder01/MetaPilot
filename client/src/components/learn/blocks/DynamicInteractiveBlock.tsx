@@ -36,8 +36,8 @@ import { MarkdownBlock } from "./MarkdownBlock"
  * - window.parent.postMessage({ type: "metapilot:finish" }, "*")
  *   结束并提交给 AI 评判（也可点击右下角按钮手动结束）
  *
- * 评判结果（Markdown/Html）经后端生成后：展示为结果页（兼容 Markdown 与 HTML 渲染），
- * 并保存到本交互块的 lastResult 字段（重做交互会覆盖旧结果）。
+ * 评判结果（后端统一生成一段 HTML，不解析 JSON）保存后：以常驻内嵌块展示，并可弹层放大；
+ * 结果保存到本交互块的 lastResult 字段（重做交互会覆盖旧结果）。旧文档仅存 markdown 时降级渲染。
  */
 interface ContextItem {
   type: "text" | "image"
@@ -56,6 +56,12 @@ interface Props {
     multimodal?: boolean
     lastResult?: { markdown?: string; html?: string; updatedAt?: string }
   }
+}
+
+/** AI 评判结果：后端只生成一段 HTML；markdown 仅用于兼容旧文档的历史结果。 */
+interface JudgeResult {
+  html: string
+  markdown?: string
 }
 
 const MIN_H = 200
@@ -77,12 +83,12 @@ export function DynamicInteractiveBlock({ collectionId, block }: Props) {
   const [judging, setJudging] = useState(false)
   const judgingRef = useRef(false)
   const [showResult, setShowResult] = useState(false)
-  const [result, setResult] = useState<{ markdown: string; html: string } | null>(null)
+  const [result, setResult] = useState<JudgeResult | null>(null)
   // 已保存到块的评判结果（本会话内即时可用；重做后覆盖）
   // 块模型字段可选（旧文档兼容），展示时收敛为默认空串
-  const [savedResult, setSavedResult] = useState<{ markdown: string; html: string } | null>(() => {
+  const [savedResult, setSavedResult] = useState<JudgeResult | null>(() => {
     const r = block.lastResult
-    return r?.markdown || r?.html ? { markdown: r.markdown ?? "", html: r.html ?? "" } : null
+    return r?.markdown || r?.html ? { html: r.html ?? "", markdown: r.markdown ?? "" } : null
   })
   // 内嵌「AI 评判结果」块是否展开：已有结果时默认为展开（重新打开文档即可看到结果），
   // 评判/重做完成后也自动展开。仅受本块内 savedResult 驱动，不新增独立文档块。
@@ -183,7 +189,7 @@ export function DynamicInteractiveBlock({ collectionId, block }: Props) {
         context: contextRef.current,
         blockTitle: block.title ?? "",
       })
-      const next = { markdown: r.markdown, html: r.html }
+      const next: JudgeResult = { html: r.html }
       setResult(next)
       setSavedResult(next)
       setShowResult(true)
@@ -326,7 +332,7 @@ export function DynamicInteractiveBlock({ collectionId, block }: Props) {
       </div>
 
       {/* 常驻内嵌「AI 评判结果」块：保存在本交互块 lastResult（重新打开文档也能看到），
-          HTML/Markdown 标签切换，可展开/收起；重做交互会覆盖旧结果（不新增独立文档块）。
+          渲染后端生成的 HTML 结果页，可展开/收起；重做交互会覆盖旧结果（不新增独立文档块）。
           全屏（expanded）时占满空间，改由弹层查看结果。 */}
       {savedResult && !expanded && (
         <InlineResultView
@@ -359,11 +365,10 @@ function InteractiveResultView({
   onClose,
 }: {
   title: string
-  result: { markdown: string; html: string }
+  result: JudgeResult
   onClose: () => void
 }) {
   const t = useT()
-  const [tab, setTab] = useState<"html" | "markdown">("html")
   return (
     <div className="fixed inset-4 z-[60] flex flex-col overflow-hidden rounded-lg border bg-card shadow-2xl">
       <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-2">
@@ -372,28 +377,6 @@ function InteractiveResultView({
           {title} · {t("course.dynamic.resultTitle")}
         </span>
         <div className="flex items-center gap-1">
-          <div className="mr-2 flex overflow-hidden rounded-md border">
-            <button
-              onClick={() => setTab("html")}
-              className={cn(
-                "flex items-center gap-1 px-2.5 py-1 text-xs",
-                tab === "html" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent",
-              )}
-            >
-              <LayoutTemplate className="size-3.5" />
-              {t("course.dynamic.tabHtml")}
-            </button>
-            <button
-              onClick={() => setTab("markdown")}
-              className={cn(
-                "flex items-center gap-1 px-2.5 py-1 text-xs",
-                tab === "markdown" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent",
-              )}
-            >
-              <FileText className="size-3.5" />
-              {t("course.dynamic.tabMarkdown")}
-            </button>
-          </div>
           <button
             onClick={onClose}
             className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -404,7 +387,7 @@ function InteractiveResultView({
         </div>
       </div>
       <div className="flex-1 overflow-auto">
-        {tab === "html" && result.html ? (
+        {result.html ? (
           <iframe
             srcDoc={result.html}
             sandbox="allow-scripts"
@@ -413,7 +396,7 @@ function InteractiveResultView({
           />
         ) : (
           <div className="p-6">
-            <MarkdownBlock content={result.markdown} />
+            <MarkdownBlock content={result.markdown ?? ""} />
           </div>
         )}
       </div>
@@ -421,8 +404,8 @@ function InteractiveResultView({
   )
 }
 
-/** 常驻内嵌「AI 评判结果」块：直接展示在交互块下方（非弹层），
- *  HTML/Markdown 标签切换，可展开/收起；结果由 lastResult 驱动，重新打开文档也能看到。 */
+/** 常驻内嵌「AI 评判结果」块：直接展示在交互块下方（非弹层），渲染后端生成的 HTML，
+ *  可展开/收起；结果由 lastResult 驱动，重新打开文档也能看到（旧 markdown 结果降级渲染）。 */
 function InlineResultView({
   title,
   result,
@@ -431,13 +414,12 @@ function InlineResultView({
   onMaximize,
 }: {
   title: string
-  result: { markdown: string; html: string }
+  result: JudgeResult
   open: boolean
   onToggle: () => void
   onMaximize: () => void
 }) {
   const t = useT()
-  const [tab, setTab] = useState<"html" | "markdown">("html")
   return (
     <div className="overflow-hidden rounded-lg border-t bg-card">
       <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-2">
@@ -446,28 +428,6 @@ function InlineResultView({
           {title}
         </span>
         <div className="flex items-center gap-1">
-          <div className="mr-1 flex overflow-hidden rounded-md border">
-            <button
-              onClick={() => setTab("html")}
-              className={cn(
-                "flex items-center gap-1 px-2.5 py-1 text-xs",
-                tab === "html" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent",
-              )}
-            >
-              <LayoutTemplate className="size-3.5" />
-              {t("course.dynamic.tabHtml")}
-            </button>
-            <button
-              onClick={() => setTab("markdown")}
-              className={cn(
-                "flex items-center gap-1 px-2.5 py-1 text-xs",
-                tab === "markdown" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent",
-              )}
-            >
-              <FileText className="size-3.5" />
-              {t("course.dynamic.tabMarkdown")}
-            </button>
-          </div>
           <button
             onClick={onMaximize}
             className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -486,7 +446,7 @@ function InlineResultView({
       </div>
       {open && (
         <div className="max-h-[480px] overflow-auto">
-          {tab === "html" && result.html ? (
+          {result.html ? (
             <iframe
               srcDoc={result.html}
               sandbox="allow-scripts"
@@ -495,7 +455,7 @@ function InlineResultView({
             />
           ) : (
             <div className="p-6">
-              <MarkdownBlock content={result.markdown || result.html} />
+              <MarkdownBlock content={result.markdown ?? ""} />
             </div>
           )}
         </div>

@@ -36,8 +36,6 @@ export const courseZhCN: Record<string, string> = {
   "course.dynamic.dynamicBadge": "动态交互",
   "course.dynamic.viewResult": "查看结果",
   "course.dynamic.resultTitle": "AI 评判结果",
-  "course.dynamic.tabHtml": "HTML",
-  "course.dynamic.tabMarkdown": "Markdown",
   "course.dynamic.closeResult": "关闭结果",
   "course.dynamic.collapseResult": "收起结果块",
   "course.dynamic.expandResult": "展开结果块",

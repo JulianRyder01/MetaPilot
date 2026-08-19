@@ -34,13 +34,13 @@ export const generateText = (data: { prompt: string; context?: string[] }) =>
     body: JSON.stringify(data),
   })
 
-/** 动态交互 HTML：结束并提交给 AI 评判（情景设定 + 评判上下文 → Markdown/Html 结果页）。 */
+/** 动态交互 HTML：结束并提交给 AI 评判（情景设定 + 评判上下文 → HTML 结果页，原生 HTML 不解析 JSON）。 */
 export const judgeInteractive = (data: {
   scenario: string
   context: { type: "text" | "image"; content: string }[]
   blockTitle: string
 }) =>
-  request<{ markdown: string; html: string; model?: string }>("/plugins/course/ai/judge_interactive", {
+  request<{ html: string; model?: string }>("/plugins/course/ai/judge_interactive", {
     method: "POST",
     body: JSON.stringify(data),
   })

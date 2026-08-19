@@ -3,14 +3,13 @@
 动态交互 HTML（interactive 块 mode="dynamic"）在前端 iframe 内通过埋点接口调用：
 - 添加文本/图片到评判上下文：由前端暂存，最终随「结束并提交」一并提交（本文件不存储状态）
 - AI 生成文本：POST /ai/generate_text（子对话场景：模拟人机对话、提示词工程生成 JSON 等）
-- 结束并提交给 AI 评判：POST /ai/judge_interactive（情景设定 + 评判上下文 → Markdown/Html 结果页）
+- 结束并提交给 AI 评判：POST /ai/judge_interactive（情景设定 + 评判上下文 → HTML 结果页）
 
 模型统一走核心 AI 网关（app.state.ai_gateway）的全局配置（跟随系统模型），
 用量归属本（course）插件。禁用本插件时所有端点返回 503（requires_plugin）。
 """
 from __future__ import annotations
 
-import json
 import re
 from typing import Any, Literal, Optional
 
@@ -29,22 +28,6 @@ ai_router = APIRouter(
 
 def _gateway(request: Request) -> Optional[AIGateway]:
     return getattr(request.app.state, "ai_gateway", None)
-
-
-def _extract_json(text: str) -> dict:
-    """从 AI 返回文本中提取 JSON 对象（容错 <think> 推理块 / markdown 包裹）。"""
-    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-    decoder = json.JSONDecoder()
-    idx = text.find("{")
-    while idx != -1:
-        try:
-            data, _ = decoder.raw_decode(text[idx:])
-            if isinstance(data, dict):
-                return data
-        except json.JSONDecodeError:
-            pass
-        idx = text.find("{", idx + 1)
-    raise ValueError(f"AI 返回无法解析为 JSON: {text[:200]}")
 
 
 class GenerateTextIn(BaseModel):
@@ -131,7 +114,7 @@ class JudgeInteractiveIn(BaseModel):
 
 @ai_router.post("/judge_interactive")
 async def judge_interactive(body: JudgeInteractiveIn, request: Request):
-    """结束并提交给 AI 评判：根据情景设定 + 评判上下文，生成 Markdown/Html 结果展示页。"""
+    """结束并提交给 AI 评判：根据情景设定 + 评判上下文，生成 HTML 结果展示页（原生 HTML，不解析 JSON）。"""
     gw = _gateway(request)
     if gw is None:
         raise HTTPException(status_code=503, detail="AI 网关不可用")
@@ -152,33 +135,30 @@ async def judge_interactive(body: JudgeInteractiveIn, request: Request):
     lines.append(
         "【输出要求】"
         "1. 依据情景设定中的规则与评判标准，对本次交互过程给出评判与总结，并可视化为漂亮的结果展示页；"
-        "2. 同时输出 Markdown 与 HTML 两个版本，内容一致；"
-        "3. HTML 版本要美观精致，允许内嵌 <style> 样式、排版卡片/进度/图表等，用 <div> 包裹、不要 <html>/<body> 外壳；"
-        "4. Markdown 版本中也可以内嵌 HTML（保持可读性）；"
-        "5. 只输出 JSON，不要输出其他内容：{\"markdown\": \"...\", \"html\": \"...\"}"
+        "2. 只输出一段可直接嵌入网页的 HTML 片段：不要输出 JSON、不要输出 Markdown、不要代码块包裹、不要 <html>/<body> 外壳、不要任何前言/解释文字（直接以 HTML 标签开头）；"
+        "3. HTML 要美观精致，允许内嵌 <style> 样式，可用卡片/进度条/图表等排版展示结论、得分与建议，用 <div> 包裹。"
     )
     try:
         result = await gw.chat(
             [{"role": "user", "content": "\n".join(lines)}],
             temperature=0.6,
-            max_tokens=4096,
-            response_format={"type": "json_object"},
+            max_tokens=8192,
             plugin="course",
         )
-        data = _extract_json(result["content"])
     except NotConfiguredError as e:
         raise HTTPException(status_code=503, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=502, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"AI 评判失败: {e}")
 
-    markdown = str(data.get("markdown") or "").strip()
-    html = str(data.get("html") or "").strip()
-    if not markdown and not html:
-        raise HTTPException(status_code=502, detail="AI 评判未返回有效结果")
+    html = (result["content"] or "").strip()
+    # 兜底剥离 AI 可能添加的 ```html … ``` 代码块包裹（结果即 HTML 原文，不解析 JSON）
+    fence = re.match(r"^```(?:html)?\s*(.*?)\s*```$", html, flags=re.DOTALL)
+    if fence:
+        html = fence.group(1).strip()
+    # 结果是直接渲染进 srcdoc 的 HTML，必须以标签开头（拒绝前言/解释文字等非 HTML 输出）
+    if not html.startswith("<"):
+        raise HTTPException(status_code=502, detail="AI 评判未返回有效结果（应为以 < 开头的 HTML 片段）")
     return {
-        "markdown": markdown,
         "html": html,
         "model": result.get("model", ""),
     }
