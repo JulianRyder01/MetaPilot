@@ -91,6 +91,20 @@ export const api = {
   createSubFolder: (fid: string, data: { name: string; parentId?: string }) =>
     request<FolderItem>(`/folders/${fid}/folders`, { method: "POST", body: JSON.stringify(data) }),
 
+  // 批量操作（集合/文档：删除 / 创建副本 / 移动）—— 右键菜单与批量选择模式共用
+  bulkDelete: (refs: BulkRefs) =>
+    request<{ deleted: number }>("/bulk/delete", { method: "POST", body: JSON.stringify(refs) }),
+  bulkDuplicate: (refs: BulkRefs, nameSuffix = "") =>
+    request<{ copied: number; items: (Partial<Folder> | Partial<Document>)[] }>("/bulk/duplicate", {
+      method: "POST",
+      body: JSON.stringify({ ...refs, nameSuffix }),
+    }),
+  bulkMove: (refs: BulkRefs, target: { targetLibraryId: string; targetFolderId?: string; targetParentId?: string }) =>
+    request<{ moved: number; items: unknown[] }>("/bulk/move", {
+      method: "POST",
+      body: JSON.stringify({ ...refs, ...target }),
+    }),
+
   // 小节（知识点）
   createSection: (did: string, data: { name: string }) =>
     request<Section>(`/documents/${did}/sections`, { method: "POST", body: JSON.stringify(data) }),
@@ -192,6 +206,13 @@ export interface Block {
   id: string
   type: string
   [key: string]: unknown
+}
+
+/** 集合/文档批量操作对象引用（与后端 /api/bulk/* 对应） */
+export interface BulkRefs {
+  topFolderIds?: string[]
+  subFolderIds?: string[]
+  documentIds?: string[]
 }
 
 /** 嵌套文件夹（顶层文件夹内的目录层级） */

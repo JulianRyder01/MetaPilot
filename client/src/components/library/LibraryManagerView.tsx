@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import * as Lucide from "lucide-react"
-import { BookOpen, ChevronRight, FileText, FolderPlus, FolderTree, Workflow } from "lucide-react"
+import { BookOpen, CheckSquare, ChevronRight, Copy, FileText, FolderInput, FolderPlus, FolderTree, Trash2, Workflow, X } from "lucide-react"
 
 import { useT } from "@/i18n"
 import { toast } from "@/lib/toast"
 import { api, type Document, type Folder, type FolderItem, type FolderKindMeta, type Library } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDialogs } from "@/components/ui/dialog-provider"
 import { FileManagerView, FolderBadge, type ContentEntry } from "@/components/library/views"
+import {
+  contextMenuItems,
+  EntryContextMenu,
+  MoveDialog,
+  useBulkOps,
+  type OpItem,
+} from "@/components/library/entry-menu"
 
 /** 文件夹类型图标（kind 元数据 icon，lucide 名） */
 function kindIcon(meta?: FolderKindMeta) {
@@ -25,8 +33,10 @@ function kindHref(meta: FolderKindMeta | undefined, id: string): string {
 
 /**
  * 库的文件管理器视图：与软链接文件管理器完全一致的面包屑工具栏
- * （搜索 / 网格列表切换 / 刷新 / 新建文件夹）+ 文件夹/文档网格或列表。
- * 面包屑导航库的文件夹树（顶层文件夹 → 嵌套文件夹 → 文档）；文档点击打开其所属顶层文件夹的内容页。
+ * （搜索 / 网格列表切换 / 刷新 / 新建文件夹 / 批量选择）+ 文件夹/文档网格或列表。
+ * - 顶层集合（kind 有 openRoute 的课程/笔记/图表）正确显示类型图标，点击直达其内容页；
+ * - 纯目录文件夹 / 嵌套文件夹点击进入下一层；文档点击打开所属顶层集合的内容页；
+ * - 每条目支持右键菜单（打开/重命名/创建副本/移动到/删除）与批量选择模式。
  */
 export function LibraryManagerView({ libraryId }: { libraryId: string }) {
   const t = useT()
@@ -38,6 +48,17 @@ export function LibraryManagerView({ libraryId }: { libraryId: string }) {
   const [path, setPath] = useState<Folder[]>([])
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"grid" | "list">("grid")
+  // 多选模式
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  // 右键菜单
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; item: OpItem } | null>(null)
+
+  const ops = useBulkOps({
+    onDone: () => {
+      load()
+    },
+  })
 
   const load = () => {
     api.getLibrary(libraryId).then(setLib).catch(() => setLib(null))
@@ -175,6 +196,10 @@ export function LibraryManagerView({ libraryId }: { libraryId: string }) {
         ) : (
           <FolderBadge label={t("symlink.folder")} />
         ),
+        // 顶层集合：kind 有独立内容页则点击直达；纯目录/嵌套文件夹进入内部浏览
+        href: isTop ? kindHref(meta, f.id) : "",
+        kind: isTop ? (f as Folder).kind : undefined,
+        parentId: isTop ? undefined : (f as FolderItem).parentId ?? "",
       }
     }),
     ...current.docs.map((d) => ({
@@ -188,36 +213,173 @@ export function LibraryManagerView({ libraryId }: { libraryId: string }) {
         <Badge variant="secondary">{t("core.library.unitDoc")}</Badge>
       ),
       tail: undefined,
+      // 文档打开 = 所属顶层集合内容页
+      href: topHref,
+      kind: d.docType,
     })),
   ]
 
+  /** 打开：顶层集合有独立页直达；纯目录/嵌套文件夹进入内部；文档打开所属顶层集合内容页 */
+  function handleOpen(id: string) {
+    if (!current || selectionMode) {
+      if (selectionMode) {
+        toggleSelect(id)
+      }
+      return
+    }
+    if (selectionMode) {
+      toggleSelect(id)
+      return
+    }
+    const entry = entries.find((e) => e.id === id)
+    if (!entry) return
+    if (entry.type === "folder") {
+      const f = current.folders.find((x) => x.id === id)
+      if (!f) return
+      if (entry.href) {
+        navigate(entry.href)
+      } else {
+        setPath([...(path as Folder[]), f as Folder])
+      }
+      return
+    }
+    // 文档
+    if (entry.href) navigate(entry.href)
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function enterSelection() {
+    setSelected(new Set())
+    setSelectionMode(true)
+  }
+
+  function exitSelection() {
+    setSelectionMode(false)
+    setSelected(new Set())
+  }
+
+  /** 右键菜单：构造统一操作对象并打开菜单 */
+  function handleContextMenu(e: React.MouseEvent, entry: ContentEntry) {
+    e.preventDefault()
+    if (!current) return
+    if (selectionMode) {
+      toggleSelect(entry.id)
+      return
+    }
+    const f = current.folders.find((x) => x.id === entry.id)
+    const item: OpItem = {
+      id: entry.id,
+      name: entry.name,
+      type: entry.type === "file" ? "doc" : "kind" in (f ?? {}) ? "top" : "sub",
+      kind: entry.kind,
+      href: entry.href || undefined,
+      libraryId,
+    }
+    setCtxMenu({ x: e.clientX, y: e.clientY, item })
+  }
+
+  // 当前层可操作对象（批量操作/全选）
+  const visibleItems: OpItem[] = entries.map((e) => {
+    const f = current.folders.find((x) => x.id === e.id)
+    return {
+      id: e.id,
+      name: e.name,
+      type: e.type === "file" ? "doc" : "kind" in (f ?? {}) ? "top" : "sub",
+      kind: e.kind,
+      href: e.href || undefined,
+      libraryId,
+    }
+  })
+  const selectedItems = visibleItems.filter((i) => selected.has(i.id))
+
+  const bulkBar = (
+    <div className="flex flex-wrap items-center gap-2 border-b bg-muted/50 px-3 py-2">
+      <span className="text-sm font-medium">{t("core.library.bulkSelectedCount", { count: selected.size })}</span>
+      <Button variant="outline" size="sm" className="h-8" onClick={() => setSelected(new Set(visibleItems.map((i) => i.id)))}>
+        <CheckSquare className="size-3.5" />
+        {t("core.library.selectAll")}
+      </Button>
+      <span className="flex-1" />
+      <Button variant="outline" size="sm" className="h-8" disabled={selectedItems.length === 0} onClick={() => void ops.duplicate(selectedItems)}>
+        <Copy className="size-3.5" />
+        {t("core.library.duplicate")}
+      </Button>
+      <Button variant="outline" size="sm" className="h-8" disabled={selectedItems.length === 0} onClick={() => ops.move(selectedItems)}>
+        <FolderInput className="size-3.5" />
+        {t("core.library.move")}
+      </Button>
+      <Button
+        variant="destructive"
+        size="sm"
+        className="h-8"
+        disabled={selectedItems.length === 0}
+        onClick={() => void ops.remove(selectedItems)}
+      >
+        <Trash2 className="size-3.5" />
+        {t("core.library.deleteSelected")}
+      </Button>
+      <Button variant="ghost" size="sm" className="h-8" onClick={exitSelection}>
+        <X className="size-3.5" />
+        {t("core.library.exitSelection")}
+      </Button>
+    </div>
+  )
+
   return (
-    <FileManagerView
-      breadcrumbs={breadcrumbs}
-      entries={entries}
-      onOpen={(id) => {
-        const folder = entries.find((e) => e.id === id && e.type === "folder")
-        if (folder) {
-          const f = current.folders.find((x) => x.id === id)
-          if (f) setPath([...(path as Folder[]), f as Folder])
-          return
-        }
-        // 文档：跳转所属顶层文件夹内容页
-        if (topHref) navigate(topHref)
-      }}
-      search={search}
-      onSearch={setSearch}
-      view={view}
-      onViewChange={setView}
-      onRefresh={load}
-      createActions={[
-        { label: t("core.library.newFolder"), icon: <FolderPlus className="size-4" />, action: () => void createFolderNow() },
-        { label: t("core.library.newDoc"), icon: <FileText className="size-4" />, action: () => void createDocNow() },
-        ...(path.length === 0
-          ? [{ label: t("core.library.newCanvas"), icon: <Workflow className="size-4" />, action: () => void createCanvasNow() }]
-          : []),
-      ]}
-      emptyHint={t("core.library.empty")}
-    />
+    <>
+      <FileManagerView
+        breadcrumbs={breadcrumbs}
+        entries={entries}
+        onOpen={handleOpen}
+        onContextMenu={handleContextMenu}
+        search={search}
+        onSearch={setSearch}
+        view={view}
+        onViewChange={setView}
+        onRefresh={load}
+        createActions={[
+          { label: t("core.library.newFolder"), icon: <FolderPlus className="size-4" />, action: () => void createFolderNow() },
+          { label: t("core.library.newDoc"), icon: <FileText className="size-4" />, action: () => void createDocNow() },
+          ...(path.length === 0
+            ? [{ label: t("core.library.newCanvas"), icon: <Workflow className="size-4" />, action: () => void createCanvasNow() }]
+            : []),
+        ]}
+        emptyHint={t("core.library.empty")}
+        selectionMode={selectionMode}
+        selected={selected}
+        onToggleSelect={toggleSelect}
+        onEnterSelection={enterSelection}
+        onExitSelection={exitSelection}
+        bulkBar={selectionMode ? bulkBar : undefined}
+      />
+
+      {/* 右键菜单 */}
+      {ctxMenu && (
+        <EntryContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          title={ctxMenu.item.name}
+          items={contextMenuItems(ctxMenu.item, ops, t)}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
+
+      {/* 移动到弹窗 */}
+      <MoveDialog
+        open={ops.moveTarget !== null}
+        onClose={() => ops.setMoveTarget(null)}
+        excludeLibraryIds={ops.moveTarget?.excludeLibraryIds ?? []}
+        requireFolder={ops.moveTarget?.requireFolder ?? false}
+        onSubmit={ops.submitMove}
+      />
+    </>
   )
 }

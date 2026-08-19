@@ -3,8 +3,12 @@ import { Link, useNavigate } from "react-router-dom"
 import * as Lucide from "lucide-react"
 import {
   BookOpen,
+  Check,
+  CheckSquare,
+  Copy,
   ExternalLink,
   FileText,
+  FolderInput,
   FolderTree,
   Grid3X3,
   LayoutGrid,
@@ -16,6 +20,7 @@ import {
   Star,
   Trash2,
   Workflow,
+  X,
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
@@ -50,6 +55,13 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ImportDialog } from "@/components/library/ImportDialog"
 import { LibraryManagerView } from "@/components/library/LibraryManagerView"
 import { MountBrowser } from "@/components/symlink/MountBrowser"
+import {
+  contextMenuItems,
+  EntryContextMenu,
+  MoveDialog,
+  useBulkOps,
+  type OpItem,
+} from "@/components/library/entry-menu"
 import { symlinkMounts } from "@/plugins/symlink/api"
 import { useDialogs } from "@/components/ui/dialog-provider"
 
@@ -89,6 +101,11 @@ export default function LibraryHome() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   // 显示模式：natural 自然卡片视图（普通库样式）/ manager 文件管理器视图（软链接样式），库与软链接统一
   const [mode, setMode] = useState<"natural" | "manager">("natural")
+  // 批量选择模式（多选当前库的顶层集合执行删除/移动到/创建副本）
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  // 右键菜单
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; item: OpItem } | null>(null)
   const { currentLibraryId, setCurrentLibraryId, currentMountId, setCurrentMountId } = useAppStore()
   // 当前软链接（软链接视为库，在右侧直接浏览；不再跳独立文件浏览器页）
   const [mounts, setMounts] = useState<SymlinkMount[]>([])
@@ -111,6 +128,58 @@ export default function LibraryHome() {
     // 集合类型元数据（核心 + 插件声明），渲染图标/名称/打开路由，不写死 kind 映射
     api.listFolderKinds().then(setKindMeta).catch(() => {})
   }, [refresh])
+
+  // 集合/文档统一操作（右键菜单与批量选择共用）：复制/移动/删除/重命名/打开
+  const ops = useBulkOps({
+    onDone: () => {
+      exitSelection()
+      return refresh()
+    },
+  })
+
+  function enterSelection() {
+    setSelected(new Set())
+    setSelectionMode(true)
+  }
+
+  function exitSelection() {
+    setSelectionMode(false)
+    setSelected(new Set())
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  /** 当前库顶层集合 → 统一操作对象（右键菜单/批量操作） */
+  function colToItem(col: LibraryMeta["folders"][number]): OpItem {
+    const isFolder = col.kind === "folder"
+    const meta = kindMeta[col.kind]
+    return {
+      id: col.id,
+      name: col.name,
+      type: "top",
+      kind: col.kind,
+      href: isFolder ? undefined : kindHref(meta, col.id) || undefined,
+      libraryId: current?.id ?? "",
+    }
+  }
+
+  /** 卡片右键：构造菜单并弹出 */
+  function handleCardContextMenu(e: React.MouseEvent, col: LibraryMeta["folders"][number]) {
+    if (!current) return
+    e.preventDefault()
+    if (selectionMode) {
+      toggleSelect(col.id)
+      return
+    }
+    setCtxMenu({ x: e.clientX, y: e.clientY, item: colToItem(col) })
+  }
 
   const currentMount = mounts.find((m) => m.id === currentMountId) ?? null
 
@@ -271,6 +340,9 @@ export default function LibraryHome() {
     ? current.folders.filter((c) => c.name.toLowerCase().includes(search.trim().toLowerCase()))
     : []
 
+  // 批量选择模式下已选对象（供删除/移动到/创建副本）
+  const selectedItems = current ? current.folders.filter((c) => selected.has(c.id)).map(colToItem) : []
+
 
   return (
     <div className="mx-auto flex max-w-6xl gap-6 px-4 py-6 sm:px-6">
@@ -421,50 +493,82 @@ export default function LibraryHome() {
                 </div>
                 {current && (
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline">{t("core.library.folderCount", { count: current.folderCount })}</Badge>
-                    <Button variant="outline" size="sm" onClick={createFolderCollection}>
-                      <FolderTree className="size-4" />
-                      {t("core.library.newFolder")}
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={createNoteCollection}>
-                      <FileText className="size-4" />
-                      {t("core.library.newDoc")}
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={createCanvasCollection}>
-                      <Workflow className="size-4" />
-                      {t("core.library.newCanvas")}
-                    </Button>
-                    {/* 插件注入的新建按钮（如课程插件的「新建课程」）：仅启用对应插件时显示 */}
-                    {createActions.map((a) => {
-                      const Icon = actionIcon(a.createIcon)
-                      return (
+                    {selectionMode ? (
+                      <>
+                        <Badge variant="secondary">{t("core.library.bulkSelectedCount", { count: selected.size })}</Badge>
                         <Button
-                          key={a.id}
                           variant="outline"
                           size="sm"
-                          onClick={() =>
-                            a.onCreate?.({
-                              libraryId: current.id,
-                              refresh,
-                              navigate,
-                              prompt,
-                              confirm,
-                            })
-                          }
+                          onClick={() => setSelected(new Set(current.folders.map((c) => c.id)))}
                         >
-                          {Icon && <Icon className="size-4" />}
-                          {t(a.createLabel ?? "")}
+                          <CheckSquare className="size-4" />
+                          {t("core.library.selectAll")}
                         </Button>
-                      )
-                    })}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(current.id)}
-                      className="text-muted-foreground"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                        <Button variant="outline" size="sm" disabled={selectedItems.length === 0} onClick={() => void ops.duplicate(selectedItems)}>
+                          <Copy className="size-4" />
+                          {t("core.library.duplicate")}
+                        </Button>
+                        <Button variant="outline" size="sm" disabled={selectedItems.length === 0} onClick={() => ops.move(selectedItems)}>
+                          <FolderInput className="size-4" />
+                          {t("core.library.move")}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={selectedItems.length === 0}
+                          onClick={() => void ops.remove(selectedItems)}
+                        >
+                          <Trash2 className="size-4" />
+                          {t("core.library.deleteSelected")}
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={exitSelection} title={t("core.library.exitSelection")}>
+                          <X className="size-4" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Badge variant="outline">{t("core.library.folderCount", { count: current.folderCount })}</Badge>
+                        <Button variant="outline" size="sm" onClick={createFolderCollection}>
+                          <FolderTree className="size-4" />
+                          {t("core.library.newFolder")}
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={createNoteCollection}>
+                          <FileText className="size-4" />
+                          {t("core.library.newDoc")}
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={createCanvasCollection}>
+                          <Workflow className="size-4" />
+                          {t("core.library.newCanvas")}
+                        </Button>
+                        {/* 插件注入的新建按钮（如课程插件的「新建课程」）：仅启用对应插件时显示 */}
+                        {createActions.map((a) => {
+                          const Icon = actionIcon(a.createIcon)
+                          return (
+                            <Button
+                              key={a.id}
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                a.onCreate?.({
+                                  libraryId: current.id,
+                                  refresh,
+                                  navigate,
+                                  prompt,
+                                  confirm,
+                                })
+                              }
+                            >
+                              {Icon && <Icon className="size-4" />}
+                              {t(a.createLabel ?? "")}
+                            </Button>
+                          )
+                        })}
+                        <Button variant="outline" size="sm" onClick={enterSelection}>
+                          <CheckSquare className="size-4" />
+                          {t("core.library.bulkSelect")}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -515,8 +619,9 @@ export default function LibraryHome() {
                       const Icon = isFolder ? FolderTree : kindIcon(meta)
                       const href = isFolder ? "" : kindHref(meta, col.id)
                       const convertActions = convertActionsFor(col)
+                      const checked = selectionMode && selected.has(col.id)
                       const card = (
-                        <Card className="h-full transition-shadow hover:shadow-md">
+                        <Card className={cn("h-full transition-shadow hover:shadow-md", checked && "border-primary ring-1 ring-primary")}>
                           <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-base">
                               <Icon className="size-4 shrink-0 text-primary" />
@@ -558,20 +663,56 @@ export default function LibraryHome() {
                           </CardContent>
                         </Card>
                       )
-                      if (isFolder) {
-                        // 纯目录文件夹：进入文件管理器视图浏览
-                        return (
-                          <button key={col.id} type="button" onClick={() => setMode("manager")} className="text-left">
-                            {card}
-                          </button>
-                        )
-                      }
-                      return href ? (
-                        <Link key={col.id} to={href}>
-                          {card}
-                        </Link>
-                      ) : (
-                        <div key={col.id}>{card}</div>
+                      return (
+                        <div
+                          key={col.id}
+                          onContextMenu={(e) => handleCardContextMenu(e, col)}
+                          className="group relative"
+                        >
+                          {selectionMode && (
+                            <span
+                              role="checkbox"
+                              aria-checked={checked}
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                toggleSelect(col.id)
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === " " || e.key === "Enter") {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  toggleSelect(col.id)
+                                }
+                              }}
+                              className={cn(
+                                "absolute left-2.5 top-2.5 z-20 flex size-5 cursor-pointer items-center justify-center rounded border bg-background/90 shadow-sm transition-colors",
+                                checked
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border text-transparent group-hover:border-primary/60",
+                              )}
+                            >
+                              <Check className="size-3.5" />
+                            </span>
+                          )}
+                          {selectionMode ? (
+                            <button type="button" onClick={() => toggleSelect(col.id)} className="block w-full cursor-pointer text-left">
+                              {card}
+                            </button>
+                          ) : isFolder ? (
+                            // 纯目录文件夹：进入文件管理器视图浏览
+                            <button type="button" onClick={() => setMode("manager")} className="block w-full text-left">
+                              {card}
+                            </button>
+                          ) : href ? (
+                            <Link to={href} className="block">
+                              {card}
+                            </Link>
+                          ) : (
+                            <div>{card}</div>
+                          )}
+                        </div>
                       )
                     })}
                   </div>
@@ -583,8 +724,14 @@ export default function LibraryHome() {
                       const Icon = isFolder ? FolderTree : kindIcon(meta)
                       const href = isFolder ? "" : kindHref(meta, col.id)
                       const convertActions = convertActionsFor(col)
+                      const checked = selectionMode && selected.has(col.id)
                       const row = (
-                        <div className="flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors hover:bg-accent/40">
+                        <div
+                          className={cn(
+                            "flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors hover:bg-accent/40",
+                            checked && "border-primary bg-primary/5",
+                          )}
+                        >
                           <Icon className="size-4 shrink-0 text-primary" />
                           <span className="min-w-0 flex-1 truncate font-medium">
                             {col.name}
@@ -620,24 +767,60 @@ export default function LibraryHome() {
                           )}
                         </div>
                       )
-                      if (isFolder) {
-                        return (
-                          <button
-                            key={col.id}
-                            type="button"
-                            onClick={() => setMode("manager")}
-                            className="block w-full text-left"
-                          >
-                            {row}
-                          </button>
-                        )
-                      }
-                      return href ? (
-                        <Link key={col.id} to={href} className="block">
-                          {row}
-                        </Link>
-                      ) : (
-                        <div key={col.id}>{row}</div>
+                      return (
+                        <div
+                          key={col.id}
+                          onContextMenu={(e) => handleCardContextMenu(e, col)}
+                          className="group relative"
+                        >
+                          {selectionMode && (
+                            <span
+                              role="checkbox"
+                              aria-checked={checked}
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                toggleSelect(col.id)
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === " " || e.key === "Enter") {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  toggleSelect(col.id)
+                                }
+                              }}
+                              className={cn(
+                                "absolute left-1.5 top-1/2 z-20 flex size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded border bg-background/90 shadow-sm transition-colors",
+                                checked
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border text-transparent group-hover:border-primary/60",
+                              )}
+                            >
+                              <Check className="size-3.5" />
+                            </span>
+                          )}
+                          {selectionMode ? (
+                            <button type="button" onClick={() => toggleSelect(col.id)} className="block w-full cursor-pointer text-left">
+                              {row}
+                            </button>
+                          ) : isFolder ? (
+                            // 纯目录文件夹：进入文件管理器视图浏览
+                            <button
+                              type="button"
+                              onClick={() => setMode("manager")}
+                              className="block w-full text-left"
+                            >
+                              {row}
+                            </button>
+                          ) : href ? (
+                            <Link to={href} className="block">
+                              {row}
+                            </Link>
+                          ) : (
+                            <div>{row}</div>
+                          )}
+                        </div>
                       )
                     })}
                   </div>
@@ -653,6 +836,24 @@ export default function LibraryHome() {
           </>
         )}
       </section>
+
+      {/* 右键菜单 + 移动到弹窗（作用于当前库的顶层集合卡片） */}
+      {ctxMenu && (
+        <EntryContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          title={ctxMenu.item.name}
+          items={contextMenuItems(ctxMenu.item, ops, t)}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
+      <MoveDialog
+        open={ops.moveTarget !== null}
+        onClose={() => ops.setMoveTarget(null)}
+        excludeLibraryIds={ops.moveTarget?.excludeLibraryIds ?? []}
+        requireFolder={ops.moveTarget?.requireFolder ?? false}
+        onSubmit={ops.submitMove}
+      />
     </div>
   )
 }
