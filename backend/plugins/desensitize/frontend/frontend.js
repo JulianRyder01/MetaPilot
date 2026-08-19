@@ -66,22 +66,23 @@
 
   // ---------- 主页面 ----------
   function DesensitizePage() {
-    var status = useState({ ollamaHealthy: false, model: "", modelReady: false, modelInstalled: [], url: "" })[0]
-    var url = useState("")[0]
-    var model = useState("")[0]
-    var pullMsg = useState("")[0]
-    var busy = useState(false)[0]
-    var err = useState("")[0]
+    // 注意：useState 返回 [state, setState] 元组，这里保留整个元组（[0]=值，[1]=setter）
+    var status = useState({ ollamaHealthy: false, model: "", modelReady: false, modelInstalled: [], url: "" })
+    var url = useState("")
+    var model = useState("")
+    var pullMsg = useState("")
+    var busy = useState(false)
+    var err = useState("")
 
-    var text = useState("")[0]
-    var mode = useState("text")[0]          // text | file
-    var fileName = useState("")[0]
-    var fileBuf = useState(null)[0]         // {kind, blob}
+    var text = useState("")
+    var mode = useState("text")            // text | file
+    var fileName = useState("")
+    var fileBuf = useState(null)            // {kind, blob}
 
-    var result = useState(null)[0]          // {items, kind, ocr, text}
-    var selected = useState({})[0]          // value -> true
-    var applied = useState(null)[0]         // {text, spans}
-    var note = useState("")[0]
+    var result = useState(null)             // {items, kind, ocr, text}
+    var selected = useState({})             // value -> true
+    var applied = useState(null)            // {text, spans}
+    var note = useState("")
 
     var setStatus = status[1], setUrl = url[1], setModel = model[1]
     var setPullMsg = pullMsg[1], setBusy = busy[1], setErr = err[1]
@@ -234,8 +235,8 @@
             value: model[0], onChange: function (e) { setModel(e.target.value) },
             placeholder: "qwen3.5:4b",
           })),
-          btn({ onClick: saveConfig, disabled: busy }, "保存配置"),
-          btn({ onClick: pullModel, disabled: busy || !statusOk }, "拉取模型"),
+          btn({ onClick: saveConfig, disabled: busy[0] }, "保存配置"),
+          btn({ onClick: pullModel, disabled: busy[0] || !statusOk }, "拉取模型"),
         ),
         h("p", { className: "mt-2 text-xs text-muted-foreground" },
           modelOk
@@ -244,7 +245,7 @@
               ? "本机模型未就绪：已安装 " + (status[0].modelInstalled.join(", ") || "（无）") +
                 "，可先「拉取模型」或修改模型名。"
               : "未检测到 ollama，请先启动 ollama（ollama serve）并确认地址。"),
-        pullMsg ? h("p", { className: "mt-1 text-xs text-green-600" }, pullMsg) : null),
+        pullMsg[0] ? h("p", { className: "mt-1 text-xs text-green-600" }, pullMsg[0]) : null),
 
       // 输入
       h(Card, { key: "in" },
@@ -269,7 +270,7 @@
               placeholder: "粘贴含敏感信息的文本或 Markdown，例如：\n联系人：张三，电话 13800138000，邮箱 zhangsan@example.com，住址：北京市朝阳区某某路 88 号。",
             }),
             h("div", { className: "flex items-center gap-2" },
-              btn({ onClick: analyzeText, disabled: busy || !modelOk }, "分析敏感信息")))
+              btn({ onClick: analyzeText, disabled: busy[0] || !modelOk }, "分析敏感信息")))
           : h("div", { className: "mt-3 space-y-3" },
             h("input", {
               type: "file", accept: ".pdf,.png,.jpg,.jpeg,.bmp,.webp,.gif",
@@ -317,11 +318,11 @@
 
         h("div", { className: "mt-3 flex flex-wrap gap-2" },
           mode[0] === "text"
-            ? btn({ onClick: applyText, disabled: busy }, "应用替换（黑色块）")
+            ? btn({ onClick: applyText, disabled: busy[0] }, "应用替换（黑色块）")
             : h(React.Fragment, null,
-              btn({ onClick: redactFile, disabled: busy }, "按勾选内容涂黑文件"),
+              btn({ onClick: redactFile, disabled: busy[0] }, "按勾选内容涂黑文件"),
               result[0].kind === "image"
-                ? btn({ onClick: function () { redactFile(true) }, disabled: busy }, "整张图片涂黑")
+                ? btn({ onClick: function () { redactFile(true) }, disabled: busy[0] }, "整张图片涂黑")
                 : null))),
 
       // 应用结果
