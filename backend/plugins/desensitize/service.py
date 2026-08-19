@@ -15,9 +15,12 @@
 """
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import re
+import threading
+import uuid
 from typing import Optional
 
 from app.services.ai_config import AIConfig
@@ -147,12 +150,84 @@ def _doc_binary_text(data: bytes) -> str:
     return best
 
 
+# 批量导入任务注册表（taskId → task）。task.files 的 stage（queued→extracting→analyzing→done/error）
+# 用于前端展示“文件内阶段级”进度；单进程 FastAPI 内共享即可。
+_IMPORT_TASKS: dict[str, dict] = {}
+_IMPORT_LOCK = threading.Lock()
+
+
 class DesensitizeService:
     """脱敏服务：识别 + 替换/涂黑工具端点所需，经 request.app.state.desensitize 取用。"""
 
     def __init__(self, ollama: Optional[OllamaClient] = None, config: Optional[AIConfig] = None):
         self.ollama = ollama or OllamaClient(config=config)
         self.config = config or self.ollama.config if hasattr(self.ollama, "config") else None
+
+    # ---------------- 批量导入（进度阶段式） ----------------
+
+    def start_import(self, files: list[tuple[str, bytes]], folder_id: str, model: str = "") -> dict:
+        """批量导入：接收 [(文件名, bytes)]，后台线程逐文件提取+识别，返回 taskId。
+
+        后台线程处理期间前端经 get_import/{taskId} 轮询，每文件 stage 为
+        queued → extracting → analyzing → done / error（文件内阶段级进度）。
+        """
+        tid = uuid.uuid4().hex[:12]
+        task = {
+            "id": tid, "status": "running", "total": len(files), "done": 0,
+            "folderId": folder_id,
+            "files": [{"name": n, "stage": "queued", "progress": 0.0} for n, _ in files],
+        }
+        with _IMPORT_LOCK:
+            _IMPORT_TASKS[tid] = task
+        threading.Thread(target=self._run_import, args=(task, files, model), daemon=True).start()
+        return {"taskId": tid, "total": len(files),
+                "files": [{"name": n, "stage": "queued", "progress": 0.0} for n, _ in files]}
+
+    def _run_import(self, task: dict, files: list, model: str) -> None:
+        """后台线程：逐文件提取→识别，更新 task.files 状态；单文件失败不中断其余。"""
+        for i, (name, data) in enumerate(files):
+            f = task["files"][i]
+            try:
+                f["stage"] = "extracting"; f["progress"] = 0.25
+                ex = self._extract_file(name, data)
+                f.update({"kind": ex.get("kind"), "scanned": ex.get("scanned", False),
+                          "text": ex.get("text", "")})
+                if not ex.get("text", "").strip():
+                    f.update({"stage": "done", "progress": 1.0, "count": 0, "items": []})
+                    task["done"] += 1
+                    continue
+                f["stage"] = "analyzing"; f["progress"] = 0.6
+                items = asyncio.run(self.analyze_text(ex["text"], model))
+                f.update({"items": items["items"], "count": items.get("count", 0),
+                          "model": items.get("model", model), "stage": "done", "progress": 1.0})
+            except Exception as e:
+                f.update({"stage": "error", "error": str(e)})
+            task["done"] += 1
+        task["status"] = "done"
+
+    def _extract_file(self, name: str, data: bytes) -> dict:
+        """按扩展名分派文本提取（PDF/图片/办公文档/纯文本）。"""
+        ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+        if ext == "pdf":
+            return self.extract_pdf_text(data)
+        if ext in ("png", "jpg", "jpeg", "bmp", "webp", "gif"):
+            return self.extract_image_text(data)
+        return self.extract_doc_text(data, ext)
+
+    def get_import(self, task_id: str) -> dict:
+        """查询批量导入任务状态（每文件阶段/进度/识别结果；text 截断防超大响应）。"""
+        with _IMPORT_LOCK:
+            task = _IMPORT_TASKS.get(task_id)
+        if not task:
+            raise KeyError(f"任务不存在: {task_id}")
+        files = []
+        for f in task["files"]:
+            item = {k: v for k, v in f.items()}
+            if isinstance(item.get("text"), str):
+                item["text"] = item["text"][:3000]
+            files.append(item)
+        return {"id": task["id"], "status": task["status"], "total": task["total"],
+                "done": task["done"], "folderId": task["folderId"], "files": files}
 
     # ---------------- 工具：文本替换（replace:text） ----------------
 

@@ -45,6 +45,12 @@ class PullIn(BaseModel):
     model: str = ""
 
 
+class ApplyImportIn(BaseModel):
+    """批量导入确认/入库：folderId=目标文件夹；files 可指定每文件 selected（value 列表），空/缺省=全部。"""
+    folderId: str = Field(min_length=1)
+    files: list[dict] = []
+
+
 def _svc(request: Request) -> DesensitizeService:
     return request.app.state.desensitize
 
@@ -194,3 +200,65 @@ async def file_redact(file: UploadFile = File(...), payload: str = Form("..."), 
 
     return Response(content=out, media_type=media,
                     headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
+@router.post("/import")
+async def import_files(files: list[UploadFile] = File(...), folderId: str = Form(""),
+                       model: str = Form(""), request: Request = None):
+    """批量导入：上传多个文件 + 目标文件夹，后台启动 提取→识别 任务，返回 taskId。
+
+    前端轮询 /import/{taskId} 查看每文件阶段进度（queued→extracting→analyzing→done/error）；
+    识别完成后再调 /import/{taskId}/apply 脱敏入库。
+    """
+    svc = _svc(request)
+    if not files:
+        raise HTTPException(status_code=400, detail="未选择文件")
+    payload = []
+    for f in files:
+        data = await f.read()
+        payload.append((f.filename or "unnamed", data))
+    return svc.start_import(payload, folderId or "", model)
+
+
+@router.get("/import/{taskId}")
+def import_status(taskId: str, request: Request):
+    """批量导入任务状态（每文件 stage/progress/items/error）。"""
+    svc = _svc(request)
+    try:
+        return svc.get_import(taskId)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/import/{taskId}/apply")
+def import_apply(taskId: str, body: ApplyImportIn, request: Request):
+    """按确认条目脱敏并把脱敏 markdown 入库到目标文件夹（每文件一个文档）。
+
+    body.files 可指定每文件的 selected（value 列表），空/缺省 = 该文件全部条目。
+    """
+    svc = _svc(request)
+    try:
+        task = svc.get_import(taskId)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    store = request.app.state.store
+    by_name = {f.get("name"): f for f in body.files}
+    imported = []
+    for f in task["files"]:
+        if f.get("stage") != "done":
+            continue
+        items = f.get("items") or []
+        sel = by_name.get(f.get("name"), {}).get("selected")
+        chosen = items if not sel else [it for it in items if str(it.get("value")) in sel]
+        masked, spans = svc.mask_text(f.get("text", ""), chosen)
+        base = f["name"].rsplit(".", 1)[0] if "." in f["name"] else f["name"]
+        try:
+            doc = store.create_document(body.folderId, {"name": base, "docType": "note"})
+            sec = store.create_section(doc["id"], {"name": base})
+            store.add_block(sec["id"], {"type": "markdown", "content": masked})
+            imported.append({"name": f["name"], "docId": doc["id"], "maskedCount": len(spans)})
+        except KeyError as e:
+            raise HTTPException(status_code=400, detail=f"入库失败（目标文件夹不存在？）：{e}")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"入库失败：{e}")
+    return {"imported": imported, "count": len(imported)}
