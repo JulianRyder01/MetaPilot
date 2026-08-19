@@ -28,9 +28,32 @@ _TYPE_LABELS: dict[str, str] = {
     "phone": "手机号", "mobile": "手机号", "tel": "电话",
     "id": "证件号", "id_card": "身份证", "passport": "护照",
     "email": "邮箱", "name": "姓名", "address": "地址", "bank": "银行卡",
-    "card": "银行卡", "account": "账号", "plate": "车牌", "ip": "IP",
+    "card": "银行卡", "bank_card": "银行卡", "account": "账号", "plate": "车牌", "ip": "IP",
     "other": "其他",
 }
+
+# 规则正则引擎：对格式明确的编码型敏感信息（证件号/手机/座机/银行卡/邮箱/IP/车牌）
+# 作可靠识别与定位，不依赖本地模型；模型对长文本识别弱/输出空时由规则兜底。
+# 顺序即优先级：身份证先占位，银行卡跳过与其重叠的 18 位区间（防止身份证被当银行卡）。
+_RE_PATTERNS: dict[str, str] = {
+    "id_card": r"(?<!\d)\d{17}[\dXx](?!\d)",            # 身份证 18 位
+    "phone": r"(?<!\d)1[3-9]\d{9}(?!\d)",                # 手机号
+    "tel": r"(?<!\d)0\d{2,3}-?\d{7,8}(?!\d)",            # 座机
+    "email": r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+",           # 邮箱
+    "ip": r"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)",      # IP
+    "plate": r"[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼使领][A-HJ-NP-Z][A-HJ-NP-Z0-9]{5,6}",  # 车牌
+    "bank_card": r"(?<!\d)\d{16,19}(?!\d)",              # 银行卡（16-19 位，排除身份证）
+}
+
+# 超过该字符数的长文本不再调用本地模型识别（已实测：qwen3.5:4b 这类小模型对长文本
+# 输出不可靠——发散生成到上下文上限或被截断为空，耗时久且无有效结果），仅用规则引擎
+# 可靠识别编码型 + 合同语境姓名类敏感信息，保证秒回与可用。
+_AI_MAX_CHARS = 800
+
+# 姓名（合同/签字语境，如“甲方（委托方）：林浩然”），限定在法定/委托/签字语境，避免误抓地址等。
+_NAME_PATTERN = re.compile(
+    r"(?:甲方|乙方)[（(]?(?:委托方|服务方|签字|法定代表人)[）)]?\s*[：:]\s*([\u4e00-\u9fa5]{2,4})"
+)
 
 # 黑块字符（替换/涂黑的统一视觉单元）
 BLACK = "█"
@@ -80,8 +103,8 @@ class DesensitizeService:
     def mask_text(text: str, items: list[dict]) -> tuple[str, list[dict]]:
         """把确认条目的敏感串替换为黑色块；返回 (替换后文本, 实际替换区间 spans)。
 
-        定位策略：优先用条目自带 start/end（校验区间文本一致），否则按 value 在原文
-        子串匹配（可命中多处）；重叠区间合并，保证不重复替换。
+        全局替换：对每条确认条目按 value 在原文中查找【所有】出现处（不限于该条目的
+        start/end），同名敏感串在文中出现多少次就替换多少次；重叠区间合并，保证不重复替换。
         """
         if not items or not text:
             return text, []
@@ -90,21 +113,14 @@ class DesensitizeService:
             v = str(it.get("value") or "").strip()
             if not v:
                 continue
-            s = it.get("start")
-            e = it.get("end")
-            added = False
-            if isinstance(s, int) and isinstance(e, int):
-                if 0 <= s < e <= len(text) and text[s:e] == v:
-                    spans.append((s, e, it))
-                    added = True
-            if not added:
-                pos = 0
-                while True:
-                    idx = text.find(v, pos)
-                    if idx < 0:
-                        break
-                    spans.append((idx, idx + len(v), it))
-                    pos = idx + len(v)
+            # 全局替换：同一条目 value 在全文所有出现处都涂黑（不受单条 start/end 限制）
+            pos = 0
+            while True:
+                idx = text.find(v, pos)
+                if idx < 0:
+                    break
+                spans.append((idx, idx + len(v), it))
+                pos = idx + len(v)
         if not spans:
             return text, []
         spans.sort(key=lambda x: (x[0], -x[1]))
@@ -139,36 +155,101 @@ class DesensitizeService:
         )
 
     async def analyze_text(self, text: str, model: str = "") -> dict:
-        """用本地模型识别敏感信息，返回定位后的条目列表（含 start/end 与 found）。"""
+        """识别敏感信息：先跑规则正则引擎，再用本地模型（AI）补充语义型，合并去重。
+
+        规则引擎对证件号/手机号/银行卡/邮箱/IP/座机/车牌等编码型敏感信息可靠识别定位；
+        AI 补充姓名/地址等语义型。AI 不可用、失败或对长文本输出为空时，规则结果照常返回
+        （不再因模型失败/空输出而整体识别为 0 条）。返回条目含 start/end/found（供高亮）。
+        """
         if not text or not text.strip():
             return {"items": [], "count": 0}
         model = model or self.ollama.llm_model
-        messages = [
-            {"role": "system", "content": self._system_prompt()},
-            {"role": "user", "content": text},
-        ]
-        try:
-            res = await self.ollama.chat(messages, model=model, json_mode=True, temperature=0)
-        except OllamaError as e:
-            raise RuntimeError(f"本地模型识别失败：{e}")
-        data = _parse_json(res.get("content", ""))
-        raw_items = data.get("items") if isinstance(data.get("items"), list) else []
-        if not isinstance(raw_items, list):
-            raw_items = []
-        items = []
-        for it in raw_items:
-            if not isinstance(it, dict):
+        # 1) 规则引擎（毫秒级、可靠）
+        reg_items = self._regex_items(text)
+        # 2) AI 补充（失败/空不阻断，规则兜底；长文本跳过——4B 模型对长文本输出不可靠且慢）
+        ai_items: list[dict] = []
+        ai_model = model
+        if len(text) <= _AI_MAX_CHARS:
+            try:
+                messages = [
+                    {"role": "system", "content": self._system_prompt()},
+                    {"role": "user", "content": text},
+                ]
+                res = await self.ollama.chat(messages, model=model, json_mode=True, temperature=0)
+                ai_model = res.get("model", model)
+                data = _parse_json(res.get("content", ""))
+                raw_items = data.get("items") if isinstance(data.get("items"), list) else []
+                for it in raw_items:
+                    if not isinstance(it, dict):
+                        continue
+                    v = str(it.get("value") or "").strip()
+                    if not v:
+                        continue
+                    t = str(it.get("type") or "").strip()
+                    st = it.get("start")
+                    en = it.get("end")
+                    found, s, e = self._locate(text, v, st, en)
+                    ai_items.append({"value": v, "type": t, "typeLabel": type_label(t),
+                                     "start": s, "end": e, "found": found, "source": "ai"})
+            except (OllamaError, RuntimeError):
+                ai_items = []  # AI 不可用 → 仅用规则结果，不整体失败
+        # 3) 合并规则与 AI（按区间/值去重，排序）
+        items = self._merge_items(reg_items, ai_items, text)
+        return {"items": items, "count": len(items), "model": ai_model,
+                "regex": len(reg_items), "ai": len(ai_items)}
+
+    @staticmethod
+    def _regex_items(text: str) -> list[dict]:
+        """规则正则引擎：对编码型敏感信息可靠定位，返回带 start/end 的条目。
+
+        身份证优先占用区间；银行卡跳过与已占用区间重叠的 18 位身份证，避免误判。
+        """
+        items: list[dict] = []
+        covered: list[tuple[int, int]] = []
+        ordered = ["id_card", "phone", "tel", "email", "ip", "plate", "bank_card"]
+        for typ in ordered:
+            pat = _RE_PATTERNS.get(typ)
+            if not pat:
                 continue
-            v = str(it.get("value") or "").strip()
-            if not v:
+            for m in re.finditer(pat, text):
+                s, e = m.span()
+                if any(s < c[1] and e > c[0] for c in covered):
+                    continue
+                items.append({"value": text[s:e], "type": typ, "typeLabel": type_label(typ),
+                              "start": s, "end": e, "found": True, "source": "regex"})
+                covered.append((s, e))
+        # 姓名（合同/签字语境，如“甲方（委托方）：林浩然”），同一姓名去重保留首个出现
+        seen_names: set[str] = set()
+        for m in re.finditer(_NAME_PATTERN, text):
+            name = m.group(1)
+            s, e = m.span(1)
+            if name in seen_names or any(s < c[1] and e > c[0] for c in covered):
                 continue
-            t = str(it.get("type") or "").strip()
-            st = it.get("start")
-            en = it.get("end")
-            found, s, e = self._locate(text, v, st, en)
-            items.append({"value": v, "type": t, "typeLabel": type_label(t),
-                          "start": s, "end": e, "found": found})
-        return {"items": items, "count": len(items), "model": res.get("model", model)}
+            seen_names.add(name)
+            items.append({"value": name, "type": "name", "typeLabel": type_label("name"),
+                          "start": s, "end": e, "found": True, "source": "regex"})
+            covered.append((s, e))
+        items.sort(key=lambda x: x["start"])
+        return items
+
+    @staticmethod
+    def _merge_items(reg: list[dict], ai: list[dict], text: str) -> list[dict]:
+        """合并规则项与 AI 项：与已占用区间重叠或 value 相同的 AI 项跳过，其余并入后排序。"""
+        merged = list(reg)
+        spans = [(it["start"], it["end"]) for it in reg]
+        seen_values = {it.get("value") for it in reg}
+        for it in ai:
+            v = it.get("value")
+            if not v or v in seen_values:
+                continue
+            s, e = it.get("start", 0), it.get("end", 0)
+            if any(s < c[1] and e > c[0] for c in spans):
+                continue
+            merged.append(it)
+            spans.append((s, e))
+            seen_values.add(v)
+        merged.sort(key=lambda x: x["start"])
+        return merged
 
     @staticmethod
     def _locate(text: str, value: str, start=None, end=None) -> tuple[bool, int, int]:
