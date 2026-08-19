@@ -139,7 +139,9 @@ async def file_analyze(file: UploadFile = File(...), model: str = Form(""), requ
             except Exception:
                 raise HTTPException(status_code=400, detail=f"不支持的文件类型: {ext or '(无扩展名)'}")
             ex = {"text": text, "kind": "text"}
-    except RuntimeError as e:
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     if not ex.get("text", "").strip():
@@ -148,9 +150,9 @@ async def file_analyze(file: UploadFile = File(...), model: str = Form(""), requ
 
     try:
         res = await svc.analyze_text(ex["text"], model)
-    except OllamaError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except RuntimeError as e:
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     res["fileName"] = name
     res["kind"] = ex.get("kind")
@@ -189,7 +191,9 @@ async def file_redact(file: UploadFile = File(...), payload: str = Form("..."), 
             fname = f"{name.rsplit('.', 1)[0]}_redacted.png" if ext in ("jpg", "jpeg") else f"{name.rsplit('.', 1)[0]}_redacted.{ext}"
         else:
             raise HTTPException(status_code=400, detail=f"仅支持 PDF/图片涂黑，拿到 {ext or '(无扩展名)'}")
-    except RuntimeError as e:
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     return Response(content=out, media_type=media,
