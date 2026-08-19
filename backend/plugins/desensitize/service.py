@@ -129,6 +129,24 @@ def _ensure_tesseract() -> bool:
         return False
 
 
+def _doc_binary_text(data: bytes) -> str:
+    """尽力从旧 .doc（OLE 复合文档二进制）提取可读文本；无专业解析库时的降级探测。
+
+    能抠出 UTF-16LE/GBK/Latin 下的连续可打印段；提取不到清晰文本时由调用方报错提示。
+    """
+    best = ""
+    for enc in ("utf-16-le", "utf-8", "gb18030", "latin-1"):
+        try:
+            s = data.decode(enc, errors="ignore")
+        except Exception:
+            continue
+        chunks = re.findall(r"[\u4e00-\u9fa5A-Za-z0-9，。：；、（）()：；\-\s]{4,}", s)
+        text = "\n".join(chunks).strip()
+        if len(text) > len(best):
+            best = text
+    return best
+
+
 class DesensitizeService:
     """脱敏服务：识别 + 替换/涂黑工具端点所需，经 request.app.state.desensitize 取用。"""
 
@@ -357,6 +375,32 @@ class DesensitizeService:
         doc.close()
         return {"pages": pages, "text": "\n".join(full), "pageCount": len(pages),
                 "kind": "pdf", "scanned": True}
+
+    @staticmethod
+    def extract_doc_text(data: bytes, ext: str) -> dict:
+        """提取办公文档文本：.docx（python-docx 完整解析）/ .doc（尽力）/ .txt / .md 直接读取。
+
+        返回 {"text", "kind"}；无法提取（如 .doc 二进制无清晰文本）抛 RuntimeError。"""
+        ext = (ext or "").lower()
+        if ext == "docx":
+            try:
+                import docx
+            except ImportError as e:  # pragma: no cover
+                raise RuntimeError("未安装 python-docx，无法解析 .docx（pip install python-docx）") from e
+            d = docx.Document(io.BytesIO(data))
+            paras = [p.text for p in d.paragraphs]
+            for tbl in d.tables:
+                for row in tbl.rows:
+                    paras.append("\t".join(c.text for c in row.cells))
+            return {"text": "\n".join(paras), "kind": "docx"}
+        if ext == "doc":
+            t = _doc_binary_text(data)
+            if not t.strip():
+                raise RuntimeError("无法从 .doc 提取文本（旧二进制格式），请另存为 .docx 或 .txt 后上传")
+            return {"text": t, "kind": "doc"}
+        if ext in ("txt", "md", "markdown", "text"):
+            return {"text": data.decode("utf-8", errors="replace"), "kind": "text"}
+        raise RuntimeError(f"不支持的文件类型: {ext or '(无扩展名)'}")
 
     def extract_image_text(self, data: bytes) -> dict:
         """图片 OCR（pytesseract + 本机 Tesseract）：返回文本与词级坐标表；OCR 不可用返回空。"""

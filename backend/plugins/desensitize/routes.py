@@ -133,12 +133,8 @@ async def file_analyze(file: UploadFile = File(...), model: str = Form(""), requ
         elif ext in ("png", "jpg", "jpeg", "bmp", "webp", "gif"):
             ex = svc.extract_image_text(data)
         else:
-            # 未知类型按纯文本尝试解码
-            try:
-                text = data.decode("utf-8", errors="replace")
-            except Exception:
-                raise HTTPException(status_code=400, detail=f"不支持的文件类型: {ext or '(无扩展名)'}")
-            ex = {"text": text, "kind": "text"}
+            # doc/docx/txt/markdown 等办公文档提取文本
+            ex = svc.extract_doc_text(data, ext)
     except HTTPException:
         raise
     except Exception as e:
