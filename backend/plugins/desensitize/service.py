@@ -32,6 +32,7 @@ _TYPE_LABELS: dict[str, str] = {
     "id": "证件号", "id_card": "身份证", "passport": "护照",
     "email": "邮箱", "name": "姓名", "address": "地址", "bank": "银行卡",
     "card": "银行卡", "bank_card": "银行卡", "account": "账号", "plate": "车牌", "ip": "IP",
+    "credit_code": "统一社会信用代码", "tax": "税号", "date": "出生日期",
     "other": "其他",
 }
 
@@ -46,6 +47,8 @@ _RE_PATTERNS: dict[str, str] = {
     "ip": r"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)",      # IP
     "plate": r"[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼使领][A-HJ-NP-Z][A-HJ-NP-Z0-9]{5,6}",  # 车牌
     "bank_card": r"(?<!\d)\d{16,19}(?!\d)",              # 银行卡（16-19 位，排除身份证）
+    "passport": r"(?<!\d)[A-Za-z]\d{8}(?!\d)",            # 护照（字母+8 位数字）
+    "credit_code": r"[0-9A-HJ-NPQRTUWXY]{2}\d{6}[0-9A-HJ-NPQRTUWXY]{10}",  # 统一社会信用代码（18 位，排除身份证）
 }
 
 # 超过该字符数的长文本不再调用本地模型识别（已实测：qwen3.5:4b 这类小模型对长文本
@@ -56,6 +59,22 @@ _AI_MAX_CHARS = 800
 # 姓名（合同/签字语境，如“甲方（委托方）：林浩然”），限定在法定/委托/签字语境，避免误抓地址等。
 _NAME_PATTERN = re.compile(
     r"(?:甲方|乙方)[（(]?(?:委托方|服务方|签字|法定代表人)[）)]?\s*[：:]\s*([\u4e00-\u9fa5]{2,4})"
+)
+
+# 百家姓（常见单姓，通用姓名识别的首字），拼进正则字符类
+_SURNAMES = "赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳酆鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹姚邵湛汪祁毛禹狄米贝明臧计伏成戴谈宋茅庞熊纪舒屈项祝董梁杜阮蓝闵席季麻强贾路娄危江童颜郭梅盛林刁钟徐邱骆高夏蔡田樊胡凌霍虞万支柯昝管卢莫经房裘缪干解应宗丁宣贲邓郁单杭洪包诸左石崔吉钮龚程嵇邢滑裴陆荣翁荀羊於惠甄曲家封芮羿储靳汲邴糜松井段富巫乌焦巴弓牧隗山谷车侯宓蓬全郗班仰秋仲伊宫宁仇栾暴甘斜厉戎祖武符刘景詹束龙叶幸司韶郜黎蓟溥印宿白怀蒲邰从鄂索咸籍赖卓蔺屠蒙池乔阴郁胥能苍双闻莘党翟谭贡劳逄姬申扶堵冉宰郦雍郤璩桑桂濮牛寿通边扈燕冀郏浦尚农温别庄晏柴瞿阎充慕连茹习宦艾鱼容向古易慎戈廖庾终暨居衡步都耿满弘匡国文寇广禄阙东欧殳沃利蔚越夔隆师巩厍聂晁勾敖融冷訾辛阚那简饶空曾毋沙乜养鞠须丰巢关蒯相查后荆红游竺权逯盖益桓公"
+
+# 通用姓名：百家姓开头 + 1-2 个汉字，前后非汉字/字母/数字（独立词形，减少误抓）
+_GEN_NAME_PATTERN = re.compile(
+    r"(?<![\u4e00-\u9fa5A-Za-z0-9])([" + _SURNAMES + r"])([\u4e00-\u9fa5]{1,2})(?![\u4e00-\u9fa5])"
+)
+
+# 地址：省市区 / 路街大道 / 号栋室等（长度过滤在调用侧，避免短误伤）
+_ADDR_PATTERN = re.compile(
+    r"(?<![\u4e00-\u9fa5A-Za-z0-9])"
+    r"([\u4e00-\u9fa5]{2,8}?(?:省|自治区|市|自治州|地区))?\s*"
+    r"([\u4e00-\u9fa5]{2,10}?(?:市|区|县|镇))?\s*"
+    r"[\u4e00-\u9fa5]{1,16}?(?:路|街|大道|巷|弄)\s*[\u4e00-\u9fa5A-Za-z0-9]{0,5}?(?:号|栋|幢|室|单元)?"
 )
 
 # 黑块字符（替换/涂黑的统一视觉单元）
@@ -332,13 +351,15 @@ class DesensitizeService:
 
     @staticmethod
     def _regex_items(text: str) -> list[dict]:
-        """规则正则引擎：对编码型敏感信息可靠定位，返回带 start/end 的条目。
+        """规则正则引擎：对编码型(证件/手机/银行/邮箱/IP/车牌/护照/信用代码)、
+        姓名(合同语境+百家姓通用)、地址做可靠定位，返回带 start/end 的条目。
 
-        身份证优先占用区间；银行卡跳过与已占用区间重叠的 18 位身份证，避免误判。
+        身份证最优先占位；信用代码/银行卡跳过与其重叠的 18 位身份证，避免误判。
         """
         items: list[dict] = []
         covered: list[tuple[int, int]] = []
-        ordered = ["id_card", "phone", "tel", "email", "ip", "plate", "bank_card"]
+        ordered = ["id_card", "phone", "tel", "email", "ip", "plate", "bank_card",
+                   "passport", "credit_code"]
         for typ in ordered:
             pat = _RE_PATTERNS.get(typ)
             if not pat:
@@ -350,15 +371,33 @@ class DesensitizeService:
                 items.append({"value": text[s:e], "type": typ, "typeLabel": type_label(typ),
                               "start": s, "end": e, "found": True, "source": "regex"})
                 covered.append((s, e))
-        # 姓名（合同/签字语境，如“甲方（委托方）：林浩然”），同一姓名去重保留首个出现
+        # 姓名：合同/签字语境 + 通用百家姓；同一姓名去重保留首处
         seen_names: set[str] = set()
-        for m in re.finditer(_NAME_PATTERN, text):
+        for m in _NAME_PATTERN.finditer(text):
             name = m.group(1)
             s, e = m.span(1)
             if name in seen_names or any(s < c[1] and e > c[0] for c in covered):
                 continue
             seen_names.add(name)
             items.append({"value": name, "type": "name", "typeLabel": type_label("name"),
+                          "start": s, "end": e, "found": True, "source": "regex"})
+            covered.append((s, e))
+        for m in _GEN_NAME_PATTERN.finditer(text):
+            name = m.group(0)
+            s, e = m.span()
+            if name in seen_names or any(s < c[1] and e > c[0] for c in covered):
+                continue
+            seen_names.add(name)
+            items.append({"value": name, "type": "name", "typeLabel": type_label("name"),
+                          "start": s, "end": e, "found": True, "source": "regex"})
+            covered.append((s, e))
+        # 地址（省市区/路街/号室等）：截取整段，长度≥6 防过度误抓
+        for m in _ADDR_PATTERN.finditer(text):
+            s, e = m.span()
+            val = text[s:e]
+            if len(val) < 6 or any(s < c[1] and e > c[0] for c in covered):
+                continue
+            items.append({"value": val, "type": "address", "typeLabel": type_label("address"),
                           "start": s, "end": e, "found": True, "source": "regex"})
             covered.append((s, e))
         items.sort(key=lambda x: x["start"])
