@@ -128,22 +128,25 @@
     }
     function removeFile(i) { var n = filesV.slice(); n.splice(i, 1); setFiles(n) }
 
-    // 新建文件夹
-    function makeFolder() {
-      var name = (newNameV || "").trim()
-      if (!name) { setErr("请输入新文件夹名称"); return }
+    // 选中「＋ 新建文件夹」→ 自动新建（默认名"新建文件夹"，已有同名则复用），并选中它
+    function createDefaultFolder() {
+      var nm = "新建文件夹"
+      var existing = foldersV.filter(function (f) { return (f.name || "") === nm })[0]
+      if (existing) { setTarget(existing.id); return }
       setMaking(true); setErr("")
       fetch("/api/libraries/" + libId + "/folders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name, kind: "note" }),
+        body: JSON.stringify({ name: nm, kind: "note" }),
       }).then(function (r) { return r.json() }).then(function (f) {
-        if (f && f.id) {
-          setFolders(foldersV.concat([f]))
-          setTarget(f.id); setNewName("")
-        } else { setErr((f && f.detail) || "新建文件夹失败") }
+        if (f && f.id) { setFolders(foldersV.concat([f])); setTarget(f.id) }
+        else { setErr((f && f.detail) || "新建文件夹失败") }
       }).catch(function (e) { setErr(e.message || "新建文件夹失败") })
         .finally(function () { setMaking(false) })
+    }
+    function onTargetChange(v) {
+      if (v === "__new__") { createDefaultFolder(); return }
+      setTarget(v)
     }
 
     function startRun() {
@@ -218,22 +221,18 @@
         h("p", { style: { marginTop: "4px", fontSize: "12px", color: "var(--muted-foreground)" } },
           "上传 PDF/图片/doc/docx/txt/markdown → 识别 → 逐项勾选/预览 → 脱敏入库。"),
 
-        // 目标文件夹（含新建）
+        // 目标文件夹：下拉含「＋ 新建文件夹」选项，选择即自动新建（默认名"新建文件夹"）并选中
         h("div", { style: { marginTop: "12px" } },
           h(Field, { label: "入库目标文件夹" },
-            h("div", { style: { display: "flex", gap: "8px" } },
-              h("select", {
-                value: targetV, onChange: function (e) { setTarget(e.target.value) },
-                style: { flex: 1, background: "var(--input)", color: "var(--foreground)", border: "1px solid var(--border)", borderRadius: "6px", padding: "6px 8px", fontSize: "14px", outline: "none" },
-              }, foldersV.map(function (f) {
+            h("select", {
+              value: targetV,
+              onChange: function (e) { onTargetChange(e.target.value) },
+              style: { width: "100%", background: "var(--input)", color: "var(--foreground)", border: "1px solid var(--border)", borderRadius: "6px", padding: "6px 8px", fontSize: "14px", outline: "none" },
+            },
+              foldersV.map(function (f) {
                 return h("option", { key: f.id, value: f.id }, (f.name || f.id) + (f.kind ? " (" + f.kind + ")" : ""))
-              })),
-              h("input", {
-                placeholder: "新建文件夹名…", value: newNameV,
-                onChange: function (e) { setNewName(e.target.value) },
-                style: { flex: 1, minWidth: "140px", background: "var(--input)", color: "var(--foreground)", border: "1px solid var(--border)", borderRadius: "6px", padding: "6px 8px", fontSize: "13px", outline: "none" },
               }),
-              btn(makingV, function () { if (!makingV) makeFolder() }, "新建")))),
+              h("option", { key: "__new__", value: "__new__", style: { color: "var(--primary)" } }, "＋ 新建文件夹（自动创建）")))),
 
         // 选择文件
         h("div", { style: { marginTop: "12px", display: "flex", alignItems: "center", gap: "8px" } },
