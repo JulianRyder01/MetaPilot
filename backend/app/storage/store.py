@@ -461,7 +461,7 @@ class LibraryStore:
             for lib in self._iter_all_libs():
                 fld = self._find_owner_folder(fid, lib)
                 if fld is None:
-                    raise KeyError(f"文件夹不存在: {fid}")
+                    continue
                 doomed = self._folder_descendants(fld, fid)
                 fld["folders"] = [f for f in fld.get("folders", []) if f["id"] not in doomed]
                 fld["documents"] = [
@@ -472,6 +472,7 @@ class LibraryStore:
                 lib["updatedAt"] = now_iso()
                 self._save_lib(lib)
                 return
+            raise KeyError(f"文件夹不存在: {fid}")
 
     @staticmethod
     def _find_owner_folder(fid: str, lib: dict):
@@ -702,6 +703,11 @@ class LibraryStore:
                     o["id"] = old_to_new[o["id"]]
                 if isinstance(o.get("parentId"), str) and o["parentId"] in old_to_new:
                     o["parentId"] = old_to_new[o["parentId"]]
+                # 文档归属的嵌套文件夹 / 小节引用的外部文档：同批重映射，避免副本内引用悬空
+                if isinstance(o.get("folderId"), str) and o["folderId"] in old_to_new:
+                    o["folderId"] = old_to_new[o["folderId"]]
+                if isinstance(o.get("refDocId"), str) and o["refDocId"] in old_to_new:
+                    o["refDocId"] = old_to_new[o["refDocId"]]
                 for v in o.values():
                     remap(v)
             elif isinstance(o, list):

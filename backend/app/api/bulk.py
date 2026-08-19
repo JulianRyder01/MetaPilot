@@ -64,6 +64,9 @@ def bulk_duplicate(body: BulkDuplicateIn, request: Request):
 @router.post("/bulk/move")
 def bulk_move(body: BulkMoveIn, request: Request):
     try:
+        # 文档/嵌套文件夹移动必须指定目标顶层文件夹（否则无法确定落位）
+        if (body.subFolderIds or body.documentIds) and not body.targetFolderId:
+            raise HTTPException(status_code=400, detail="文档/嵌套文件夹移动需要指定目标顶层文件夹 (targetFolderId)")
         return _store(request).bulk_move(
             body.targetLibraryId,
             body.topFolderIds,

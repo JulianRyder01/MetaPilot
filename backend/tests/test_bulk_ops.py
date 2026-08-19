@@ -118,6 +118,36 @@ def test_move_document_within_and_across_library():
     assert not any(d["id"] == doc["id"] for d in src["documents"])
 
 
+def test_move_requires_target_folder():
+    """文档/嵌套文件夹移动时必须指定目标顶层文件夹（否则 400 提示，不静默成功）。"""
+    a = _lib("库A")
+    course = _course(a["id"])
+    doc = _doc(course["id"])
+    r = client.post(
+        "/api/bulk/move",
+        json={"documentIds": [doc["id"]], "targetLibraryId": a["id"]},
+    )
+    assert r.status_code == 400
+
+
+def test_delete_subfolder_across_libraries():
+    """回归：嵌套文件夹所在库不是 index 的第一个库时删除应成功（原实现会在首个不含它的库抛 KeyError）。"""
+    a, b = _lib("库A"), _lib("库B")
+    course = _course(a["id"])
+    sub = client.post(
+        f"/api/folders/{course['id']}/folders", json={"name": "第一章", "parentId": ""}
+    ).json()
+    doc = _doc(course["id"], folder_id=sub["id"])
+    # 课程整体跨库移到 B 之后，从 B 中删除其嵌套文件夹+文档
+    r = client.post("/api/bulk/move", json={"topFolderIds": [course["id"]], "targetLibraryId": b["id"]})
+    assert r.status_code == 200 and r.json()["moved"] == 1
+    r = client.post("/api/bulk/delete", json={"subFolderIds": [sub["id"]], "documentIds": [doc["id"]]})
+    assert r.status_code == 200 and r.json()["deleted"] == 2
+    lib_b = client.get(f"/api/libraries/{b['id']}").json()
+    moved = next(f for f in lib_b["folders"] if f["id"] == course["id"])
+    assert moved["folders"] == [] and moved["documents"] == []
+
+
 def test_bulk_delete():
     a = _lib("库A")
     course = _course(a["id"])
