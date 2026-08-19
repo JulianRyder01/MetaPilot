@@ -118,6 +118,24 @@ def test_move_document_within_and_across_library():
     assert not any(d["id"] == doc["id"] for d in src["documents"])
 
 
+def test_move_document_within_same_library():
+    """回归：同库内移动文档到另一顶层文件夹不得丢失数据（源移除+目标追加必须落同一份对象）。"""
+    a = _lib("库A")
+    course_a = _course(a["id"], "数学课")
+    course_b = _course(a["id"], "英语课")
+    doc = _doc(course_a["id"], folder_id="")
+    r = client.post(
+        "/api/bulk/move",
+        json={"documentIds": [doc["id"]], "targetLibraryId": a["id"], "targetFolderId": course_b["id"]},
+    )
+    assert r.status_code == 200 and r.json()["moved"] == 1, r.text
+    lib = client.get(f"/api/libraries/{a['id']}").json()
+    src = next(f for f in lib["folders"] if f["id"] == course_a["id"])
+    dst = next(f for f in lib["folders"] if f["id"] == course_b["id"])
+    assert not any(d["id"] == doc["id"] for d in src["documents"]), "源文件夹不应再有该文档"
+    assert any(d["id"] == doc["id"] for d in dst["documents"]), "目标文件夹应收到该文档"
+
+
 def test_move_requires_target_folder():
     """文档/嵌套文件夹移动时必须指定目标顶层文件夹（否则 400 提示，不静默成功）。"""
     a = _lib("库A")

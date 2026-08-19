@@ -827,7 +827,8 @@ class LibraryStore:
                     break
             if doc is None:
                 raise KeyError(f"文档不存在: {did}")
-            target_lib = self._load_lib(target_lid)
+            # 同库移动：复用源加载的同一对象，避免两份拷贝导致目标侧追加丢失
+            target_lib = src_lib if src_lib["id"] == target_lid else self._load_lib(target_lid)
             target_col = find_folder(target_lib, target_fid)
             if target_col is None:
                 raise KeyError(f"目标文件夹不存在: {target_fid}")
@@ -867,7 +868,8 @@ class LibraryStore:
                     break
             if src_owner is None:
                 raise KeyError(f"文件夹不存在: {sfid}")
-            target_lib = self._load_lib(target_lid)
+            # 同库移动：复用源加载的同一对象，避免两份拷贝导致目标侧追加丢失
+            target_lib = src_lib if src_lib["id"] == target_lid else self._load_lib(target_lid)
             target_owner = find_folder(target_lib, target_owner_fid)
             if target_owner is None:
                 raise KeyError(f"目标文件夹不存在: {target_owner_fid}")
@@ -879,6 +881,11 @@ class LibraryStore:
                 f = next((x for x in src_owner.get("folders", []) if x["id"] == sfid), None)
                 if f and (f.get("parentId") or "") == target_parent_id:
                     return f
+            # 防环：同一顶层文件夹内，目标父不能是自身或其子孙
+            if src_lib["id"] == target_lid and src_owner["id"] == target_owner_fid:
+                doomed = self._folder_descendants(src_owner, sfid)
+                if target_parent_id in doomed:
+                    raise ValueError("目标父文件夹不能是待移动文件夹自身或其子文件夹")
             # 收集并移除源子树（含子孙文件夹与其内文档）
             doomed = self._folder_descendants(src_owner, sfid)
             moved = [f for f in src_owner.get("folders", []) if f["id"] in doomed]
@@ -945,8 +952,23 @@ class LibraryStore:
 
     def bulk_move(self, target_lid: str, top_folder_ids=(), sub_folder_ids=(), document_ids=(),
                   target_fid: str = "", target_parent_id: str = "") -> dict:
-        """批量移动：文档/嵌套文件夹 → 目标库的目标顶层文件夹；顶层集合 → 目标库根。"""
-        self._load_lib(target_lid)  # 校验目标库存在
+        """批量移动：文档/嵌套文件夹 → 目标库的目标顶层文件夹；顶层集合 → 目标库根。
+
+        先整体校验（目标库/目标文件夹存在、顶层集合均不在目标库），再逐项执行；校验失败不产生任何写入。
+        """
+        target_lib = self._load_lib(target_lid)  # 校验目标库存在
+        if target_fid and find_folder(target_lib, target_fid) is None:
+            raise KeyError(f"目标文件夹不存在: {target_fid}")
+        if target_parent_id and target_parent_id not in self._folder_tree(find_folder(target_lib, target_fid)):
+            raise KeyError(f"目标子文件夹不存在: {target_parent_id}")
+        # 顶层集合：源库不得是目标库（优先整体校验，避免执行一半后再报错）
+        for fid in top_folder_ids:
+            for lib in self._iter_all_libs():
+                f = find_folder(lib, fid)
+                if f is not None:
+                    if lib["id"] == target_lid:
+                        raise ValueError(f"集合「{f.get('name', '')}」已在目标库中，顶层集合只能在库之间移动")
+                    break
         moved: list[dict] = []
         for did in document_ids:
             try:
@@ -964,8 +986,6 @@ class LibraryStore:
                 f = find_folder(lib, fid)
                 if f is not None:
                     found = True
-                    if lib["id"] == target_lid:
-                        raise ValueError(f"集合「{f.get('name', '')}」已在目标库中，顶层集合只能在库之间移动")
                     break
             if not found:
                 continue  # 不存在，与其它对象 NotFound 语义一致（忽略）
