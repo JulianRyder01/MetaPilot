@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import copy
 import json
 import shutil
 import threading
@@ -676,3 +677,291 @@ class LibraryStore:
                 self._save_lib(lib)
                 return sec["blocks"]
             raise KeyError(f"小节不存在: {sid}")
+
+    # ---- 复制 / 移动 / 批量操作（集合与文档） ----
+
+    @staticmethod
+    def _remap_ids_deep(node: dict) -> tuple[dict, dict[str, str]]:
+        """深拷贝节点并为全部层级（folder/document/section/block）重生成 id；
+        内部 parentId 引用同步重映射到新 id。返回 (新副本, old->new 映射)。"""
+        old_to_new: dict[str, str] = {}
+
+        def collect(o: Any) -> None:
+            if isinstance(o, dict):
+                if isinstance(o.get("id"), str) and o["id"]:
+                    old_to_new.setdefault(o["id"], gen_id())
+                for v in o.values():
+                    collect(v)
+            elif isinstance(o, list):
+                for v in o:
+                    collect(v)
+
+        def remap(o: Any) -> None:
+            if isinstance(o, dict):
+                if isinstance(o.get("id"), str) and o["id"] in old_to_new:
+                    o["id"] = old_to_new[o["id"]]
+                if isinstance(o.get("parentId"), str) and o["parentId"] in old_to_new:
+                    o["parentId"] = old_to_new[o["parentId"]]
+                for v in o.values():
+                    remap(v)
+            elif isinstance(o, list):
+                for v in o:
+                    remap(v)
+
+        out = copy.deepcopy(node)
+        collect(out)
+        remap(out)
+        return out, old_to_new
+
+    def copy_folder(self, fid: str, name_suffix: str = "") -> dict:
+        """复制顶层文件夹（深拷贝：嵌套文件夹/文档/小节/块/画布）到同一库；返回新文件夹。"""
+        with self.lock:
+            for lib in self._iter_all_libs():
+                fld = find_folder(lib, fid)
+                if fld is None:
+                    continue
+                new_fld, mapping = self._remap_ids_deep(fld)
+                new_fld["id"] = mapping.get(fid, gen_id())
+                new_fld["name"] = f"{fld.get('name', '')}{name_suffix}"
+                ts = now_iso()
+                new_fld["createdAt"] = ts
+                new_fld["updatedAt"] = ts
+                lib.setdefault("folders", []).append(new_fld)
+                lib["updatedAt"] = ts
+                self._save_lib(lib)
+                # 图表画布文件同步复制（.canvas → 新 id）
+                if fld.get("kind") == "canvas" and fld.get("canvas"):
+                    src_canvas = self._canvas_path(fid)
+                    if src_canvas.exists():
+                        dst = self._canvas_path(new_fld["id"])
+                        dst.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copyfile(src_canvas, dst)
+                return new_fld
+            raise KeyError(f"文件夹不存在: {fid}")
+
+    def copy_document(self, did: str, name_suffix: str = "") -> dict:
+        """复制文档（深拷贝：小节/块）到同一文件夹；返回新文档。"""
+        with self.lock:
+            for lib in self._iter_all_libs():
+                col, doc = find_document(lib, did)
+                if doc is None:
+                    continue
+                new_doc, mapping = self._remap_ids_deep(doc)
+                new_doc["id"] = mapping.get(did, gen_id())
+                new_doc["name"] = f"{doc.get('name', '')}{name_suffix}"
+                ts = now_iso()
+                new_doc["createdAt"] = ts
+                new_doc["updatedAt"] = ts
+                col.setdefault("documents", []).append(new_doc)
+                col["updatedAt"] = ts
+                lib["updatedAt"] = ts
+                self._save_lib(lib)
+                return new_doc
+            raise KeyError(f"文档不存在: {did}")
+
+    def copy_subfolder(self, sfid: str, name_suffix: str = "") -> dict:
+        """复制嵌套文件夹（含子孙文件夹与其中的文档）到同一顶层文件夹内（同父）；返回新文件夹。"""
+        with self.lock:
+            for lib in self._iter_all_libs():
+                owner = self._find_owner_folder(sfid, lib)
+                if owner is None:
+                    continue
+                src = next((f for f in owner.get("folders", []) if f["id"] == sfid), None)
+                if src is None:
+                    raise KeyError(f"文件夹不存在: {sfid}")
+                new_sub, mapping = self._remap_ids_deep(src)
+                new_sub["id"] = mapping.get(sfid, gen_id())
+                new_sub["name"] = f"{src.get('name', '')}{name_suffix}"
+                new_sub["parentId"] = src.get("parentId", "")
+                ts = now_iso()
+                new_sub["createdAt"] = ts
+                new_sub["updatedAt"] = ts
+                owner.setdefault("folders", []).append(new_sub)
+                owner["updatedAt"] = ts
+                lib["updatedAt"] = ts
+                self._save_lib(lib)
+                return new_sub
+            raise KeyError(f"文件夹不存在: {sfid}")
+
+    def move_folder(self, fid: str, target_lid: str) -> dict:
+        """移动顶层集合（课程/笔记/图表等）到目标库（跨库）。画布文件按 id 共享存储，无需搬运。"""
+        with self.lock:
+            src_lib = None
+            fld = None
+            for lib in self._iter_all_libs():
+                f = find_folder(lib, fid)
+                if f is not None:
+                    src_lib, fld = lib, f
+                    break
+            if fld is None:
+                raise KeyError(f"文件夹不存在: {fid}")
+            if src_lib["id"] == target_lid:
+                raise ValueError("顶层集合只能在库之间移动")
+            target_lib = self._load_lib(target_lid)
+            src_lib["folders"] = [x for x in src_lib.get("folders", []) if x["id"] != fid]
+            target_lib.setdefault("folders", []).append(fld)
+            ts = now_iso()
+            fld["updatedAt"] = ts
+            src_lib["updatedAt"] = ts
+            target_lib["updatedAt"] = ts
+            self._save_lib(src_lib)
+            self._save_lib(target_lib)
+            return fld
+
+    def move_document(self, did: str, target_lid: str, target_fid: str, target_folder_id: str = "") -> dict:
+        """移动文档到目标库的目标顶层文件夹（folderId 为空=根级；否则必须存在于目标文件夹）。"""
+        with self.lock:
+            src_lib = None
+            src_col = None
+            doc = None
+            for lib in self._iter_all_libs():
+                c, d = find_document(lib, did)
+                if d is not None:
+                    src_lib, src_col, doc = lib, c, d
+                    break
+            if doc is None:
+                raise KeyError(f"文档不存在: {did}")
+            target_lib = self._load_lib(target_lid)
+            target_col = find_folder(target_lib, target_fid)
+            if target_col is None:
+                raise KeyError(f"目标文件夹不存在: {target_fid}")
+            if target_folder_id:
+                if target_folder_id not in self._folder_tree(target_col):
+                    raise KeyError(f"目标子文件夹不存在: {target_folder_id}")
+            # 已在目标位置：跳过（避免无意义写入）
+            if (
+                src_lib["id"] == target_lid
+                and src_col["id"] == target_fid
+                and (doc.get("folderId") or "") == target_folder_id
+            ):
+                return doc
+            src_col["documents"] = [d for d in src_col.get("documents", []) if d["id"] != did]
+            doc["folderId"] = target_folder_id
+            target_col.setdefault("documents", []).append(doc)
+            ts = now_iso()
+            doc["updatedAt"] = ts
+            src_col["updatedAt"] = ts
+            target_col["updatedAt"] = ts
+            src_lib["updatedAt"] = ts
+            target_lib["updatedAt"] = ts
+            self._save_lib(src_lib)
+            if src_lib["id"] != target_lib["id"]:
+                self._save_lib(target_lib)
+            return doc
+
+    def move_subfolder(self, sfid: str, target_lid: str, target_owner_fid: str, target_parent_id: str = "") -> dict:
+        """移动嵌套文件夹（含子孙文件夹与其中文档）到目标库的目标顶层文件夹下（parentId 空=其根级）。"""
+        with self.lock:
+            src_lib = None
+            src_owner = None
+            for lib in self._iter_all_libs():
+                o = self._find_owner_folder(sfid, lib)
+                if o is not None:
+                    src_lib, src_owner = lib, o
+                    break
+            if src_owner is None:
+                raise KeyError(f"文件夹不存在: {sfid}")
+            target_lib = self._load_lib(target_lid)
+            target_owner = find_folder(target_lib, target_owner_fid)
+            if target_owner is None:
+                raise KeyError(f"目标文件夹不存在: {target_owner_fid}")
+            if target_parent_id:
+                if target_parent_id not in self._folder_tree(target_owner):
+                    raise KeyError(f"目标子文件夹不存在: {target_parent_id}")
+            # 已在目标位置：跳过
+            if src_lib["id"] == target_lid and src_owner["id"] == target_owner_fid:
+                f = next((x for x in src_owner.get("folders", []) if x["id"] == sfid), None)
+                if f and (f.get("parentId") or "") == target_parent_id:
+                    return f
+            # 收集并移除源子树（含子孙文件夹与其内文档）
+            doomed = self._folder_descendants(src_owner, sfid)
+            moved = [f for f in src_owner.get("folders", []) if f["id"] in doomed]
+            src_owner["folders"] = [f for f in src_owner.get("folders", []) if f["id"] not in doomed]
+            moved_docs = [d for d in src_owner.get("documents", []) if (d.get("folderId") or "") in doomed]
+            src_owner["documents"] = [d for d in src_owner.get("documents", []) if (d.get("folderId") or "") not in doomed]
+            # 根节点挂到目标父；子树内部 parentId 相对关系保持
+            root = next(f for f in moved if f["id"] == sfid)
+            root["parentId"] = target_parent_id
+            target_owner.setdefault("folders", []).extend(moved)
+            target_owner.setdefault("documents", []).extend(moved_docs)
+            ts = now_iso()
+            src_owner["updatedAt"] = ts
+            target_owner["updatedAt"] = ts
+            src_lib["updatedAt"] = ts
+            target_lib["updatedAt"] = ts
+            self._save_lib(src_lib)
+            if src_lib["id"] != target_lib["id"]:
+                self._save_lib(target_lib)
+            return root
+
+    def bulk_delete(self, top_folder_ids=(), sub_folder_ids=(), document_ids=()) -> dict:
+        """批量删除：先文档（可能位于子文件夹内），再子文件夹，最后顶层集合（级联清理）。"""
+        deleted = 0
+        for did in document_ids:
+            try:
+                self.delete_document(did)
+                deleted += 1
+            except KeyError:
+                pass
+        for sfid in sub_folder_ids:
+            try:
+                self.delete_subfolder(sfid)
+                deleted += 1
+            except KeyError:
+                pass
+        for fid in top_folder_ids:
+            try:
+                self.delete_folder(fid)
+                deleted += 1
+            except KeyError:
+                pass
+        return {"deleted": deleted}
+
+    def bulk_duplicate(self, top_folder_ids=(), sub_folder_ids=(), document_ids=(), name_suffix: str = "") -> dict:
+        """批量创建副本（深拷贝）：返回新对象列表（顶层集合 → 文档 → 嵌套文件夹）。"""
+        copies: list[dict] = []
+        for fid in top_folder_ids:
+            try:
+                copies.append(self.copy_folder(fid, name_suffix))
+            except KeyError:
+                pass
+        for sfid in sub_folder_ids:
+            try:
+                copies.append(self.copy_subfolder(sfid, name_suffix))
+            except KeyError:
+                pass
+        for did in document_ids:
+            try:
+                copies.append(self.copy_document(did, name_suffix))
+            except KeyError:
+                pass
+        return {"copied": len(copies), "items": copies}
+
+    def bulk_move(self, target_lid: str, top_folder_ids=(), sub_folder_ids=(), document_ids=(),
+                  target_fid: str = "", target_parent_id: str = "") -> dict:
+        """批量移动：文档/嵌套文件夹 → 目标库的目标顶层文件夹；顶层集合 → 目标库根。"""
+        self._load_lib(target_lid)  # 校验目标库存在
+        moved: list[dict] = []
+        for did in document_ids:
+            try:
+                moved.append(self.move_document(did, target_lid, target_fid, target_parent_id))
+            except KeyError:
+                pass
+        for sfid in sub_folder_ids:
+            try:
+                moved.append(self.move_subfolder(sfid, target_lid, target_fid, target_parent_id))
+            except KeyError:
+                pass
+        for fid in top_folder_ids:
+            found = False
+            for lib in self._iter_all_libs():
+                f = find_folder(lib, fid)
+                if f is not None:
+                    found = True
+                    if lib["id"] == target_lid:
+                        raise ValueError(f"集合「{f.get('name', '')}」已在目标库中，顶层集合只能在库之间移动")
+                    break
+            if not found:
+                continue  # 不存在，与其它对象 NotFound 语义一致（忽略）
+            moved.append(self.move_folder(fid, target_lid))
+        return {"moved": len(moved), "items": moved}
