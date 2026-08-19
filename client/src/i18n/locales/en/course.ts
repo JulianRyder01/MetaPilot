@@ -39,6 +39,8 @@ export const courseEn: Record<string, string> = {
   "course.dynamic.tabHtml": "HTML",
   "course.dynamic.tabMarkdown": "Markdown",
   "course.dynamic.closeResult": "Close result",
+  "course.dynamic.collapseResult": "Collapse result block",
+  "course.dynamic.expandResult": "Expand result block",
   "course.dynamic.resultHtmlTitle": "AI judging result page",
   "course.dynamic.finishJudge": "Finish and submit to AI judging",
   "course.dynamic.judging": "AI judging...",

@@ -39,6 +39,8 @@ export const courseZhCN: Record<string, string> = {
   "course.dynamic.tabHtml": "HTML",
   "course.dynamic.tabMarkdown": "Markdown",
   "course.dynamic.closeResult": "关闭结果",
+  "course.dynamic.collapseResult": "收起结果块",
+  "course.dynamic.expandResult": "展开结果块",
   "course.dynamic.resultHtmlTitle": "AI 评判结果页",
   "course.dynamic.finishJudge": "结束并提交给 AI 评判",
   "course.dynamic.judging": "AI 评判中...",

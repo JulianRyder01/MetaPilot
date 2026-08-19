@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
+  ChevronDown,
+  ChevronUp,
   FileText,
   GripHorizontal,
   LayoutTemplate,
@@ -81,6 +83,12 @@ export function DynamicInteractiveBlock({ collectionId, block }: Props) {
   const [savedResult, setSavedResult] = useState<{ markdown: string; html: string } | null>(() => {
     const r = block.lastResult
     return r?.markdown || r?.html ? { markdown: r.markdown ?? "", html: r.html ?? "" } : null
+  })
+  // 内嵌「AI 评判结果」块是否展开：已有结果时默认为展开（重新打开文档即可看到结果），
+  // 评判/重做完成后也自动展开。仅受本块内 savedResult 驱动，不新增独立文档块。
+  const [inlineOpen, setInlineOpen] = useState<boolean>(() => {
+    const r = block.lastResult
+    return !!(r?.markdown || r?.html)
   })
 
   const file = block.file ?? ""
@@ -179,6 +187,8 @@ export function DynamicInteractiveBlock({ collectionId, block }: Props) {
       setResult(next)
       setSavedResult(next)
       setShowResult(true)
+      // 内嵌「AI 评判结果」块自动展开，用户关闭弹层后仍能在块内看到结果
+      setInlineOpen(true)
       // 结果保存到本交互块（lastResult），重做交互会覆盖旧结果
       if (block.id) {
         try {
@@ -315,6 +325,22 @@ export function DynamicInteractiveBlock({ collectionId, block }: Props) {
         )}
       </div>
 
+      {/* 常驻内嵌「AI 评判结果」块：保存在本交互块 lastResult（重新打开文档也能看到），
+          HTML/Markdown 标签切换，可展开/收起；重做交互会覆盖旧结果（不新增独立文档块）。
+          全屏（expanded）时占满空间，改由弹层查看结果。 */}
+      {savedResult && !expanded && (
+        <InlineResultView
+          title={block.title ?? t("course.dynamic.resultTitle")}
+          result={savedResult}
+          open={inlineOpen}
+          onToggle={() => setInlineOpen((v) => !v)}
+          onMaximize={() => {
+            setResult(savedResult)
+            setShowResult(true)
+          }}
+        />
+      )}
+
       {/* AI 评判结果展示页（兼容 Markdown 与 HTML 渲染） */}
       {showResult && result && (
         <InteractiveResultView
@@ -391,6 +417,89 @@ function InteractiveResultView({
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+/** 常驻内嵌「AI 评判结果」块：直接展示在交互块下方（非弹层），
+ *  HTML/Markdown 标签切换，可展开/收起；结果由 lastResult 驱动，重新打开文档也能看到。 */
+function InlineResultView({
+  title,
+  result,
+  open,
+  onToggle,
+  onMaximize,
+}: {
+  title: string
+  result: { markdown: string; html: string }
+  open: boolean
+  onToggle: () => void
+  onMaximize: () => void
+}) {
+  const t = useT()
+  const [tab, setTab] = useState<"html" | "markdown">("html")
+  return (
+    <div className="overflow-hidden rounded-lg border-t bg-card">
+      <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-2">
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <LayoutTemplate className="size-3.5 text-primary" />
+          {title}
+        </span>
+        <div className="flex items-center gap-1">
+          <div className="mr-1 flex overflow-hidden rounded-md border">
+            <button
+              onClick={() => setTab("html")}
+              className={cn(
+                "flex items-center gap-1 px-2.5 py-1 text-xs",
+                tab === "html" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent",
+              )}
+            >
+              <LayoutTemplate className="size-3.5" />
+              {t("course.dynamic.tabHtml")}
+            </button>
+            <button
+              onClick={() => setTab("markdown")}
+              className={cn(
+                "flex items-center gap-1 px-2.5 py-1 text-xs",
+                tab === "markdown" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent",
+              )}
+            >
+              <FileText className="size-3.5" />
+              {t("course.dynamic.tabMarkdown")}
+            </button>
+          </div>
+          <button
+            onClick={onMaximize}
+            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            title={t("course.dynamic.viewResult")}
+          >
+            <Maximize2 className="size-4" />
+          </button>
+          <button
+            onClick={onToggle}
+            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            title={open ? t("course.dynamic.collapseResult") : t("course.dynamic.expandResult")}
+          >
+            {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+          </button>
+        </div>
+      </div>
+      {open && (
+        <div className="max-h-[480px] overflow-auto">
+          {tab === "html" && result.html ? (
+            <iframe
+              srcDoc={result.html}
+              sandbox="allow-scripts"
+              title={t("course.dynamic.resultHtmlTitle")}
+              className="h-[420px] w-full border-0"
+            />
+          ) : (
+            <div className="p-6">
+              <MarkdownBlock content={result.markdown || result.html} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
