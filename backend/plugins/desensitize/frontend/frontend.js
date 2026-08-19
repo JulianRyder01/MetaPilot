@@ -29,14 +29,14 @@
       style: { display: "inline-flex", alignItems: "center", gap: "4px",
                padding: "6px 12px", borderRadius: "6px", fontSize: "14px", fontWeight: 500,
                cursor: disabled ? "not-allowed" : "pointer",
-               background: disabled ? "#e5e7eb" : "#2563eb",
-               color: disabled ? "#9ca3af" : "#fff", border: "none" },
+               background: disabled ? "var(--muted)" : "var(--primary)",
+               color: disabled ? "var(--muted-foreground)" : "var(--primary-foreground)", border: "none" },
     }, label, extra || null)
   }
 
   function Field(props) {
     return h("label", { style: { display: "flex", flexDirection: "column", gap: "4px", fontSize: "14px" } },
-      h("span", { style: { color: "#6b7280" } }, props.label),
+      h("span", { style: { color: "var(--muted-foreground)" } }, props.label),
       props.children)
   }
 
@@ -141,7 +141,7 @@
       h("div", {
         className: "desensitize-dialog",
         style: { width: "100%", maxWidth: "760px", maxHeight: "86vh", overflow: "auto",
-                 background: "#fff", color: "#1f2937", border: "1px solid #d1d5db",
+                 background: "var(--popover)", color: "var(--popover-foreground)", border: "1px solid var(--border)",
                  borderRadius: "12px", padding: "20px", boxShadow: "0 20px 60px rgba(0,0,0,.35)",
                  fontFamily: "inherit" },
       },
@@ -158,8 +158,8 @@
         // 目标文件夹
         h(Field, { label: "入库目标文件夹" },
           h("select", {
-            className: "rounded-md border bg-background px-2 py-1.5 text-sm outline-none",
             value: targetV, onChange: function (e) { setTarget(e.target.value) },
+            style: { background: "var(--input)", color: "var(--foreground)", border: "1px solid var(--border)", borderRadius: "6px", padding: "6px 8px", fontSize: "14px", outline: "none" },
           }, foldersV.map(function (f) {
             return h("option", { key: f.id, value: f.id }, (f.name || f.id) + (f.kind ? " (" + f.kind + ")" : ""))
           }))),
@@ -168,56 +168,56 @@
         h("div", { className: "mt-3 flex items-center gap-2" },
           h("input", {
             type: "file", multiple: true, accept: ACCEPT,
-            className: "block w-full text-sm", onChange: onPick,
+            onChange: onPick, style: { color: "var(--foreground)" },
           })),
         filesV.length ? h("div", { className: "mt-2 space-y-1" },
           filesV.map(function (f, i) {
             return h("div", { key: i, className: "flex items-center justify-between rounded-md border px-2 py-1 text-sm" },
               h("span", { className: "truncate" }, f.name),
-              h("button", { type: "button", className: "ml-2 text-xs text-red-600", onClick: function () { removeFile(i) } }, "移除"))
+              h("button", { type: "button", style: { marginLeft: "8px", fontSize: "12px", color: "var(--destructive)" }, onClick: function () { removeFile(i) } }, "移除"))
           })) : null,
 
         filesV.length && !taskIdV ? h("div", { className: "mt-3" }, btn(false, startRun, "开始识别")) : null,
 
-        errV ? h("p", { style: { marginTop: "8px", fontSize: "14px", color: "#dc2626" } }, errV) : null,
+        errV ? h("p", { style: { marginTop: "8px", fontSize: "14px", color: "var(--destructive)" } }, errV) : null,
 
         // 进度（内联样式，不依赖宿主 tailwind）
-        (taskIdV && statusV) ? h("div", { style: { marginTop: "12px", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "12px" } },
+        (taskIdV && statusV) ? h("div", { style: { marginTop: "12px", border: "1px solid var(--muted)", borderRadius: "8px", padding: "12px" } },
           h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "14px" } },
             h("span", { style: { fontWeight: 600 } }, running ? "识别中…" : statusV.status === "done" ? "识别完成" : "处理中"),
-            h("span", { style: { color: "#6b7280" } }, statusV.done + "/" + statusV.total)),
-          h("div", { style: { marginTop: "4px", height: "8px", width: "100%", overflow: "hidden", borderRadius: "4px", background: "#e5e7eb" } },
-            h("div", { style: { height: "100%", background: "#2563eb", width: (statusV.total ? Math.round((statusV.done / statusV.total) * 100) : 0) + "%" } })),
+            h("span", { style: { color: "var(--muted-foreground)" } }, statusV.done + "/" + statusV.total)),
+          h("div", { style: { marginTop: "4px", height: "8px", width: "100%", overflow: "hidden", borderRadius: "4px", background: "var(--muted)" } },
+            h("div", { style: { height: "100%", background: "var(--primary)", width: (statusV.total ? Math.round((statusV.done / statusV.total) * 100) : 0) + "%" } })),
           h("div", { style: { marginTop: "12px" } },
             statusV.files.map(function (f, i) {
-              var stageColor = f.stage === "error" ? "#dc2626" : f.stage === "done" ? "#16a34a" : "#6b7280"
+              var stageColor = f.stage === "error" ? "var(--destructive)" : f.stage === "done" ? "var(--primary)" : "var(--muted-foreground)"
               return h("div", { key: i, style: { fontSize: "12px", marginBottom: "6px" } },
                 h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between" } },
                   h("span", { style: { fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis" } }, f.name),
                   h("span", { style: { color: stageColor } },
                     STAGE_LABEL[f.stage] || f.stage,
                     f.stage === "done" && typeof f.count === "number" ? (" · " + f.count + " 项") : "")),
-                h("div", { style: { marginTop: "2px", height: "6px", width: "100%", overflow: "hidden", borderRadius: "3px", background: "#e5e7eb" } },
-                  h("div", { style: { height: "100%", background: "#2563eb", width: Math.round((f.progress || 0) * 100) + "%" } })),
-                f.stage === "done" && f.count ? h("div", { style: { marginTop: "2px", color: "#6b7280" } },
+                h("div", { style: { marginTop: "2px", height: "6px", width: "100%", overflow: "hidden", borderRadius: "3px", background: "var(--muted)" } },
+                  h("div", { style: { height: "100%", background: "var(--primary)", width: Math.round((f.progress || 0) * 100) + "%" } })),
+                f.stage === "done" && f.count ? h("div", { style: { marginTop: "2px", color: "var(--muted-foreground)" } },
                   "识别：" + ((f.items || []).map(function (it) { return it.value }).slice(0, 6).join("、")) + (f.count > 6 ? "…" : "")) : null,
-                f.error ? h("div", { style: { color: "#dc2626" } }, f.error) : null)
+                f.error ? h("div", { style: { color: "var(--destructive)" } }, f.error) : null)
             })),
 
           // 完成后一键脱敏入库
           allDone ? h("div", { style: { marginTop: "12px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px" } },
             btn(applyingV, function () { if (!applyingV) applyImport() }, "脱敏并入库存到「" + (targetName || "所选文件夹") + "」"),
-            applyingV ? h("span", { style: { fontSize: "12px", color: "#6b7280" } }, "处理中…") : null) : null,
+            applyingV ? h("span", { style: { fontSize: "12px", color: "var(--muted-foreground)" } }, "处理中…") : null) : null,
         ) : null,
 
         // 入库结果
-        importedV ? h("div", { style: { marginTop: "12px", border: "1px solid #86efac", borderRadius: "8px", padding: "12px", fontSize: "14px" } },
-          h("p", { style: { fontWeight: 600, color: "#15803d" } }, "已入库 " + importedV.count + " 个文档："),
+        importedV ? h("div", { style: { marginTop: "12px", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px", fontSize: "14px" } },
+          h("p", { style: { fontWeight: 600, color: "var(--primary)" } }, "已入库 " + importedV.count + " 个文档："),
           (importedV.imported || []).map(function (r, i) {
-            return h("p", { key: i, style: { fontSize: "12px", color: "#6b7280" } },
+            return h("p", { key: i, style: { fontSize: "12px", color: "var(--muted-foreground)" } },
               r.name + " → " + (r.docId ? "已生成文档(" + r.maskedCount + " 处脱敏)" : "失败"))
           })) : null,
-        noteV ? h("p", { style: { marginTop: "8px", fontSize: "14px", color: "#15803d" } }, noteV) : null,
+        noteV ? h("p", { style: { marginTop: "8px", fontSize: "14px", color: "var(--primary)" } }, noteV) : null,
       ))
   }
 
