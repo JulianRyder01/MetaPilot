@@ -34,9 +34,10 @@
     }, label, extra || null)
   }
 
-  function Field(label, child) {
-    return h("label", { className: "flex flex-col gap-1 text-sm" },
-      h("span", { className: "text-muted-foreground" }, label), child)
+  function Field(props) {
+    return h("label", { style: { display: "flex", flexDirection: "column", gap: "4px", fontSize: "14px" } },
+      h("span", { style: { color: "#6b7280" } }, props.label),
+      props.children)
   }
 
   // ---------- 弹窗主组件 ----------
