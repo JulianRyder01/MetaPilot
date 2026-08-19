@@ -146,7 +146,12 @@ async def file_analyze(file: UploadFile = File(...), model: str = Form(""), requ
         return {"fileName": name, "kind": ex.get("kind"), "text": "", "items": [], "count": 0,
                 "ocr": ex.get("ocr", False)}
 
-    res = await svc.analyze_text(ex["text"], model)
+    try:
+        res = await svc.analyze_text(ex["text"], model)
+    except OllamaError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     res["fileName"] = name
     res["kind"] = ex.get("kind")
     res["ocr"] = ex.get("ocr", False)
