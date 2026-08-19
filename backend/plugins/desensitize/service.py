@@ -51,9 +51,8 @@ _RE_PATTERNS: dict[str, str] = {
     "credit_code": r"[0-9A-HJ-NPQRTUWXY]{2}\d{6}[0-9A-HJ-NPQRTUWXY]{10}",  # 统一社会信用代码（18 位，排除身份证）
 }
 
-# 超过该字符数的长文本不再调用本地模型识别（已实测：qwen3.5:4b 这类小模型对长文本
-# 输出不可靠——发散生成到上下文上限或被截断为空，耗时久且无有效结果），仅用规则引擎
-# 可靠识别编码型 + 合同语境姓名类敏感信息，保证秒回与可用。
+# 单次交给本地模型识别的切片大小：长文本按此切片后分片走 AI（小模型对超长上下文
+# 输出不可靠/发散），切片可并发；规则引擎与 AI 双重保障。
 _AI_MAX_CHARS = 800
 
 # 姓名（合同/签字语境，如“甲方（委托方）：林浩然”），限定在法定/委托/签字语境，避免误抓地址等。
@@ -317,37 +316,65 @@ class DesensitizeService:
         model = model or self.ollama.llm_model
         # 1) 规则引擎（毫秒级、可靠）
         reg_items = self._regex_items(text)
-        # 2) AI 补充（失败/空不阻断，规则兜底；长文本跳过——4B 模型对长文本输出不可靠且慢）
+        # 2) AI 补充（规则+AI 双重保障）：长文本切片后并发走本地模型，各片识别合并去重；
+        #    失败/空不阻断，规则结果照常返回。
         ai_items: list[dict] = []
         ai_model = model
-        if len(text) <= _AI_MAX_CHARS:
-            try:
-                messages = [
-                    {"role": "system", "content": self._system_prompt()},
-                    {"role": "user", "content": text},
-                ]
-                res = await self.ollama.chat(messages, model=model, json_mode=True, temperature=0)
-                ai_model = res.get("model", model)
-                data = _parse_json(res.get("content", ""))
-                raw_items = data.get("items") if isinstance(data.get("items"), list) else []
-                for it in raw_items:
-                    if not isinstance(it, dict):
+        chunks = self._chunk_text(text, _AI_MAX_CHARS) if len(text) > _AI_MAX_CHARS else [text]
+        try:
+            results = await asyncio.gather(
+                *[self._ai_chunk(c, model) for c in chunks],
+                return_exceptions=True,
+            )
+            for res in results:
+                if isinstance(res, Exception) or not res:
+                    continue
+                for v, t in res:
+                    found, s, e = self._locate(text, v)
+                    if not found:
                         continue
-                    v = str(it.get("value") or "").strip()
-                    if not v:
-                        continue
-                    t = str(it.get("type") or "").strip()
-                    st = it.get("start")
-                    en = it.get("end")
-                    found, s, e = self._locate(text, v, st, en)
                     ai_items.append({"value": v, "type": t, "typeLabel": type_label(t),
-                                     "start": s, "end": e, "found": found, "source": "ai"})
-            except (OllamaError, RuntimeError):
-                ai_items = []  # AI 不可用 → 仅用规则结果，不整体失败
+                                     "start": s, "end": e, "found": True, "source": "ai"})
+        except Exception:
+            ai_items = []  # AI 不可用 → 仅用规则结果，不整体失败
         # 3) 合并规则与 AI（按区间/值去重，排序）
         items = self._merge_items(reg_items, ai_items, text)
         return {"items": items, "count": len(items), "model": ai_model,
                 "regex": len(reg_items), "ai": len(ai_items)}
+
+    async def _ai_chunk(self, chunk: str, model: str) -> list[tuple[str, str]]:
+        """对单个切片调本地模型识别，返回 [(value, type), ...]；失败抛异常由调用方忽略。"""
+        messages = [
+            {"role": "system", "content": self._system_prompt()},
+            {"role": "user", "content": chunk},
+        ]
+        res = await self.ollama.chat(messages, model=model, json_mode=True, temperature=0)
+        data = _parse_json(res.get("content", ""))
+        raw = data.get("items") if isinstance(data.get("items"), list) else []
+        out = []
+        for it in raw:
+            if isinstance(it, dict):
+                v = str(it.get("value") or "").strip()
+                t = str(it.get("type") or "").strip()
+                if v:
+                    out.append((v, t))
+        return out
+
+    @staticmethod
+    def _chunk_text(text: str, size: int) -> list[str]:
+        """按 size 切块，尽量在换行处断开，避免切断句子/敏感串。"""
+        chunks: list[str] = []
+        n = len(text)
+        start = 0
+        while start < n:
+            end = start + size
+            if end < n:
+                nl = text.rfind("\n", start, end)
+                if nl > start + size * 0.5:
+                    end = nl
+            chunks.append(text[start:end])
+            start = end
+        return chunks
 
     @staticmethod
     def _regex_items(text: str) -> list[dict]:
