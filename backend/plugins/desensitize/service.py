@@ -90,6 +90,45 @@ def _parse_json(text: str) -> dict:
     return {}
 
 
+# ---------- 本机 Tesseract OCR（扫描件 PDF / 图片识别） ----------
+
+# tesseract 可不在 PATH，取常见安装位置兜底；未安装时 OCR 能力降级为不可用（不崩溃）。
+_TESSERACT_CANDIDATES = (
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Tesseract-OCR\tesseract.exe",
+    "/usr/bin/tesseract",
+    "/usr/local/bin/tesseract",
+)
+_OCR_LANG = "chi_sim+eng"  # 简体中文 + 英文
+
+
+def _tesseract_cmd() -> str:
+    """探测 tesseract 可执行路径（PATH 优先，其次常见安装位置）。"""
+    import os
+    import shutil
+
+    exe = shutil.which("tesseract") or ""
+    if not exe:
+        for c in _TESSERACT_CANDIDATES:
+            if os.path.exists(c):
+                exe = c
+                break
+    return exe
+
+
+def _ensure_tesseract() -> bool:
+    """定位并配置 pytesseract 的 tesseract_cmd；返回是否可用。"""
+    cmd = _tesseract_cmd()
+    if not cmd:
+        return False
+    try:
+        import pytesseract
+        pytesseract.pytesseract.tesseract_cmd = cmd
+        return True
+    except Exception:
+        return False
+
+
 class DesensitizeService:
     """脱敏服务：识别 + 替换/涂黑工具端点所需，经 request.app.state.desensitize 取用。"""
 
@@ -272,7 +311,10 @@ class DesensitizeService:
 
     @staticmethod
     def extract_pdf_text(data: bytes) -> dict:
-        """用 pymupdf 提取 PDF 文本（每页文本 + 全文）；不可用时抛 RuntimeError。"""
+        """提取 PDF 文本；若是无文字层的扫描件/图片型 PDF（提取为空），则逐页渲染 OCR。
+
+        返回结构含 scanned 标记：带文字层 scanned=False；扫描件 scanned=True（文本来自 OCR）。
+        """
         try:
             import fitz  # pymupdf
         except ImportError as e:  # pragma: no cover
@@ -285,11 +327,41 @@ class DesensitizeService:
             pages.append(t)
             full.append(t)
         doc.close()
-        return {"pages": pages, "text": "\n".join(full),
-                "pageCount": len(pages), "kind": "pdf"}
+        text = "\n".join(full).strip()
+        if text:
+            return {"pages": pages, "text": "\n".join(full),
+                    "pageCount": len(pages), "kind": "pdf", "scanned": False}
+        # 无文字层 → 扫描件：逐页渲染 OCR
+        return DesensitizeService._ocr_pdf(data)
+
+    @staticmethod
+    def _ocr_pdf(data: bytes) -> dict:
+        """扫描件 PDF：每页渲染成图后 OCR，返回每页文本与全文（scanned=True）。"""
+        import fitz
+        if not _ensure_tesseract():
+            raise RuntimeError("未检测到 Tesseract OCR，无法识别扫描件 PDF（请安装 Tesseract-OCR 并含中文语言包）")
+        import pytesseract
+        from PIL import Image
+        doc = fitz.open(stream=data, filetype="pdf")
+        pages = []
+        full = []
+        for p in doc:
+            pix = p.get_pixmap(matrix=fitz.Matrix(2, 2))
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            try:
+                t = pytesseract.image_to_string(img, lang=_OCR_LANG)
+            except Exception:
+                t = ""
+            pages.append(t)
+            full.append(t)
+        doc.close()
+        return {"pages": pages, "text": "\n".join(full), "pageCount": len(pages),
+                "kind": "pdf", "scanned": True}
 
     def extract_image_text(self, data: bytes) -> dict:
-        """图片 OCR（可选 pytesseract）：返回文本与词级坐标表；OCR 不可用时返回空文本。"""
+        """图片 OCR（pytesseract + 本机 Tesseract）：返回文本与词级坐标表；OCR 不可用返回空。"""
+        if not _ensure_tesseract():
+            return {"text": "", "words": [], "ocr": False, "kind": "image"}
         try:
             import pytesseract
             from PIL import Image
@@ -297,8 +369,9 @@ class DesensitizeService:
             return {"text": "", "words": [], "ocr": False, "kind": "image"}
         try:
             img = Image.open(io.BytesIO(data))
-            txt = pytesseract.image_to_string(img, lang="chi_sim+eng")
-            data_boxes = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
+            data_boxes = pytesseract.image_to_data(img, lang=_OCR_LANG,
+                                                   output_type=pytesseract.Output.DICT)
+            txt = pytesseract.image_to_string(img, lang=_OCR_LANG)
         except Exception:
             return {"text": "", "words": [], "ocr": False, "kind": "image"}
         words = []
@@ -316,11 +389,20 @@ class DesensitizeService:
 
     @staticmethod
     def redact_pdf(data: bytes, values: list[str]) -> bytes:
-        """把 PDF 中每个敏感串出现的位置涂成黑色块，返回新 PDF。"""
+        """把 PDF 中每个敏感串出现的位置涂成黑色块，返回新 PDF。
+
+        带文字层 PDF 按文字定位涂黑；无文字层的扫描件 PDF 走 OCR 词坐标定位，
+        在渲染图上画黑块并重建 PDF（_redact_scanned_pdf）。
+        """
         try:
             import fitz
         except ImportError as e:  # pragma: no cover
             raise RuntimeError("未安装 pymupdf，无法涂黑 PDF（pip install pymupdf）") from e
+        doc = fitz.open(stream=data, filetype="pdf")
+        has_text = any(p.get_text().strip() for p in doc)
+        doc.close()
+        if not has_text:
+            return DesensitizeService._redact_scanned_pdf(data, values)
         doc = fitz.open(stream=data, filetype="pdf")
         for page in doc:
             rects = []
@@ -340,6 +422,84 @@ class DesensitizeService:
         doc.save(buf, garbage=3, deflate=True)
         doc.close()
         return buf.getvalue()
+
+    @staticmethod
+    def _redact_scanned_pdf(data: bytes, values: list[str]) -> bytes:
+        """扫描件 PDF 涂黑：每页渲染成图 → OCR 词坐标 → 对敏感串占用矩形画黑块 → 重建 PDF。"""
+        import fitz
+        if not _ensure_tesseract():
+            raise RuntimeError("未检测到 Tesseract OCR，无法涂黑扫描件 PDF（请安装 Tesseract-OCR 并含中文语言包）")
+        import pytesseract
+        from PIL import Image, ImageDraw
+        doc = fitz.open(stream=data, filetype="pdf")
+        out = fitz.open()
+        matrix = fitz.Matrix(2, 2)
+        for page in doc:
+            pix = page.get_pixmap(matrix=matrix)
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            draw = ImageDraw.Draw(img)
+            try:
+                boxes = pytesseract.image_to_data(img, lang=_OCR_LANG,
+                                                  output_type=pytesseract.Output.DICT)
+            except Exception:
+                boxes = {"text": [], "left": [], "top": [], "width": [], "height": []}
+            words = []
+            n = len(boxes.get("text", []) or [])
+            for i in range(n):
+                w = (boxes.get("text") or [""])[i]
+                if not w or not str(w).strip():
+                    continue
+                words.append([str(w).strip(),
+                              int(boxes["left"][i]), int(boxes["top"][i]),
+                              int(boxes["width"][i]), int(boxes["height"][i])])
+            rects = DesensitizeService._find_value_rects(words, values)
+            for (x0, y0, x1, y1) in rects:
+                draw.rectangle([x0, y0, x1, y1], fill=(0, 0, 0))
+            npage = out.new_page(width=page.rect.width, height=page.rect.height)
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            npage.insert_image(page.rect, stream=buf.getvalue())
+        doc.close()
+        outbuf = io.BytesIO()
+        out.save(outbuf, garbage=3, deflate=True)
+        out.close()
+        return outbuf.getvalue()
+
+    @staticmethod
+    def _find_value_rects(words: list[list], values: list[str]) -> list[tuple]:
+        """在 OCR word 序列（[[text,x,y,w,h],...]）中定位敏感串出现的矩形并集（渲染图像素坐标）。
+
+        对每个 value 在「去空格的 word 拼接文本」里找子串，取覆盖该子串的所有 word 的
+        外接矩形；同 value 多处出现都返回。
+        """
+        rects_out = []
+        if not words:
+            return rects_out
+        texts = [w[0] for w in words]
+        joined = "".join(texts)
+        span = []
+        pos = 0
+        for t in texts:
+            span.append((pos, pos + len(t)))
+            pos += len(t)
+        for value in values:
+            if not value:
+                continue
+            compact = re.sub(r"\s+", "", value)
+            if not compact:
+                continue
+            idx = joined.find(compact)
+            while idx >= 0:
+                endi = idx + len(compact)
+                covers = [i for i, (s, e) in enumerate(span) if s < endi and e > idx]
+                if covers:
+                    xs = [words[i][1] for i in covers]
+                    ys = [words[i][2] for i in covers]
+                    x1s = [words[i][1] + words[i][3] for i in covers]
+                    y1s = [words[i][2] + words[i][4] for i in covers]
+                    rects_out.append((min(xs), min(ys), max(x1s), max(y1s)))
+                idx = joined.find(compact, idx + 1)
+        return rects_out
 
     @staticmethod
     def redact_image(data: bytes, regions: Optional[list[list[int]]] = None,
