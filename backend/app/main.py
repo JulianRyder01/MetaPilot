@@ -1,7 +1,7 @@
 """FastAPI 应用装配。
 
 MetaPilot 核心 = 文档库阅读器：库-文档集-文档-小节 的浏览与 Markdown 阅读、
-Markdown 笔记导入、插件管理。课程/学习/知识库等能力由 backend/plugins/ 下的插件提供。
+Markdown 笔记导入、插件管理。课程/学习/知识库等能力由外部插件仓库（backend-plugins-repo）下的插件提供。
 """
 import os
 from contextlib import asynccontextmanager
@@ -84,7 +84,8 @@ app.include_router(ai_settings.router)
 app.include_router(ai_chat.router)
 app.include_router(ollama.router)
 
-# 插件系统：扫描 backend/plugins/ 物理目录加载全部插件并挂载路由。
+# 插件系统：扫描 PLUGINS_DIR（源码默认工作区平级 backend-plugins-repo，可被 METAPILOT_PLUGINS_DIR 覆盖）
+# 物理目录加载全部插件并挂载路由。
 # 路由始终挂载；被禁用的插件由 requires_plugin 依赖在请求时返回 503 + 启用提示。
 app.state.plugins = load_plugins(DATA_DIR)
 for info in manager.list():

@@ -50,7 +50,7 @@ def plugin_disable(pid: str):
 
 @router.delete("/{pid}")
 def plugin_delete(pid: str):
-    """删除用户自定义插件（物理删除 backend/plugins/{pid} 目录）。"""
+    """删除用户自定义插件（物理删除 PLUGINS_DIR/{pid} 目录）。"""
     try:
         manager.remove(pid)
         return {"ok": True}

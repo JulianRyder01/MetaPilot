@@ -2,7 +2,7 @@
 
 约定（见 docs/04-插件开发规范.md）：
 - 元数据唯一来源是 plugin.json（schema v1，含 specVersion）；字段缺失时回退 Plugin 类默认值；
-- backend/plugins/<plugin_id>/__init__.py 中定义 `plugin = XxxPlugin()` 实例（类只写 id 与 register）；
+- PLUGINS_DIR/<plugin_id>/__init__.py 中定义 `plugin = XxxPlugin()` 实例（类只写 id 与 register）；
 - specVersion 高于加载器支持版本时打印警告但仍尝试加载（宽松向后兼容）。
 """
 from __future__ import annotations
@@ -20,15 +20,22 @@ from ..services.mpf import register_block_requirement
 if TYPE_CHECKING:
     pass
 
-# 插件物理目录：源码在 backend/plugins；桌面打包由 Electron 通过 METAPILOT_PLUGINS_DIR 传入
-# （打包后用户数据目录，可写，支持安装/删除插件），无则回退源码布局。
+# 插件物理目录：第三方插件独立仓库 backend-plugins-repo（源码开发模式默认，与 core 解耦）；
+# 亦兼容旧布局 core/backend/plugins（存在时优先，向后兼容）；桌面打包由 Electron 通过
+# METAPILOT_PLUGINS_DIR 传入（打包后用户数据目录，可写，支持安装/删除插件），无则回退。
 _env_plugins = os.environ.get("METAPILOT_PLUGINS_DIR", "").strip()
 if _env_plugins:
     PLUGINS_DIR = Path(_env_plugins)
 elif getattr(sys, "frozen", False):
     PLUGINS_DIR = Path(os.environ.get("METAPILOT_ROOT") or Path(sys.executable).resolve().parent) / "plugins"
 else:
-    PLUGINS_DIR = Path(__file__).resolve().parents[2] / "plugins"  # backend/plugins
+    # 源码开发模式：①core/backend/plugins（旧布局，存在即用，向后兼容）；
+    # ②工作区平级 backend-plugins-repo（第三方插件独立 git 仓库：Aug26MetaPilot/core 与
+    #   Aug26MetaPilot/backend-plugins-repo 平级摆放时自动探测命中）。
+    _here = Path(__file__).resolve()
+    _legacy = _here.parents[2] / "plugins"                 # core/backend/plugins
+    _repo = _here.parents[4] / "backend-plugins-repo"      # ../backend-plugins-repo
+    PLUGINS_DIR = _legacy if _legacy.exists() else (_repo if _repo.exists() else _legacy)
 
 # 加载器支持的规范版本（docs/04 §0）。高于此版本的插件警告后仍尝试加载（宽松兼容）。
 SUPPORTED_SPEC_VERSION = "1.1"
@@ -87,11 +94,25 @@ def load_plugins(data_dir: str | Path) -> PluginManager:
     if not PLUGINS_DIR.exists():
         return manager
 
-    # 确保 plugins 包可导入：把 PLUGINS_DIR 的父目录加入 sys.path（打包后内置插件在 bundle 内，
-    # 用户新装插件在物理目录，标准 import 机制可命中；重复插入无副作用）。
+    # 确保 plugins 顶层包可导入：
+    # - 旧布局（core/backend/plugins）：把 parent 加入 sys.path 后 import 命中真实 plugins 目录；
+    # - 新布局（独立仓库 backend-plugins-repo，目录名非 plugins）：把 PLUGINS_DIR 挂载为
+    #   `plugins` 顶层包（sys.modules 别名），importlib.import_module("plugins.<id>") 无痕命中，
+    #   插件内部仅用相对导入与 app.* 前缀，不受目录名影响；重复挂载无副作用。
     parent = str(PLUGINS_DIR.parent)
     if parent not in sys.path:
         sys.path.insert(0, parent)
+    if "plugins" not in sys.modules and (PLUGINS_DIR / "__init__.py").exists():
+        import importlib.util as _ilu
+
+        _spec = _ilu.spec_from_file_location(
+            "plugins", str(PLUGINS_DIR / "__init__.py"),
+            submodule_search_locations=[str(PLUGINS_DIR)],
+        )
+        _mod = _ilu.module_from_spec(_spec)
+        sys.modules["plugins"] = _mod
+        if _spec.loader:
+            _spec.loader.exec_module(_mod)
 
     for child in sorted(PLUGINS_DIR.iterdir()):
         if not child.is_dir():

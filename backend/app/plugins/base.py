@@ -1,6 +1,6 @@
 """插件机制：基类、注册表与启用状态管理。
 
-- 插件是 backend/plugins/<plugin_id>/ 下的独立 Python 包（物理目录，含 plugin.json 元数据）。
+- 插件是 PLUGINS_DIR/<plugin_id>/ 下的独立 Python 包（物理目录，含 plugin.json 元数据；
 - 加载器扫描该目录，将每个插件的 `plugin` 实例注册到 PluginManager。
 - 启用/禁用状态持久化在 backend/data/plugins.json，运行时切换无需重启。
 - 插件路由始终挂载，但通过 `requires_plugin` 依赖在禁用时返回 503 + 提示。

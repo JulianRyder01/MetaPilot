@@ -1,6 +1,6 @@
-"""用户插件安装：校验插件包、安全解压到 backend/plugins/<id>/、运行时注册立即生效。
+"""用户插件安装：校验插件包、安全解压到 PLUGINS_DIR/<id>/（外部插件仓库或旧布局）、运行时注册立即生效。
 
-校验规则与独立部署的 plugins-store（plugins-store/store/validation.py）保持一致，
+校验规则与独立部署的 plugins-store-repo（plugins-store/store/validation.py）保持一致，
 见 docs/04-插件开发规范.md §3.2。
 """
 from __future__ import annotations
@@ -71,7 +71,7 @@ def parse_plugin_meta(data: bytes) -> dict:
 
 
 def extract_package(data: bytes, pid: str) -> Path:
-    """安全解压到 backend/plugins/<pid>/：防 zip slip（路径越界）、防覆盖已存在插件。"""
+    """安全解压到 PLUGINS_DIR/<pid>/：防 zip slip（路径越界）、防覆盖已存在插件。"""
     plugins_root = PLUGINS_DIR.resolve()
     target = (plugins_root / pid).resolve()
     if not target.is_relative_to(plugins_root) or target == plugins_root:
